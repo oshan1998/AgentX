@@ -12,6 +12,8 @@ Minimal but scalable single-agent framework in Node.js + TypeScript.
 - Tool/skill executor with pluggable registries
 - File system connector:
   - Tools: `read_file`, `write_file`, `list_directory`
+  - Gmail connector:
+    - Tools: `list_emails`, `read_email`, `search_emails`
 - Hybrid skills:
   - Global config skills via `skills/<skill-name>/skill.json`
   - Connector-owned skills via `connectors/<connector>/skills/<skill-name>/skill.json`

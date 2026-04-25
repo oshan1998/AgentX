@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "1",
+  "name": "search_emails",
+  "description": "Search Gmail emails by query string.",
+  "steps": [
+    {
+      "type": "tool_call",
+      "tool": "search_emails",
+      "input": {
+        "query": "{{input.query}}",
+        "maxResults": "{{input.maxResults}}"
+      },
+      "saveAs": "emails"
+    },
+    {
+      "type": "respond",
+      "messageTemplate": "{{emails}}"
+    }
+  ]
+}

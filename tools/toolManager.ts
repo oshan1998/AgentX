@@ -9,6 +9,7 @@ import { WriteFileTool } from "../connectors/filesystem/tools/write-file.tool.js
 import { AskUserTool } from "./ask-user.tool.js";
 import { SearchMemoryTool } from "./search-memory.tool.js";
 import { MemoryManager } from "../core/memory-manager.js";
+import { SearchEmailsTool } from "../connectors/gmail/tools/search-emails.tool.js";
 
 export class ToolManager {
   private readonly toolRegistry = new ToolRegistry();
@@ -20,11 +21,12 @@ export class ToolManager {
 
   async loadAllTools(): Promise<ToolRegistry> {
     // Register built-in tools
-    this.toolRegistry.register(new ReadFileTool());
-    this.toolRegistry.register(new WriteFileTool());
-    this.toolRegistry.register(new ListDirectoryTool());
-    this.toolRegistry.register(new AskUserTool());
-    this.toolRegistry.register(new SearchMemoryTool(this.memoryManager));
+    // this.toolRegistry.register(new ReadFileTool());
+    // this.toolRegistry.register(new WriteFileTool());
+    // this.toolRegistry.register(new ListDirectoryTool());
+    // this.toolRegistry.register(new AskUserTool());
+    // this.toolRegistry.register(new SearchMemoryTool(this.memoryManager));
+    // this.toolRegistry.register(new SearchEmailsTool());
 
     // Load connector tools (search connectors/*/tools/*.tool.js)
     const connectorsDir = path.join(this.baseDir, "connectors");
@@ -45,7 +47,7 @@ export class ToolManager {
         continue;
       }
       for (const file of toolFiles) {
-        if (file.endsWith(".tool.js")) {
+        if (file.endsWith(".tool.ts")) {
           try {
             const mod = await import(path.join(toolsDir, file));
             // Register all exported Tool classes
