@@ -10,20 +10,20 @@ Minimal but scalable single-agent framework in Node.js + TypeScript.
   - Session memory per JSON file in `memory/sessions/`
   - Long-term memory in `memory/long-term.json`
 - Tool/skill executor with pluggable registries
-- File system connector:
+- File system capability:
   - Tools: `read_file`, `write_file`, `list_directory`
-  - Gmail connector:
+- Gmail integration:
     - Tools: `list_emails`, `read_email`, `search_emails`
-  - Web search connector:
+- Web search integration:
     - Tools: `web_search` (Tavily)
 - Hybrid skills:
-  - Global config skills via `skills/<skill-name>/skill.json`
-  - Connector-owned skills via `connectors/<connector>/skills/<skill-name>/skill.json`
+  - Capability-owned skills via `capabilities/<capability>/skills/<skill-name>/skill.json`
+  - Integration-owned skills via `integrations/<integration>/skills/<skill-name>/skill.json`
   - Prompt layer via sibling `prompt.md`
-  - Optional advanced TS skills for custom logic (not required for current built-ins)
-- Built-in tools:
+  - Optional advanced TS skills for custom logic (not required for current capabilities/integrations)
+- Core capability tools:
   - `ask_user`, `search_memory`
-- Built-in skills:
+- Core capability skills:
   - `remember_fact`, `plan_steps`
 - OpenAI adapter plus mock adapter fallback
 - Interactive CLI (`main.ts`)
@@ -39,15 +39,24 @@ agentix/
 │   ├── memory-manager.ts
 │   ├── mock-llm-adapter.ts
 │   └── prompt-builder.ts
-├── connectors/
+├── capabilities/
+│   ├── core/
+│   │   ├── tools/
+│   │   └── skills/
 │   └── filesystem/
-│       └── tools/
+│       ├── tools/
+│       └── skills/
+├── integrations/
+│   ├── gmail/
+│   │   ├── tools/
+│   │   └── skills/
+│   └── web-search/
+│       ├── tools/
+│       └── skills/
 ├── interfaces/
 ├── memory/
 │   ├── sessions/
 │   └── long-term.json
-├── skills/
-├── tools/
 └── main.ts
 ```
 
@@ -104,10 +113,10 @@ Loop continues until:
 
 ## Hybrid skill layer
 
-`Tools` are code capabilities. `Skills` can be config-first workflows.
+`Tools` are runtime abilities. `Skills` are config-first workflows built on tools.
 
 Example:
 
-- `skills/summarize_document/skill.json`: flow steps (`tool_call`, `llm`, `respond`)
-- `skills/summarize_document/prompt.md`: behavior instructions for the LLM
+- `capabilities/filesystem/skills/summarize_document/skill.json`: flow steps (`tool_call`, `llm`, `respond`)
+- `capabilities/filesystem/skills/summarize_document/prompt.md`: behavior instructions for the LLM
 - `skills/advanced/*.ts`: optional advanced override when config is not enough

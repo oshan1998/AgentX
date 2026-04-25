@@ -5,8 +5,8 @@ import { OpenAIAdapter } from "./core/llm-adapter.js";
 import { MemoryManager } from "./core/memory-manager.js";
 import { MockLlmAdapter } from "./core/mock-llm-adapter.js";
 import fs from "node:fs/promises";
-import { SkillManager } from "./skills/skillManager.js";
-import { ToolManager } from "./tools/toolManager.js";
+import { SkillManager } from "./core/skill-manager.js";
+import { ToolManager } from "./core/tool-manager.js";
 
 async function main() {
   const app = express();

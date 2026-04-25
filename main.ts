@@ -6,8 +6,8 @@ import { AgentLoop } from "./core/agent-loop.js";
 import { OpenAIAdapter } from "./core/llm-adapter.js";
 import { MemoryManager } from "./core/memory-manager.js";
 import { MockLlmAdapter } from "./core/mock-llm-adapter.js";
-import { ToolManager } from "./tools/toolManager.js";
-import { SkillManager } from "./skills/skillManager.js";
+import { ToolManager } from "./core/tool-manager.js";
+import { SkillManager } from "./core/skill-manager.js";
 async function bootstrap(): Promise<void> {
   const sessionId = process.env.AGENTIX_SESSION_ID ?? "default-session";
   const memoryPath = path.join(process.cwd(), "memory");
@@ -16,7 +16,7 @@ async function bootstrap(): Promise<void> {
   await memoryManager.init();
 
   const toolManager = new ToolManager(memoryManager);
-  await toolManager.loadAllTools();
+  const toolRegistry = await toolManager.loadAllTools();
 
   const llm = process.env.OPENAI_API_KEY
     ? new OpenAIAdapter({
@@ -28,7 +28,6 @@ async function bootstrap(): Promise<void> {
   // Use SkillManager to load and register all skills
   const skillManager = new SkillManager(llm);
   const skillRegistry = await skillManager.loadAllSkills();
-  const toolRegistry = await toolManager.loadAllTools();
 
   const agentLoop = new AgentLoop({
     llm,

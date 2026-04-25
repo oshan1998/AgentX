@@ -1,0 +1,63 @@
+import path from "node:path";
+import { ToolRegistry } from "../interfaces/registry.js";
+import type { Tool } from "../interfaces/types.js";
+import { MemoryManager } from "./memory-manager.js";
+
+export class ToolManager {
+  private readonly toolRegistry = new ToolRegistry();
+
+  constructor(
+    private readonly memoryManager: MemoryManager,
+    private readonly baseDir: string = process.cwd(),
+  ) {}
+
+  async loadAllTools(): Promise<ToolRegistry> {
+    const roots = ["capabilities", "integrations"];
+    const { readdir } = await import("node:fs/promises");
+
+    for (const root of roots) {
+      const rootDir = path.join(this.baseDir, root);
+      let entries: string[] = [];
+      try {
+        entries = await readdir(rootDir);
+      } catch {
+        continue;
+      }
+
+      for (const entry of entries) {
+        const toolsDir = path.join(rootDir, entry, "tools");
+        let toolFiles: string[] = [];
+        try {
+          toolFiles = await readdir(toolsDir);
+        } catch {
+          continue;
+        }
+
+        for (const file of toolFiles) {
+          if (file.endsWith(".tool.ts") || file.endsWith(".tool.js")) {
+            try {
+              const mod = await import(path.join(toolsDir, file));
+              for (const exported of Object.values(mod)) {
+                if (
+                  typeof exported === "function" &&
+                  exported.prototype &&
+                  typeof exported.prototype.run === "function"
+                ) {
+                  const maybeTool = new (
+                    exported as new (...args: unknown[]) => Tool
+                  )(this.memoryManager);
+                  if (typeof maybeTool.name === "string") {
+                    this.toolRegistry.register(maybeTool);
+                  }
+                }
+              }
+            } catch {
+              // Ignore broken tool files
+            }
+          }
+        }
+      }
+    }
+    return this.toolRegistry;
+  }
+}

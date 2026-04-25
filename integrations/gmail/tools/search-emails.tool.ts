@@ -1,4 +1,5 @@
 import { google } from "googleapis";
+
 export class SearchEmailsTool {
   name = "search_emails";
   description = "Search Gmail emails by query string.";
