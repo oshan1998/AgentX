@@ -54,6 +54,9 @@ agentix/
 2. Optional: set `OPENAI_API_KEY` in `.env`
 3. Start CLI:
    - `npm run dev`
+4. Start UI:
+   - `npm run ui`
+   - Open http://localhost:3000 in your browser
 
 If API key is missing, Agentix uses a mock LLM adapter so the runtime still works.
 
