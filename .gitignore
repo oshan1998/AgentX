@@ -55,3 +55,4 @@ coverage/
 memory/*
 memory/*.json
 /memory
+memory/long-term.json
