@@ -1,17 +1,12 @@
 import express from "express";
 import path from "node:path";
 import { AgentLoop } from "./core/agent-loop.js";
-import { loadConfigSkills } from "./core/config-skill-runner.js";
 import { OpenAIAdapter } from "./core/llm-adapter.js";
 import { MemoryManager } from "./core/memory-manager.js";
 import { MockLlmAdapter } from "./core/mock-llm-adapter.js";
-import { SkillRegistry, ToolRegistry } from "./interfaces/registry.js";
-import { ListDirectoryTool } from "./connectors/filesystem/tools/list-directory.tool.js";
-import { ReadFileTool } from "./connectors/filesystem/tools/read-file.tool.js";
-import { WriteFileTool } from "./connectors/filesystem/tools/write-file.tool.js";
-import { AskUserTool } from "./tools/ask-user.tool.js";
-import { SearchMemoryTool } from "./tools/search-memory.tool.js";
 import fs from "node:fs/promises";
+import { SkillManager } from "./skills/skillManager.js";
+import { ToolManager } from "./tools/toolManager.js";
 
 async function main() {
   const app = express();
@@ -27,35 +22,25 @@ async function main() {
   const memoryManager = new MemoryManager(memoryPath);
   await memoryManager.init();
 
-  const toolRegistry = new ToolRegistry();
-  toolRegistry.register(new ReadFileTool());
-  toolRegistry.register(new WriteFileTool());
-  toolRegistry.register(new ListDirectoryTool());
-  toolRegistry.register(new AskUserTool());
-  toolRegistry.register(new SearchMemoryTool(memoryManager));
+  const toolManager = new ToolManager(memoryManager);
+  const toolRegistry = await toolManager.loadAllTools();
 
-  const skillRegistry = new SkillRegistry();
   const llm = process.env.OPENAI_API_KEY
     ? new OpenAIAdapter({
         apiKey: process.env.OPENAI_API_KEY,
-        model: process.env.OPENAI_MODEL
+        model: process.env.OPENAI_MODEL,
       })
     : new MockLlmAdapter();
 
-  const globalSkills = await loadConfigSkills(path.join(process.cwd(), "skills"), llm);
-  const filesystemConnectorSkills = await loadConfigSkills(
-    path.join(process.cwd(), "connectors", "filesystem", "skills"),
-    llm
-  );
-  for (const configSkill of [...globalSkills, ...filesystemConnectorSkills]) {
-    skillRegistry.register(configSkill);
-  }
+  // Use SkillManager to load and register all skills
+  const skillManager = new SkillManager(llm);
+  const skillRegistry = await skillManager.loadAllSkills();
 
   const agentLoop = new AgentLoop({
     llm,
     memoryManager,
     toolRegistry,
-    skillRegistry
+    skillRegistry,
   });
 
   // Chat API
@@ -65,7 +50,10 @@ async function main() {
       return res.status(400).json({ error: "Missing message" });
     }
     // Accept sessionId from client, fallback to web-session
-    const sid = typeof sessionId === "string" && sessionId.length > 0 ? sessionId : "web-session";
+    const sid =
+      typeof sessionId === "string" && sessionId.length > 0
+        ? sessionId
+        : "web-session";
     try {
       const response = await agentLoop.handleUserInput(sid, message);
       res.json({ response });
@@ -79,7 +67,9 @@ async function main() {
     try {
       const sessionsDir = path.join(process.cwd(), "memory", "sessions");
       const files = await fs.readdir(sessionsDir);
-      const sessions = files.filter(f => f.endsWith(".json")).map(f => f.replace(/\.json$/, ""));
+      const sessions = files
+        .filter((f) => f.endsWith(".json"))
+        .map((f) => f.replace(/\.json$/, ""));
       res.json({ sessions });
     } catch (e) {
       res.status(500).json({ error: String(e) });
@@ -91,6 +81,10 @@ async function main() {
     const sessionId = req.params.id;
     try {
       const session = await memoryManager.getSession(sessionId);
+      // only user and assistant messages for UI
+      session.messages = session.messages.filter(
+        (m) => m.role === "user" || m.role === "assistant",
+      );
       res.json(session);
     } catch (e) {
       res.status(404).json({ error: "Session not found" });
