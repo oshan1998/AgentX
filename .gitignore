@@ -54,3 +54,4 @@ coverage/
 
 memory/*
 memory/*.json
+/memory
