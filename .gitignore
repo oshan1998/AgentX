@@ -53,3 +53,4 @@ coverage/
 *.local
 
 memory/*
+memory/*.json
