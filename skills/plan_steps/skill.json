@@ -1,0 +1,16 @@
+{
+  "schemaVersion": "1",
+  "name": "plan_steps",
+  "description": "Turn an objective into ordered implementation steps.",
+  "steps": [
+    {
+      "type": "llm",
+      "promptTemplate": "Create a concise step-by-step plan for this objective. Return numbered steps only.\n\nObjective: {{input.objective}}",
+      "saveAs": "plan"
+    },
+    {
+      "type": "respond",
+      "messageTemplate": "{{plan}}"
+    }
+  ]
+}

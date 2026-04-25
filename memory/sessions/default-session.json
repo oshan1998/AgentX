@@ -1,0 +1,27 @@
+{
+  "sessionId": "default-session",
+  "createdAt": "2026-04-24T17:05:28.423Z",
+  "updatedAt": "2026-04-25T05:28:23.854Z",
+  "messages": [
+    {
+      "role": "user",
+      "content": "need to do this task from u, in the test.txt file write 50 words about llm and then summarized it to 20 words and write it in to test_summarize.txt",
+      "createdAt": "2026-04-25T05:27:11.497Z"
+    },
+    {
+      "role": "tool",
+      "content": "Tool write_file result: {\n  \"success\": true,\n  \"path\": \"test.txt\"\n}",
+      "createdAt": "2026-04-25T05:27:46.219Z"
+    },
+    {
+      "role": "tool",
+      "content": "Tool write_file result: {\n  \"success\": true,\n  \"path\": \"test_summarize.txt\"\n}",
+      "createdAt": "2026-04-25T05:28:12.587Z"
+    },
+    {
+      "role": "assistant",
+      "content": "The task is complete. The file test.txt contains 50 words about LLM, and test_summarize.txt contains the 20-word summary.",
+      "createdAt": "2026-04-25T05:28:23.853Z"
+    }
+  ]
+}

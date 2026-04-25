@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "1",
+  "name": "extract_tasks",
+  "description": "Extract explicit action items from a document.",
+  "steps": [
+    {
+      "type": "tool_call",
+      "tool": "read_file",
+      "input": {
+        "path": "{{input.path}}"
+      },
+      "saveAs": "documentContent"
+    },
+    {
+      "type": "llm",
+      "promptTemplate": "Extract actionable tasks from this content. Return one task per line.\n\n{{documentContent}}",
+      "saveAs": "tasks"
+    },
+    {
+      "type": "respond",
+      "messageTemplate": "{{tasks}}"
+    }
+  ]
+}

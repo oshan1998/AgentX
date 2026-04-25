@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "1",
+  "name": "summarize_document",
+  "description": "Summarize a document using read_file + LLM.",
+  "steps": [
+    {
+      "type": "tool_call",
+      "tool": "read_file",
+      "input": {
+        "path": "{{input.path}}"
+      },
+      "saveAs": "documentContent"
+    },
+    {
+      "type": "llm",
+      "promptTemplate": "Summarize this content in 5 bullets:\n\n{{documentContent}}",
+      "saveAs": "summary"
+    },
+    {
+      "type": "respond",
+      "messageTemplate": "{{summary}}"
+    }
+  ]
+}

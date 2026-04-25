@@ -1,0 +1,16 @@
+{
+  "schemaVersion": "1",
+  "name": "remember_fact",
+  "description": "Persist a meaningful long-term memory entry.",
+  "steps": [
+    {
+      "type": "memory_write",
+      "memoryTypeTemplate": "{{input.type}}",
+      "contentTemplate": "{{input.content}}"
+    },
+    {
+      "type": "respond",
+      "messageTemplate": "Saved memory: {{input.type}}"
+    }
+  ]
+}
