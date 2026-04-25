@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "1",
+  "name": "search_web",
+  "description": "Search the web using Tavily and return top matches.",
+  "steps": [
+    {
+      "type": "tool_call",
+      "tool": "web_search",
+      "input": {
+        "query": "{{input.query}}",
+        "maxResults": "{{input.maxResults}}"
+      },
+      "saveAs": "results"
+    },
+    {
+      "type": "respond",
+      "messageTemplate": "{{results}}"
+    }
+  ]
+}

@@ -14,6 +14,8 @@ Minimal but scalable single-agent framework in Node.js + TypeScript.
   - Tools: `read_file`, `write_file`, `list_directory`
   - Gmail connector:
     - Tools: `list_emails`, `read_email`, `search_emails`
+  - Web search connector:
+    - Tools: `web_search` (Tavily)
 - Hybrid skills:
   - Global config skills via `skills/<skill-name>/skill.json`
   - Connector-owned skills via `connectors/<connector>/skills/<skill-name>/skill.json`
@@ -54,6 +56,7 @@ agentix/
 1. Install dependencies:
    - `npm install`
 2. Optional: set `OPENAI_API_KEY` in `.env`
+   - For Tavily web search, also set `TAVILY_API_KEY` in `.env`
 3. Start CLI:
    - `npm run dev`
 4. Start UI:
@@ -61,6 +64,20 @@ agentix/
    - Open http://localhost:3000 in your browser
 
 If API key is missing, Agentix uses a mock LLM adapter so the runtime still works.
+
+### Tavily example
+
+Add this to `.env`:
+
+```env
+TAVILY_API_KEY=your_tavily_api_key_here
+```
+
+Then in the CLI, ask:
+
+```text
+Search the web for the latest TypeScript 5.7 release highlights.
+```
 
 ## Decision format
 

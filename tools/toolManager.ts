@@ -47,7 +47,7 @@ export class ToolManager {
         continue;
       }
       for (const file of toolFiles) {
-        if (file.endsWith(".tool.ts")) {
+        if (file.endsWith(".tool.ts") || file.endsWith(".tool.js")) {
           try {
             const mod = await import(path.join(toolsDir, file));
             // Register all exported Tool classes
