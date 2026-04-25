@@ -1,13 +1,17 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
-import type { LongTermMemoryEntry, Message, SessionMemory } from "../interfaces/types.js";
+import type {
+  LongTermMemoryEntry,
+  Message,
+  SessionMemory,
+} from "../interfaces/types.js";
 
 export class MemoryManager {
   constructor(
     private readonly basePath: string,
     private readonly sessionsDir = "sessions",
-    private readonly longTermFile = "long-term.json"
+    private readonly longTermFile = "long-term.json",
   ) {}
 
   async init(): Promise<void> {
@@ -16,7 +20,11 @@ export class MemoryManager {
     try {
       await readFile(this.getLongTermPath(), "utf-8");
     } catch {
-      await writeFile(this.getLongTermPath(), JSON.stringify([], null, 2), "utf-8");
+      await writeFile(
+        this.getLongTermPath(),
+        JSON.stringify([], null, 2),
+        "utf-8",
+      );
     }
   }
 
@@ -31,14 +39,17 @@ export class MemoryManager {
         sessionId,
         createdAt: now,
         updatedAt: now,
-        messages: []
+        messages: [],
       };
       await this.saveSession(freshSession);
       return freshSession;
     }
   }
 
-  async appendSessionMessage(sessionId: string, message: Message): Promise<void> {
+  async appendSessionMessage(
+    sessionId: string,
+    message: Message,
+  ): Promise<void> {
     const session = await this.getSession(sessionId);
     session.messages.push(message);
     session.updatedAt = new Date().toISOString();
@@ -50,28 +61,49 @@ export class MemoryManager {
     return JSON.parse(raw) as LongTermMemoryEntry[];
   }
 
-  async addLongTermMemory(entry: Omit<LongTermMemoryEntry, "id" | "createdAt">): Promise<LongTermMemoryEntry> {
+  async addLongTermMemory(
+    entry: Omit<LongTermMemoryEntry, "id" | "createdAt">,
+  ): Promise<LongTermMemoryEntry> {
     const allEntries = await this.getLongTermMemory();
     const finalEntry: LongTermMemoryEntry = {
       ...entry,
       id: randomUUID(),
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
     };
     allEntries.push(finalEntry);
-    await writeFile(this.getLongTermPath(), JSON.stringify(allEntries, null, 2), "utf-8");
+    await writeFile(
+      this.getLongTermPath(),
+      JSON.stringify(allEntries, null, 2),
+      "utf-8",
+    );
     return finalEntry;
   }
 
   async searchLongTermMemory(query: string): Promise<LongTermMemoryEntry[]> {
-    const q = query.toLowerCase();
+    const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
+
     const allEntries = await this.getLongTermMemory();
-    return allEntries.filter((item) =>
-      `${item.type} ${item.content}`.toLowerCase().includes(q)
-    );
+
+    return allEntries.filter((item) => {
+      const text = `${item.type} ${item.content}`.toLowerCase();
+
+      // 1. token match (better than includes)
+      const tokenMatch = tokens.some((t) => text.includes(t));
+
+      // 2. regex match (for phrases)
+      const regex = new RegExp(tokens.join("|"), "i");
+      const regexMatch = regex.test(text);
+
+      return tokenMatch || regexMatch;
+    });
   }
 
   private async saveSession(session: SessionMemory): Promise<void> {
-    await writeFile(this.getSessionPath(session.sessionId), JSON.stringify(session, null, 2), "utf-8");
+    await writeFile(
+      this.getSessionPath(session.sessionId),
+      JSON.stringify(session, null, 2),
+      "utf-8",
+    );
   }
 
   private getSessionPath(sessionId: string): string {
