@@ -44,6 +44,7 @@ export interface SkillContext {
   runTool: (name: string, input: Record<string, unknown>) => Promise<unknown>;
   searchMemory: (query: string) => Promise<LongTermMemoryEntry[]>;
   writeMemory: (entry: Omit<LongTermMemoryEntry, "id" | "createdAt">) => Promise<LongTermMemoryEntry>;
+  writeProfile: (target: "soul" | "user", content: Record<string, unknown>) => Promise<unknown>;
 }
 
 export interface Tool {

@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "1",
+  "name": "bootstrap_finalize",
+  "description": "Finalizes the onboarding process by writing both Agent Soul and User profiles, and marking bootstrap as complete.",
+  "steps": [
+    {
+      "type": "profile_write",
+      "target": "soul",
+      "contentTemplate": "{{input.soul}}"
+    },
+    {
+      "type": "profile_write",
+      "target": "user",
+      "contentTemplate": "{{input.user}}"
+    },
+    {
+      "type": "memory_write",
+      "memoryType": "fact",
+      "contentTemplate": "bootstrap_complete"
+    },
+    {
+      "type": "respond",
+      "messageTemplate": "Success! I have initialized our profiles and I am ready to go. What would you like to work on first?"
+    }
+  ]
+}

@@ -80,6 +80,14 @@ export class Executor {
         writeMemory: async (entry) => {
           logger.debug(`Skill ${decision.skill} writing memory`);
           return this.memoryManager.addLongTermMemory(entry);
+        },
+        writeProfile: async (target, content) => {
+          logger.debug(`Skill ${decision.skill} writing profile: ${target}`);
+          if (target === "soul") {
+            return this.profileManager.setSoul(content);
+          } else {
+            return this.profileManager.setUser(content);
+          }
         }
       });
       logger.debug(`Skill execution completed: ${decision.skill}`);

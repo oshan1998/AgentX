@@ -23,6 +23,11 @@ type SkillStep =
   | {
       type: "respond";
       messageTemplate: string;
+    }
+  | {
+      type: "profile_write";
+      target: "soul" | "user";
+      contentTemplate: string;
     };
 
 interface SkillConfig {
@@ -84,6 +89,18 @@ export class ConfigSkill implements Skill {
 
       if (step.type === "respond") {
         return this.interpolate(step.messageTemplate, state);
+      }
+
+      if (step.type === "profile_write") {
+        const contentRaw = this.interpolate(step.contentTemplate, state);
+        let content: Record<string, unknown>;
+        try {
+          content = JSON.parse(contentRaw);
+        } catch (e) {
+          throw new Error(`Failed to parse profile_write content as JSON: ${contentRaw}`);
+        }
+        await context.writeProfile(step.target, content);
+        continue;
       }
     }
 
