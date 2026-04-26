@@ -1,12 +1,14 @@
 import express from "express";
 import path from "node:path";
 import { AgentLoop } from "./core/agent-loop.js";
-import { OpenAIAdapter } from "./core/llm-adapter.js";
-import { MemoryManager } from "./core/memory-manager.js";
-import { MockLlmAdapter } from "./core/mock-llm-adapter.js";
+import { OpenAIAdapter } from "./llm-adapters/llm-adapter.js";
+import { MemoryManager } from "./managers/memory-manager.js";
+import { MockLlmAdapter } from "./llm-adapters/mock-llm-adapter.js";
 import fs from "node:fs/promises";
-import { SkillManager } from "./core/skill-manager.js";
-import { ToolManager } from "./core/tool-manager.js";
+import { SkillManager } from "./managers/skill-manager.js";
+import { SchedulerRunner } from "./services/scheduler-runner.js";
+import { ToolManager } from "./managers/tool-manager.js";
+import { logger } from "./services/logger.js";
 
 async function main() {
   const app = express();
@@ -42,6 +44,8 @@ async function main() {
     toolRegistry,
     skillRegistry,
   });
+  const schedulerRunner = new SchedulerRunner(agentLoop);
+  schedulerRunner.start();
 
   // Chat API
   app.post("/api/chat", async (req, res) => {
@@ -83,7 +87,7 @@ async function main() {
       const session = await memoryManager.getSession(sessionId);
       // only user and assistant messages for UI
       session.messages = session.messages.filter(
-        (m) => m.role === "user" || m.role === "assistant",
+        (m: any) => m.role === "user" || m.role === "assistant",
       );
       res.json(session);
     } catch (e) {
@@ -92,8 +96,8 @@ async function main() {
   });
 
   app.listen(port, () => {
-    // eslint-disable-next-line no-console
-    console.log(`UI server running at http://localhost:${port}`);
+    logger.info(`UI server running at http://localhost:${port}`);
+
   });
 }
 

@@ -25,6 +25,9 @@ export class MockLlmAdapter implements LlmAdapter {
   }
 
   async complete(prompt: string): Promise<string> {
+    if (prompt.length > 50000) {
+      console.warn(`[WARNING] Prompt is very large: ${prompt.length} characters.`);
+    }
     return `Mock completion for prompt: ${prompt.slice(0, 120)}`;
   }
 }

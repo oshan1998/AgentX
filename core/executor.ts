@@ -1,6 +1,7 @@
 import type { SkillRegistry, ToolRegistry } from "../interfaces/registry.js";
 import type { AgentDecision, LongTermMemoryEntry } from "../interfaces/types.js";
-import { MemoryManager } from "./memory-manager.js";
+import { MemoryManager } from "../managers/memory-manager.js";
+import { logger } from "../services/logger.js";
 
 export class Executor {
   constructor(
@@ -26,41 +27,71 @@ export class Executor {
 
   private async executeTool(sessionId: string, decision: AgentDecision): Promise<unknown> {
     if (!decision.tool) {
+      logger.error("Missing tool name in tool_call decision.");
       throw new Error("Missing tool name in tool_call decision.");
     }
     const tool = this.toolRegistry.get(decision.tool);
     if (!tool) {
+      logger.error(`Tool not found: ${decision.tool}`);
       throw new Error(`Tool not found: ${decision.tool}`);
     }
-    return tool.run(decision.input ?? {}, { sessionId });
+    logger.info(`Executing tool: ${decision.tool}`);
+    try {
+      const result = await tool.run(decision.input ?? {}, { sessionId });
+      logger.debug(`Tool execution completed: ${decision.tool}`);
+      return result;
+    } catch (e) {
+      logger.error(`Tool execution failed: ${decision.tool}`, { error: e instanceof Error ? e.message : String(e) });
+      throw e;
+    }
   }
 
   private async executeSkill(sessionId: string, decision: AgentDecision): Promise<unknown> {
     if (!decision.skill) {
+      logger.error("Missing skill name in skill_call decision.");
       throw new Error("Missing skill name in skill_call decision.");
     }
     const skill = this.skillRegistry.get(decision.skill);
     if (!skill) {
+      logger.error(`Skill not found: ${decision.skill}`);
       throw new Error(`Skill not found: ${decision.skill}`);
     }
-    return skill.run(decision.input ?? {}, {
-      sessionId,
-      runTool: async (name, input) => {
-        const tool = this.toolRegistry.get(name);
-        if (!tool) {
-          throw new Error(`Skill requested unknown tool: ${name}`);
+    logger.info(`Executing skill: ${decision.skill}`);
+    try {
+      const result = await skill.run(decision.input ?? {}, {
+        sessionId,
+        runTool: async (name, input) => {
+          logger.debug(`Skill ${decision.skill} requested tool execution: ${name}`);
+          const tool = this.toolRegistry.get(name);
+          if (!tool) {
+            logger.error(`Skill requested unknown tool: ${name}`);
+            throw new Error(`Skill requested unknown tool: ${name}`);
+          }
+          return tool.run(input, { sessionId });
+        },
+        searchMemory: async (query) => {
+          logger.debug(`Skill ${decision.skill} searched memory`);
+          return this.memoryManager.searchLongTermMemory(query);
+        },
+        writeMemory: async (entry) => {
+          logger.debug(`Skill ${decision.skill} writing memory`);
+          return this.memoryManager.addLongTermMemory(entry);
         }
-        return tool.run(input, { sessionId });
-      },
-      searchMemory: async (query) => this.memoryManager.searchLongTermMemory(query),
-      writeMemory: async (entry) => this.memoryManager.addLongTermMemory(entry)
-    });
+      });
+      logger.debug(`Skill execution completed: ${decision.skill}`);
+      return result;
+    } catch (e) {
+      logger.error(`Skill execution failed: ${decision.skill}`, { error: e instanceof Error ? e.message : String(e) });
+      throw e;
+    }
   }
 
   private async executeMemoryWrite(decision: AgentDecision): Promise<LongTermMemoryEntry> {
     if (!decision.memoryEntry) {
+      logger.error("Missing memoryEntry in memory_write decision.");
       throw new Error("Missing memoryEntry in memory_write decision.");
     }
+    logger.info("Executing memory_write decision");
     return this.memoryManager.addLongTermMemory(decision.memoryEntry);
   }
 }

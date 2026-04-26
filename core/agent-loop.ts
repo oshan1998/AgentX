@@ -5,9 +5,9 @@ import type {
   Message,
 } from "../interfaces/types.js";
 import { Executor } from "./executor.js";
-import { MemoryManager } from "./memory-manager.js";
+import { MemoryManager } from "../managers/memory-manager.js";
 import { PromptBuilder } from "./prompt-builder.js";
-
+import { logger } from "../services/logger.js";
 interface AgentLoopDependencies {
   llm: LlmAdapter;
   memoryManager: MemoryManager;
@@ -31,6 +31,7 @@ export class AgentLoop {
   }
 
   async handleUserInput(sessionId: string, userInput: string): Promise<string> {
+    logger.info(`Handling user input for session ${sessionId}`, { userInput });
     await this.deps.memoryManager.appendSessionMessage(
       sessionId,
       this.message("user", userInput),
@@ -57,9 +58,11 @@ export class AgentLoop {
         });
 
         const decision = await this.deps.llm.decide(prompt);
+        logger.debug("Received decision from LLM", { type: decision.type, tool: decision.tool, skill: decision.skill });
 
         if (decision.type === "respond") {
           const finalMessage = decision.message ?? "";
+          logger.info(`Agent responded for session ${sessionId}`, { message: finalMessage });
 
           await this.deps.memoryManager.appendSessionMessage(
             sessionId,
@@ -70,6 +73,7 @@ export class AgentLoop {
         }
 
         const result = await this.executor.executeDecision(sessionId, decision);
+        logger.info(`Executed decision`, { type: decision.type, tool: decision.tool, skill: decision.skill });
 
         lastObservation = this.formatExecutionFeedback(decision, result);
 
@@ -78,6 +82,7 @@ export class AgentLoop {
           this.message("tool", lastObservation),
         );
       } catch (error) {
+        logger.error(`Error in agent loop iteration ${i + 1} for session ${sessionId}`, { error: error instanceof Error ? error.message : String(error) });
         lastObservation =
           error instanceof Error
             ? `Error: ${error.message}`
@@ -91,6 +96,7 @@ export class AgentLoop {
     }
 
     const fallback = "I could not finalize a response within iteration limits.";
+    logger.warn(`Agent failed to respond within max iterations for session ${sessionId}`);
 
     await this.deps.memoryManager.appendSessionMessage(
       sessionId,
@@ -100,17 +106,6 @@ export class AgentLoop {
     return fallback;
   }
 
-  private buildPromptFromSession(
-    session: any,
-    latestUserMessage: string,
-    relevantLongTermMemory: any[] = [],
-  ): string {
-    // Simple session history prompt builder
-    const history = session.messages
-      .map((msg: any) => `${msg.role}: ${msg.content}`)
-      .join("\n");
-    return `history: ${history}\nrelevantLongTermMemory: ${relevantLongTermMemory.join(", ")}\nlatestMessage: ${latestUserMessage}`;
-  }
 
   private formatExecutionFeedback(
     decision: AgentDecision,

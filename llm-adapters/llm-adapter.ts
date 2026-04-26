@@ -23,6 +23,10 @@ export class OpenAIAdapter implements LlmAdapter {
   }
 
   async complete(prompt: string): Promise<string> {
+    if (prompt.length > 5000) {
+      console.warn(`[WARNING] Prompt is very large: ${prompt.length} characters.`);
+    }
+
     const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {

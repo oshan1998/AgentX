@@ -3,11 +3,13 @@ import path from "node:path";
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { AgentLoop } from "./core/agent-loop.js";
-import { OpenAIAdapter } from "./core/llm-adapter.js";
-import { MemoryManager } from "./core/memory-manager.js";
-import { MockLlmAdapter } from "./core/mock-llm-adapter.js";
-import { ToolManager } from "./core/tool-manager.js";
-import { SkillManager } from "./core/skill-manager.js";
+import { OpenAIAdapter } from "./llm-adapters/llm-adapter.js";
+import { MemoryManager } from "./managers/memory-manager.js";
+import { MockLlmAdapter } from "./llm-adapters/mock-llm-adapter.js";
+import { SchedulerRunner } from "./services/scheduler-runner.js";
+import { ToolManager } from "./managers/tool-manager.js";
+import { SkillManager } from "./managers/skill-manager.js";
+import { logger } from "./services/logger.js";
 async function bootstrap(): Promise<void> {
   const sessionId = process.env.AGENTIX_SESSION_ID ?? "default-session";
   const memoryPath = path.join(process.cwd(), "memory");
@@ -35,8 +37,11 @@ async function bootstrap(): Promise<void> {
     toolRegistry,
     skillRegistry,
   });
+  const schedulerRunner = new SchedulerRunner(agentLoop);
+  schedulerRunner.start();
 
   const rl = readline.createInterface({ input, output });
+  logger.info("Agentix CLI started.");
   output.write("Agentix CLI started. Type 'exit' to quit.\n");
 
   while (true) {
@@ -49,10 +54,12 @@ async function bootstrap(): Promise<void> {
   }
 
   rl.close();
+  schedulerRunner.stop();
 }
 
 bootstrap().catch((error: unknown) => {
   const message = error instanceof Error ? error.message : String(error);
+  logger.error(`Fatal error: ${message}`);
   output.write(`Fatal error: ${message}\n`);
   process.exitCode = 1;
 });

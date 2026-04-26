@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "1",
+  "name": "get_current_time",
+  "description": "Get current time for a requested timezone.",
+  "steps": [
+    {
+      "type": "tool_call",
+      "tool": "get_current_time",
+      "input": {
+        "timeZone": "{{input.timeZone}}"
+      },
+      "saveAs": "currentTime"
+    },
+    {
+      "type": "respond",
+      "messageTemplate": "{{currentTime}}"
+    }
+  ]
+}

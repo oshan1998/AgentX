@@ -12,6 +12,9 @@ Minimal but scalable single-agent framework in Node.js + TypeScript.
 - Tool/skill executor with pluggable registries
 - File system capability:
   - Tools: `read_file`, `write_file`, `list_directory`
+- Scheduler capability:
+  - Tools: `upsert_cron_job`, `list_cron_jobs`, `delete_cron_job`
+  - Background runner: evaluates due cron jobs every 30s and executes their `task` via AgentLoop
 - Gmail integration:
     - Tools: `list_emails`, `read_email`, `search_emails`
 - Web search integration:
@@ -22,9 +25,9 @@ Minimal but scalable single-agent framework in Node.js + TypeScript.
   - Prompt layer via sibling `prompt.md`
   - Optional advanced TS skills for custom logic (not required for current capabilities/integrations)
 - Core capability tools:
-  - `ask_user`, `search_memory`
+  - `ask_user`, `search_memory`, `get_current_time`
 - Core capability skills:
-  - `remember_fact`, `plan_steps`
+  - `remember_fact`, `plan_steps`, `get_current_time`
 - OpenAI adapter plus mock adapter fallback
 - Interactive CLI (`main.ts`)
 
@@ -43,7 +46,10 @@ agentix/
 │   ├── core/
 │   │   ├── tools/
 │   │   └── skills/
-│   └── filesystem/
+│   ├── filesystem/
+│       ├── tools/
+│       └── skills/
+│   └── scheduler/
 │       ├── tools/
 │       └── skills/
 ├── integrations/

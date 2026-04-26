@@ -68,6 +68,18 @@
         padding: 8px 16px;
         font-size: 1em;
       }
+      @keyframes blink {
+        0% { opacity: 0.2; }
+        20% { opacity: 1; }
+        100% { opacity: 0.2; }
+      }
+      .typing span {
+        animation: blink 1.4s infinite both;
+        font-size: 1.3em;
+        line-height: 1;
+      }
+      .typing span:nth-child(2) { animation-delay: 0.2s; }
+      .typing span:nth-child(3) { animation-delay: 0.4s; }
     </style>
   </head>
   <body>
@@ -176,7 +188,11 @@
       function addMsg(text, who) {
         const div = document.createElement("div");
         div.className = "msg " + who;
-        div.textContent = text;
+        if (text === "...") {
+          div.innerHTML = '<span class="typing"><span>.</span><span>.</span><span>.</span></span>';
+        } else {
+          div.textContent = text;
+        }
         messagesDiv.appendChild(div);
         messagesDiv.scrollTop = messagesDiv.scrollHeight;
       }

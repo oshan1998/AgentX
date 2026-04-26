@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "1",
+  "name": "schedule_task",
+  "description": "Create or update a scheduled cron task.",
+  "steps": [
+    {
+      "type": "tool_call",
+      "tool": "upsert_cron_job",
+      "input": {
+        "id": "{{input.id}}",
+        "name": "{{input.name}}",
+        "schedule": "{{input.schedule}}",
+        "task": "{{input.task}}",
+        "enabled": "{{input.enabled}}"
+      },
+      "saveAs": "job"
+    },
+    {
+      "type": "respond",
+      "messageTemplate": "Scheduled task saved: {{job}}"
+    }
+  ]
+}
