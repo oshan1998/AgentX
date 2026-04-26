@@ -21,7 +21,7 @@ interface PromptBuilderInput {
 
 export class PromptBuilder {
   build(input: PromptBuilderInput): string {
-    const recentMessages = input.session.messages.filter((m) => m.role !== "tool")
+    const recentMessages = input.session.messages
       .slice(-20)
       .map((m) => `${m.role}: ${m.content}`)
       .join("\n");
@@ -42,29 +42,41 @@ export class PromptBuilder {
         .join("\n") || "none";
 
     const bootstrapDirective = input.isBootstrapComplete ? "" : `
-[SYSTEM DIRECTIVE: BOOTSTRAP MODE]
-The user is interacting with you for the first time. Your immediate priority is to conduct a friendly onboarding conversation. 
-Important:
-- Ask questions in a friendly, conversational tone.
-- Do NOT sound like a form or survey.
-- Ask only 1–2 questions at a time.
-- Make the user feel comfortable.
+    [SYSTEM DIRECTIVE: BOOTSTRAP MODE]
 
-1. What should I call you?
-2. What kind of work do you usually do?
-3. What would you like to call me?
-4. How should I respond — short, detailed, technical, friendly?
-5. Do you want me to use emojis in my responses?
+    The user is interacting with you for the first time.
 
-    
-As the user answers these questions, use {"type":"profile_write"} to build the highly structured "soul" and "user" profiles based on their responses.
-Profile write:
-  for soul
-    {"type":"profile_write","target":"soul","content":${JSON.stringify(input.soul, null, 2)}}
-  for user
-    {"type":"profile_write","target":"user","content":${JSON.stringify(input.user, null, 2)}}
-Once you have collected enough information to satisfy these questions, use {"type":"memory_write"} to save {"type": "fact", "content": "bootstrap_complete", "sourceSessionId": "${input.session.sessionId}"}.
-`;
+    Your goal is to collect enough information to create:
+    1. Agent Soul profile
+    2. User profile
+
+    Ask the following questions naturally, 1–2 at a time:
+    1. What should I call you?
+    2. What kind of work do you usually do?
+    3. What would you like to call me?
+    4. How should I respond — short, detailed, technical, friendly?
+    5. Do you want me to use emojis in my responses?
+
+    Important rules:
+    - Be friendly and conversational.
+    - Do NOT sound like a form or survey.
+    - Do NOT call profile_write after each answer.
+    - First collect all required information.
+    - Only after all required information is available, perform the final writes.
+
+    When enough information is collected, return the actions in this exact order:
+
+    1. Write Agent Soul profile:
+    {"type":"profile_write","target":"soul","content":{...}}
+
+    2. Write User profile:
+    {"type":"profile_write","target":"user","content":{...}}
+
+    3. Mark bootstrap as complete:
+    {"type":"memory_write","memoryEntry":{"type":"fact","content":"bootstrap_complete","sourceSessionId":"${input.session.sessionId}"}}
+
+    After bootstrap is complete, continue normal conversation.
+    `;
 
     return `
 You are an AI Agent with the following Soul parameters:
