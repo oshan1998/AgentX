@@ -1,10 +1,9 @@
 import express from "express";
 import path from "node:path";
 import { AgentLoop } from "./core/agent-loop.js";
-import { OpenAIAdapter } from "./llm-adapters/llm-adapter.js";
+import { createLlmAdapter } from "./llm-adapters/factory.js";
 import { MemoryManager } from "./managers/memory-manager.js";
 import { ProfileManager } from "./managers/profile-manager.js";
-import { MockLlmAdapter } from "./llm-adapters/mock-llm-adapter.js";
 import fs from "node:fs/promises";
 import { SkillManager } from "./managers/skill-manager.js";
 import { SchedulerRunner } from "./services/scheduler-runner.js";
@@ -31,12 +30,7 @@ async function main() {
   const toolManager = new ToolManager(memoryManager);
   const toolRegistry = await toolManager.loadAllTools();
 
-  const llm = process.env.OPENAI_API_KEY
-    ? new OpenAIAdapter({
-        apiKey: process.env.OPENAI_API_KEY,
-        model: process.env.OPENAI_MODEL,
-      })
-    : new MockLlmAdapter();
+  const llm = createLlmAdapter();
 
   // Use SkillManager to load and register all skills
   const skillManager = new SkillManager(llm);

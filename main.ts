@@ -3,10 +3,9 @@ import path from "node:path";
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { AgentLoop } from "./core/agent-loop.js";
-import { OpenAIAdapter } from "./llm-adapters/llm-adapter.js";
+import { createLlmAdapter } from "./llm-adapters/factory.js";
 import { MemoryManager } from "./managers/memory-manager.js";
 import { ProfileManager } from "./managers/profile-manager.js";
-import { MockLlmAdapter } from "./llm-adapters/mock-llm-adapter.js";
 import { SchedulerRunner } from "./services/scheduler-runner.js";
 import { ToolManager } from "./managers/tool-manager.js";
 import { SkillManager } from "./managers/skill-manager.js";
@@ -24,12 +23,7 @@ async function bootstrap(): Promise<void> {
   const toolManager = new ToolManager(memoryManager);
   const toolRegistry = await toolManager.loadAllTools();
 
-  const llm = process.env.OPENAI_API_KEY
-    ? new OpenAIAdapter({
-        apiKey: process.env.OPENAI_API_KEY,
-        model: process.env.OPENAI_MODEL,
-      })
-    : new MockLlmAdapter();
+  const llm = createLlmAdapter();
 
   // Use SkillManager to load and register all skills
   const skillManager = new SkillManager(llm);

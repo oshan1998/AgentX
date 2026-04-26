@@ -21,9 +21,8 @@ interface PromptBuilderInput {
 
 export class PromptBuilder {
   build(input: PromptBuilderInput): string {
-    const recentMessages = input.session.messages
-      .filter((m) => m.role !== "system")
-      .slice(-50)
+    const recentMessages = input.session.messages.filter((m) => m.role !== "tool")
+      .slice(-20)
       .map((m) => `${m.role}: ${m.content}`)
       .join("\n");
 
@@ -101,7 +100,7 @@ Allowed JSON decisions:
     {"type":"profile_write","target":"user","content":${JSON.stringify(input.user, null, 2)}}
 Important JSON rules:
 - The "type" field must be exactly one of: respond, tool_call, skill_call, memory_write, profile_write.
-- Never put a tool name in "type".
+- Never put a tool or skill name directly in the "type" field. (e.g. {"type": "web_search"} is strictly FORBIDDEN. Use {"type": "skill_call", "skill": "web_search"}).
 - For file writing, use:
   {"type":"tool_call","tool":"write_file","input":{"path":"test.txt","content":"..."}}
 - Use "path", not "filename".

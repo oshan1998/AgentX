@@ -1,42 +1,55 @@
-import { appendFile } from "node:fs/promises";
+import winston from "winston";
 import path from "node:path";
 
+const fileFormat = winston.format.combine(
+  winston.format.timestamp({ format: "YYYY-MM-DD HH:mm:ss.SSS" }),
+  winston.format.printf(({ timestamp, level, message, ...meta }) => {
+    const metaString = Object.keys(meta).length ? ` ${JSON.stringify(meta)}` : "";
+    return `[${timestamp}] [${level.toUpperCase()}] ${message}${metaString}`;
+  })
+);
+
+const consoleFormat = winston.format.combine(
+  winston.format.colorize(),
+  winston.format.timestamp({ format: "YYYY-MM-DD HH:mm:ss.SSS" }),
+  winston.format.printf(({ timestamp, level, message, ...meta }) => {
+    const metaString = Object.keys(meta).length ? ` ${JSON.stringify(meta)}` : "";
+    return `[${timestamp}] [${level}] ${message}${metaString}`;
+  })
+);
+
 class LoggerService {
-  private readonly logFilePath: string;
+  private winstonLogger: winston.Logger;
 
   constructor() {
-    this.logFilePath = path.join(process.cwd(), "server.log");
-  }
-
-  private async persist(level: string, message: string, meta?: any): Promise<void> {
-    try {
-      const timestamp = new Date().toISOString();
-      const metaString = meta ? ` ${JSON.stringify(meta)}` : "";
-      const logLine = `[${timestamp}] [${level.toUpperCase()}] ${message}${metaString}\n`;
-      await appendFile(this.logFilePath, logLine, "utf-8");
-    } catch (err) {
-      console.error("Failed to write to server.log", err);
-    }
+    this.winstonLogger = winston.createLogger({
+      level: "debug",
+      transports: [
+        new winston.transports.File({ 
+          filename: path.join(process.cwd(), "server.log"),
+          format: fileFormat,
+        }),
+        new winston.transports.Console({
+          format: consoleFormat,
+        })
+      ]
+    });
   }
 
   info(message: string, meta?: any): void {
-    console.log(`[INFO] ${message}`, meta ? meta : "");
-    void this.persist("info", message, meta);
+    this.winstonLogger.info(message, meta);
   }
 
   error(message: string, meta?: any): void {
-    console.error(`[ERROR] ${message}`, meta ? meta : "");
-    void this.persist("error", message, meta);
+    this.winstonLogger.error(message, meta);
   }
 
   warn(message: string, meta?: any): void {
-    console.warn(`[WARN] ${message}`, meta ? meta : "");
-    void this.persist("warn", message, meta);
+    this.winstonLogger.warn(message, meta);
   }
 
   debug(message: string, meta?: any): void {
-    console.debug(`[DEBUG] ${message}`, meta ? meta : "");
-    void this.persist("debug", message, meta);
+    this.winstonLogger.debug(message, meta);
   }
 }
 
