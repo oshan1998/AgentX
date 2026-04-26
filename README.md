@@ -1,4 +1,4 @@
-# Agentix
+# AgentX
 
 Minimal but scalable single-agent framework in Node.js + TypeScript.
 
@@ -86,6 +86,13 @@ Add this to `.env`:
 
 ```env
 TAVILY_API_KEY=your_tavily_api_key_here
+GMAIL_API_KEY=your_gmail_api_key_here
+GMAIL_CLIENT_ID=your_gmail_client_id_here
+GMAIL_CLIENT_SECRET=your_gmail_client_secret_here
+GMAIL_REFRESH_TOKEN=your_gmail_refresh_token_here
+LLM_PROVIDER=openai or ollama(for local)
+OPENAI_API_KEY=your_openai_api_key_here
+
 ```
 
 Then in the CLI, ask:
