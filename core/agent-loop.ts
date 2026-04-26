@@ -43,6 +43,9 @@ export class AgentLoop {
       try {
         const session = await this.deps.memoryManager.getSession(sessionId);
 
+        const allMemory = await this.deps.memoryManager.getLongTermMemory();
+        const isBootstrapComplete = allMemory.some((m) => m.content === "bootstrap_complete");
+
         const relevantLongTermMemory =
           await this.deps.memoryManager.searchLongTermMemory(userInput);
 
@@ -55,6 +58,7 @@ export class AgentLoop {
           lastObservation,
           iteration: i + 1,
           maxIterations: this.maxIterations,
+          isBootstrapComplete,
         });
 
         const decision = await this.deps.llm.decide(prompt);

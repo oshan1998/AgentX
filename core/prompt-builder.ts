@@ -13,6 +13,7 @@ interface PromptBuilderInput {
   lastObservation?: string;
   iteration: number;
   maxIterations: number;
+  isBootstrapComplete: boolean;
 }
 
 export class PromptBuilder {
@@ -38,9 +39,29 @@ export class PromptBuilder {
         .map((m) => `- ${m.type}: ${m.content}`)
         .join("\n") || "none";
 
+    const bootstrapDirective = input.isBootstrapComplete ? "" : `
+[SYSTEM DIRECTIVE: BOOTSTRAP MODE]
+The user is interacting with you for the first time. Your immediate priority is to conduct a friendly onboarding conversation. 
+Important:
+- Ask questions in a friendly, conversational tone.
+- Do NOT sound like a form or survey.
+- Ask only 1–2 questions at a time.
+- Make the user feel comfortable.
+
+1. What should I call you?
+2. What are your main goals?
+3. What kind of work do you usually do?
+4. What tools do you use?
+5. How should I respond — short, detailed, technical, friendly?
+6. What should I remember for future conversations?
+
+As the user answers these questions, you MUST use the {"type":"memory_write"} action to save their preferences as long-term memory (e.g. type: "user_preference" or "fact"). 
+Once you have collected enough information to satisfy these questions, use {"type":"memory_write"} to save {"type": "fact", "content": "bootstrap_complete", "sourceSessionId": "${input.session.sessionId}"}.
+`;
+
     return `
 You are AgentX, a single-agent runtime.
-
+${bootstrapDirective}
 You must return ONLY valid JSON.
 Do not return markdown.
 Do not explain.
