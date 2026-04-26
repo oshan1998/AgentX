@@ -7,10 +7,13 @@ import type {
 import { Executor } from "./executor.js";
 import { MemoryManager } from "../managers/memory-manager.js";
 import { PromptBuilder } from "./prompt-builder.js";
+import { ProfileManager } from "../managers/profile-manager.js";
 import { logger } from "../services/logger.js";
+
 interface AgentLoopDependencies {
   llm: LlmAdapter;
   memoryManager: MemoryManager;
+  profileManager: ProfileManager;
   toolRegistry: ToolRegistry;
   skillRegistry: SkillRegistry;
   maxIterations?: number;
@@ -24,6 +27,7 @@ export class AgentLoop {
   constructor(private readonly deps: AgentLoopDependencies) {
     this.executor = new Executor(
       deps.memoryManager,
+      deps.profileManager,
       deps.toolRegistry,
       deps.skillRegistry,
     );
@@ -48,11 +52,16 @@ export class AgentLoop {
 
         const relevantLongTermMemory =
           await this.deps.memoryManager.searchLongTermMemory(userInput);
+        
+        const soul = await this.deps.profileManager.getSoul();
+        const user = await this.deps.profileManager.getUser();
 
         const prompt = this.promptBuilder.build({
           latestUserMessage: userInput,
           session,
           relevantLongTermMemory,
+          soul,
+          user,
           toolRegistry: this.deps.toolRegistry,
           skillRegistry: this.deps.skillRegistry,
           lastObservation,
@@ -123,6 +132,9 @@ export class AgentLoop {
     }
     if (decision.type === "memory_write") {
       return `Memory write result: ${this.stringify(result)}`;
+    }
+    if (decision.type === "profile_write") {
+      return `Profile write result: ${this.stringify(result)}`;
     }
     return this.stringify(result);
   }

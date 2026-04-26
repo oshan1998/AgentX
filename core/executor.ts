@@ -1,11 +1,13 @@
 import type { SkillRegistry, ToolRegistry } from "../interfaces/registry.js";
 import type { AgentDecision, LongTermMemoryEntry } from "../interfaces/types.js";
 import { MemoryManager } from "../managers/memory-manager.js";
+import { ProfileManager } from "../managers/profile-manager.js";
 import { logger } from "../services/logger.js";
 
 export class Executor {
   constructor(
     private readonly memoryManager: MemoryManager,
+    private readonly profileManager: ProfileManager,
     private readonly toolRegistry: ToolRegistry,
     private readonly skillRegistry: SkillRegistry
   ) {}
@@ -18,6 +20,8 @@ export class Executor {
         return this.executeSkill(sessionId, decision);
       case "memory_write":
         return this.executeMemoryWrite(decision);
+      case "profile_write":
+        return this.executeProfileWrite(decision);
       case "respond":
         return decision.message ?? "";
       default:
@@ -93,5 +97,22 @@ export class Executor {
     }
     logger.info("Executing memory_write decision");
     return this.memoryManager.addLongTermMemory(decision.memoryEntry);
+  }
+
+  private async executeProfileWrite(decision: AgentDecision): Promise<unknown> {
+    if (!decision.target || !decision.content) {
+      logger.error("Missing target or content in profile_write decision.");
+      throw new Error("Missing target or content in profile_write decision.");
+    }
+    const { target, content } = decision;
+    if (target === "soul") {
+      logger.info("Updating agent soul profile.");
+      return this.profileManager.setSoul(content);
+    } else if (target === "user") {
+      logger.info("Updating user profile.");
+      return this.profileManager.setUser(content);
+    } else {
+      throw new Error(`Invalid target for profile_write: ${String(target)}`);
+    }
   }
 }

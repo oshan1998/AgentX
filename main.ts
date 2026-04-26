@@ -5,6 +5,7 @@ import { stdin as input, stdout as output } from "node:process";
 import { AgentLoop } from "./core/agent-loop.js";
 import { OpenAIAdapter } from "./llm-adapters/llm-adapter.js";
 import { MemoryManager } from "./managers/memory-manager.js";
+import { ProfileManager } from "./managers/profile-manager.js";
 import { MockLlmAdapter } from "./llm-adapters/mock-llm-adapter.js";
 import { SchedulerRunner } from "./services/scheduler-runner.js";
 import { ToolManager } from "./managers/tool-manager.js";
@@ -16,6 +17,9 @@ async function bootstrap(): Promise<void> {
 
   const memoryManager = new MemoryManager(memoryPath);
   await memoryManager.init();
+
+  const profileManager = new ProfileManager(memoryPath);
+  await profileManager.init();
 
   const toolManager = new ToolManager(memoryManager);
   const toolRegistry = await toolManager.loadAllTools();
@@ -34,6 +38,7 @@ async function bootstrap(): Promise<void> {
   const agentLoop = new AgentLoop({
     llm,
     memoryManager,
+    profileManager,
     toolRegistry,
     skillRegistry,
   });

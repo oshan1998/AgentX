@@ -3,6 +3,7 @@ import type {
   LongTermMemoryEntry,
   SessionMemory,
 } from "../interfaces/types.js";
+import type { Soul, User } from "../managers/profile-manager.js";
 
 interface PromptBuilderInput {
   latestUserMessage: string;
@@ -14,13 +15,15 @@ interface PromptBuilderInput {
   iteration: number;
   maxIterations: number;
   isBootstrapComplete: boolean;
+  soul: Soul;
+  user: User;
 }
 
 export class PromptBuilder {
   build(input: PromptBuilderInput): string {
     const recentMessages = input.session.messages
       .filter((m) => m.role !== "system")
-      .slice(-6)
+      .slice(-50)
       .map((m) => `${m.role}: ${m.content}`)
       .join("\n");
 
@@ -49,18 +52,28 @@ Important:
 - Make the user feel comfortable.
 
 1. What should I call you?
-2. What are your main goals?
-3. What kind of work do you usually do?
-4. What tools do you use?
-5. How should I respond — short, detailed, technical, friendly?
-6. What should I remember for future conversations?
+2. What kind of work do you usually do?
+3. What would you like to call me?
+4. How should I respond — short, detailed, technical, friendly?
+5. Do you want me to use emojis in my responses?
 
-As the user answers these questions, you MUST use the {"type":"memory_write"} action to save their preferences as long-term memory (e.g. type: "user_preference" or "fact"). 
+    
+As the user answers these questions, use {"type":"profile_write"} to build the highly structured "soul" and "user" profiles based on their responses.
+Profile write:
+  for soul
+    {"type":"profile_write","target":"soul","content":${JSON.stringify(input.soul, null, 2)}}
+  for user
+    {"type":"profile_write","target":"user","content":${JSON.stringify(input.user, null, 2)}}
 Once you have collected enough information to satisfy these questions, use {"type":"memory_write"} to save {"type": "fact", "content": "bootstrap_complete", "sourceSessionId": "${input.session.sessionId}"}.
 `;
 
     return `
-You are AgentX, a single-agent runtime.
+You are an AI Agent with the following Soul parameters:
+${JSON.stringify(input.soul, null, 2)}
+
+You are interacting with a User whose profile is:
+${JSON.stringify(input.user, null, 2)}
+
 ${bootstrapDirective}
 You must return ONLY valid JSON.
 Do not return markdown.
@@ -81,13 +94,19 @@ Allowed JSON decisions:
 4. Memory write:
 {"type":"memory_write","memoryEntry":{"type":"user_preference|behavior_rule|fact","content":"...","sourceSessionId":"${input.session.sessionId}"}}
 
+5. Profile write:
+  for soul
+    {"type":"profile_write","target":"soul","content":${JSON.stringify(input.soul, null, 2)}}
+  for user
+    {"type":"profile_write","target":"user","content":${JSON.stringify(input.user, null, 2)}}
 Important JSON rules:
-- The "type" field must be exactly one of: respond, tool_call, skill_call, memory_write.
+- The "type" field must be exactly one of: respond, tool_call, skill_call, memory_write, profile_write.
 - Never put a tool name in "type".
 - For file writing, use:
   {"type":"tool_call","tool":"write_file","input":{"path":"test.txt","content":"..."}}
 - Use "path", not "filename".
 - Choose only ONE next action.
+- When saving to profile_write, provide the FULL structured {"content": {...}} object that matches the target schema.
 
 Decision rules:
 - Use tool_call for direct external actions.

@@ -3,6 +3,7 @@ import path from "node:path";
 import { AgentLoop } from "./core/agent-loop.js";
 import { OpenAIAdapter } from "./llm-adapters/llm-adapter.js";
 import { MemoryManager } from "./managers/memory-manager.js";
+import { ProfileManager } from "./managers/profile-manager.js";
 import { MockLlmAdapter } from "./llm-adapters/mock-llm-adapter.js";
 import fs from "node:fs/promises";
 import { SkillManager } from "./managers/skill-manager.js";
@@ -24,6 +25,9 @@ async function main() {
   const memoryManager = new MemoryManager(memoryPath);
   await memoryManager.init();
 
+  const profileManager = new ProfileManager(memoryPath);
+  await profileManager.init();
+
   const toolManager = new ToolManager(memoryManager);
   const toolRegistry = await toolManager.loadAllTools();
 
@@ -41,6 +45,7 @@ async function main() {
   const agentLoop = new AgentLoop({
     llm,
     memoryManager,
+    profileManager,
     toolRegistry,
     skillRegistry,
   });

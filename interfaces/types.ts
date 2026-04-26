@@ -1,4 +1,4 @@
-export type DecisionType = "respond" | "tool_call" | "skill_call" | "memory_write";
+export type DecisionType = "respond" | "tool_call" | "skill_call" | "memory_write" | "profile_write";
 
 export interface AgentDecision {
   type: DecisionType;
@@ -7,6 +7,8 @@ export interface AgentDecision {
   skill?: string;
   input?: Record<string, unknown>;
   memoryEntry?: Omit<LongTermMemoryEntry, "id" | "createdAt">;
+  target?: "soul" | "user";
+  content?: Record<string, unknown>;
 }
 
 export interface Message {
