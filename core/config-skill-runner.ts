@@ -66,8 +66,8 @@ export class ConfigSkill implements Skill {
       }
 
       if (step.type === "llm") {
-        const prompt = this.buildPrompt(step.promptTemplate, state);
-        const output = await this.llm.complete(prompt);
+        const prompt = this.interpolate(step.promptTemplate, state);
+        const output = await this.llm.complete(prompt, this.promptMarkdown);
         if (step.saveAs) {
           state[step.saveAs] = output;
         } else {
@@ -107,16 +107,6 @@ export class ConfigSkill implements Skill {
     return state.lastResult ?? "Skill completed.";
   }
 
-  private buildPrompt(promptTemplate: string, state: Record<string, unknown>): string {
-    const renderedPrompt = this.interpolate(promptTemplate, state);
-    return [
-      "Skill Instructions:",
-      this.promptMarkdown,
-      "",
-      "Task Input:",
-      renderedPrompt
-    ].join("\n");
-  }
 
   private resolveRecordTemplate(
     value: Record<string, unknown>,

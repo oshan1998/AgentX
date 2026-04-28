@@ -56,7 +56,7 @@ export class AgentLoop {
         const soul = await this.deps.profileManager.getSoul();
         const user = await this.deps.profileManager.getUser();
 
-        const prompt = this.promptBuilder.build({
+        const { systemPrompt, userPrompt } = this.promptBuilder.build({
           latestUserMessage: userInput,
           session,
           relevantLongTermMemory,
@@ -70,7 +70,7 @@ export class AgentLoop {
           isBootstrapComplete,
         });
 
-        const decision = await this.deps.llm.decide(prompt);
+        const decision = await this.deps.llm.decide(userPrompt, systemPrompt);
         logger.debug("Received decision from LLM", { type: decision.type, tool: decision.tool, skill: decision.skill });
 
         if (decision.type === "respond") {
