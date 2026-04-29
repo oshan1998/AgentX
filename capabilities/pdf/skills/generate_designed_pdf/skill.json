@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "1",
+  "name": "generate_designed_pdf",
+  "description": "Generate a beautiful, custom-designed PDF using HTML and CSS.",
+  "steps": [
+    {
+      "type": "tool_call",
+      "tool": "generate_designed_pdf",
+      "input": {
+        "outputPath": "{{input.outputPath}}",
+        "html": "{{input.html}}",
+        "format": "{{input.format}}",
+        "landscape": "{{input.landscape}}"
+      },
+      "saveAs": "result"
+    },
+    {
+      "type": "respond",
+      "messageTemplate": "I have successfully generated your custom-designed PDF at {{result.outputPath}}. The layout was rendered using HTML/CSS for maximum design flexibility."
+    }
+  ]
+}
