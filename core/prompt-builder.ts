@@ -175,7 +175,9 @@ Important JSON rules:
 - Example correct:
   {"type":"tool_call","tool":"web_search","input":{}}
 - For file writing, use:
-  {"type":"tool_call","tool":"write_file","input":{"path":"test.txt","content":"..."}}
+  {"type":"tool_call","tool":"write_file","input":{"path":"workspace/test.txt","content":"..."}}
+- IMPORTANT: All files created or updated (PDFs, text files, etc.) MUST be stored within the 'workspace/' directory.
+  For example: "workspace/invoice.pdf", "workspace/notes.txt".
 - Use "path", not "filename".
 - Choose only ONE next action.
 - When saving to profile_write, provide the FULL structured content object that matches the target schema.

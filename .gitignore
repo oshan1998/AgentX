@@ -56,3 +56,6 @@ memory/*
 memory/*.json
 /memory
 memory/long-term.json
+
+# Agent Workspace
+/workspace/
