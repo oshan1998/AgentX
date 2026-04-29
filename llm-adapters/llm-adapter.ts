@@ -12,8 +12,8 @@ export class OpenAIAdapter implements LlmAdapter {
     this.model = options.model ?? "gpt-4.1-mini";
   }
 
-  async decide(prompt: string): Promise<AgentDecision> {
-    const raw = await this.complete(prompt);
+  async decide(prompt: string, systemPrompt?: string): Promise<AgentDecision> {
+    const raw = await this.complete(prompt, systemPrompt);
     try {
       return JSON.parse(raw) as AgentDecision;
     } catch {
@@ -22,10 +22,22 @@ export class OpenAIAdapter implements LlmAdapter {
     }
   }
 
-  async complete(prompt: string): Promise<string> {
+  async complete(prompt: string, systemPrompt?: string): Promise<string> {
     if (prompt.length > 5000) {
       console.warn(`[WARNING] Prompt is very large: ${prompt.length} characters.`);
     }
+
+    const messages = [];
+    if (systemPrompt) {
+      messages.push({
+        role: "system",
+        content: [{ type: "input_text", text: systemPrompt }]
+      });
+    }
+    messages.push({
+      role: "user",
+      content: [{ type: "input_text", text: prompt }]
+    });
 
     const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
@@ -35,12 +47,7 @@ export class OpenAIAdapter implements LlmAdapter {
       },
       body: JSON.stringify({
         model: this.model,
-        input: [
-          {
-            role: "user",
-            content: [{ type: "input_text", text: prompt }]
-          }
-        ],
+        input: messages,
         temperature: 0
       })
     });
