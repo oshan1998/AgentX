@@ -60,6 +60,6 @@ export interface Skill {
 }
 
 export interface LlmAdapter {
-  decide(prompt: string): Promise<AgentDecision>;
-  complete(prompt: string): Promise<string>;
+  decide(prompt: string, systemPrompt?: string): Promise<AgentDecision>;
+  complete(prompt: string, systemPrompt?: string): Promise<string>;
 }
