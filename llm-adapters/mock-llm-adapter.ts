@@ -1,7 +1,7 @@
 import type { AgentDecision, LlmAdapter } from "../interfaces/types.js";
 
 export class MockLlmAdapter implements LlmAdapter {
-  async decide(prompt: string): Promise<AgentDecision> {
+  async decide(prompt: string, _systemPrompt?: string): Promise<AgentDecision> {
     const lower = prompt.toLowerCase();
     if (lower.includes("list files") || lower.includes("list directory")) {
       return {
@@ -24,7 +24,7 @@ export class MockLlmAdapter implements LlmAdapter {
     };
   }
 
-  async complete(prompt: string): Promise<string> {
+  async complete(prompt: string, _systemPrompt?: string): Promise<string> {
     if (prompt.length > 50000) {
       console.warn(`[WARNING] Prompt is very large: ${prompt.length} characters.`);
     }
