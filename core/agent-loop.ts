@@ -31,7 +31,7 @@ export class AgentLoop {
       deps.toolRegistry,
       deps.skillRegistry,
     );
-    this.maxIterations = deps.maxIterations ?? 8;
+    this.maxIterations = deps.maxIterations ?? 50;
   }
 
   async handleUserInput(sessionId: string, userInput: string): Promise<string> {
@@ -71,6 +71,7 @@ export class AgentLoop {
         });
 
         const decision = await this.deps.llm.decide(userPrompt, systemPrompt);
+        logger.info(`Agent Thought: ${decision.thought}`);
         logger.debug("Received decision from LLM", { type: decision.type, tool: decision.tool, skill: decision.skill });
 
         if (decision.type === "respond") {

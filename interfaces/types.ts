@@ -1,6 +1,7 @@
 export type DecisionType = "respond" | "tool_call" | "skill_call" | "memory_write" | "profile_write";
 
 export interface AgentDecision {
+  thought: string;
   type: DecisionType;
   message?: string;
   tool?: string;
