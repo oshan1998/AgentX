@@ -57,5 +57,11 @@ memory/*.json
 /memory
 memory/long-term.json
 
+# Integration Secrets (OAuth tokens, credentials)
+/secrets/
+
 # Agent Workspace
 /workspace/
+
+# Frontend (Separate Repository)
+AgentX-Frontend/

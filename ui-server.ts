@@ -4,11 +4,21 @@ import { AgentLoop } from "./core/agent-loop.js";
 import { createLlmAdapter } from "./llm-adapters/factory.js";
 import { MemoryManager } from "./managers/memory-manager.js";
 import { ProfileManager } from "./managers/profile-manager.js";
-import fs from "node:fs/promises";
+import { SecretsManager } from "./managers/secrets-manager.js";
 import { SkillManager } from "./managers/skill-manager.js";
 import { SchedulerRunner } from "./services/scheduler-runner.js";
 import { ToolManager } from "./managers/tool-manager.js";
 import { logger } from "./services/logger.js";
+
+// Services
+import { ChatService } from "./controllers/chat/chat.service.js";
+import { SessionService } from "./controllers/session/session.service.js";
+import { IntegrationService } from "./controllers/integration/integration.service.js";
+
+// Controllers
+import { ChatController } from "./controllers/chat/chat.controller.js";
+import { SessionController } from "./controllers/session/session.controller.js";
+import { IntegrationController } from "./controllers/integration/integration.controller.js";
 
 async function main() {
   const app = express();
@@ -18,8 +28,7 @@ async function main() {
   // Serve static UI
   app.use(express.static(path.join(process.cwd(), "ui")));
 
-  // Agent setup
-  const sessionId = "web-session";
+  // ── Core dependencies ──────────────────────────────────
   const memoryPath = path.join(process.cwd(), "memory");
   const memoryManager = new MemoryManager(memoryPath);
   await memoryManager.init();
@@ -32,7 +41,6 @@ async function main() {
 
   const llm = createLlmAdapter();
 
-  // Use SkillManager to load and register all skills
   const skillManager = new SkillManager(llm);
   const skillRegistry = await skillManager.loadAllSkills();
 
@@ -43,60 +51,40 @@ async function main() {
     toolRegistry,
     skillRegistry,
   });
+
   const schedulerRunner = new SchedulerRunner(agentLoop);
   schedulerRunner.start();
 
-  // Chat API
-  app.post("/api/chat", async (req, res) => {
-    const { message, sessionId } = req.body;
-    if (!message || typeof message !== "string") {
-      return res.status(400).json({ error: "Missing message" });
-    }
-    // Accept sessionId from client, fallback to web-session
-    const sid =
-      typeof sessionId === "string" && sessionId.length > 0
-        ? sessionId
-        : "web-session";
-    try {
-      const response = await agentLoop.handleUserInput(sid, message);
-      res.json({ response });
-    } catch (e) {
-      res.status(500).json({ error: String(e) });
-    }
-  });
+  const secretsManager = new SecretsManager();
+  await secretsManager.init();
 
-  // List sessions API
-  app.get("/api/sessions", async (_req, res) => {
-    try {
-      const sessionsDir = path.join(process.cwd(), "memory", "sessions");
-      const files = await fs.readdir(sessionsDir);
-      const sessions = files
-        .filter((f) => f.endsWith(".json"))
-        .map((f) => f.replace(/\.json$/, ""));
-      res.json({ sessions });
-    } catch (e) {
-      res.status(500).json({ error: String(e) });
-    }
-  });
+  // ── Service layer ──────────────────────────────────────
+  const chatService = new ChatService(agentLoop, memoryManager, llm);
+  const sessionService = new SessionService(memoryManager);
+  const integrationService = new IntegrationService(secretsManager);
 
-  // Get session history API
-  app.get("/api/session/:id", async (req, res) => {
-    const sessionId = req.params.id;
-    try {
-      const session = await memoryManager.getSession(sessionId);
-      // only user and assistant messages for UI
-      session.messages = session.messages.filter(
-        (m: any) => m.role === "user" || m.role === "assistant",
-      );
-      res.json(session);
-    } catch (e) {
-      res.status(404).json({ error: "Session not found" });
-    }
-  });
+  // ── Controller layer ───────────────────────────────────
+  const chatController = new ChatController(chatService);
+  const sessionController = new SessionController(sessionService);
+  const integrationController = new IntegrationController(integrationService);
+
+  // ── Routes ─────────────────────────────────────────────
+  // Chat
+  app.post("/api/chat", chatController.handleChat);
+
+  // Sessions
+  app.get("/api/sessions", sessionController.listSessions);
+  app.post("/api/sessions", sessionController.createSession);
+  app.get("/api/session/:id", sessionController.getSessionHistory);
+
+  // Integrations — Gmail
+  app.get("/api/auth/gmail", integrationController.getGmailAuthUrl);
+  app.get("/api/auth/gmail/callback", integrationController.handleGmailCallback);
+  app.get("/api/auth/gmail/status", integrationController.getGmailStatus);
+  app.delete("/api/auth/gmail", integrationController.disconnectGmail);
 
   app.listen(port, () => {
     logger.info(`UI server running at http://localhost:${port}`);
-
   });
 }
 

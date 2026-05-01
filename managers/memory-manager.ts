@@ -56,6 +56,16 @@ export class MemoryManager {
     await this.saveSession(session);
   }
 
+  async updateSessionTitle(
+    sessionId: string,
+    title: string,
+  ): Promise<void> {
+    const session = await this.getSession(sessionId);
+    session.title = title;
+    session.updatedAt = new Date().toISOString();
+    await this.saveSession(session);
+  }
+
   async getLongTermMemory(): Promise<LongTermMemoryEntry[]> {
     const raw = await readFile(this.getLongTermPath(), "utf-8");
     return JSON.parse(raw) as LongTermMemoryEntry[];

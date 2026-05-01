@@ -21,6 +21,7 @@ export interface Message {
 
 export interface SessionMemory {
   sessionId: string;
+  title?: string;
   createdAt: string;
   updatedAt: string;
   messages: Message[];
