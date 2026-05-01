@@ -1,13 +1,17 @@
 {
   "schemaVersion": "1",
   "name": "generate_designed_pdf",
-  "description": "Generate a beautiful, custom-designed PDF using HTML and CSS.",
+  "description": "Lay out supplied content into a beautiful PDF using HTML/CSS. The caller provides the text/data; this skill designs and renders it.",
   "inputSchema": {
     "type": "object",
     "properties": {
-      "userRequest": {
+      "content": {
         "type": "string",
-        "description": "What the PDF should contain and how it should look."
+        "description": "Exact material to include in the PDF (body copy, lists, tables as text, etc.). The skill must not invent or replace facts; only structure and style it."
+      },
+      "designBrief": {
+        "type": "string",
+        "description": "Optional: visual direction (e.g. minimalist, brand colors, resume vs report). Does not supply new factual content."
       },
       "outputPath": {
         "type": "string",
@@ -22,14 +26,15 @@
         "description": "Optional page orientation."
       }
     },
-    "required": ["userRequest", "outputPath"]
+    "required": ["content", "outputPath"]
   },
   "steps": [
     {
-  "type": "llm",
-  "promptTemplate": "User request:\n{{input.userRequest}}",
-  "saveAs": "design"
-},
+      "type": "llm",
+      "parseOutputAsJson": true,
+      "promptTemplate": "Content to render in the PDF (preserve meaning; structure for readability; escape properly for HTML):\n\n{{input.content}}\n\nDesign and layout preferences (optional):\n\n{{input.designBrief}}",
+      "saveAs": "design"
+    },
     {
       "type": "tool_call",
       "tool": "generate_designed_pdf",

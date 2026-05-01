@@ -19,6 +19,8 @@ type SkillStep =
       type: "llm";
       promptTemplate: string;
       saveAs?: string;
+      /** When true, parse the model reply as JSON (with loose extraction if wrapped in prose). Enables {{saveAs.field}} templates. */
+      parseOutputAsJson?: boolean;
     }
   | {
       type: "memory_write";
@@ -76,7 +78,14 @@ export class ConfigSkill implements Skill {
 
       if (step.type === "llm") {
         const prompt = this.interpolate(step.promptTemplate, state);
-        const output = await this.llm.complete(prompt, this.promptMarkdown);
+        const raw = await this.llm.complete(prompt, this.promptMarkdown);
+        let output: unknown = raw;
+        if (step.parseOutputAsJson) {
+          output = this.parseLooseJson(raw, "llm step output");
+          if (!output || typeof output !== "object" || Array.isArray(output)) {
+            throw new Error("llm step with parseOutputAsJson expected a JSON object.");
+          }
+        }
         if (step.saveAs) {
           state[step.saveAs] = output;
         } else {
@@ -130,6 +139,25 @@ export class ConfigSkill implements Skill {
       }
     }
     return output;
+  }
+
+  private parseLooseJson(raw: string, contextLabel: string): unknown {
+    const trimmed = raw.trim();
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      const first = trimmed.indexOf("{");
+      const last = trimmed.lastIndexOf("}");
+      if (first === -1 || last === -1 || last <= first) {
+        throw new Error(`${contextLabel} was not valid JSON: ${trimmed.slice(0, 200)}`);
+      }
+      try {
+        return JSON.parse(trimmed.slice(first, last + 1));
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        throw new Error(`${contextLabel} JSON parse failed: ${msg}`);
+      }
+    }
   }
 
   private interpolate(template: string, state: Record<string, unknown>): string {
