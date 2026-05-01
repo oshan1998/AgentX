@@ -2,6 +2,16 @@
   "schemaVersion": "1",
   "name": "extract_tasks",
   "description": "Extract explicit action items from a document.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "description": "Source document path."
+      }
+    },
+    "required": ["path"]
+  },
   "steps": [
     {
       "type": "tool_call",

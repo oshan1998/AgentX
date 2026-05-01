@@ -1,11 +1,22 @@
 import { readFile } from "node:fs/promises";
 import pdf from "pdf-parse";
 import type { Tool, ToolContext } from "../../../common/interfaces/types.js";
-import { logger } from "../../../services/logger.js";
+import { logger } from "../../../common/services/logger.js";
+
 
 export class ReadPdfTool implements Tool {
   name = "read_pdf";
   description = "Extract text content from a PDF file.";
+  inputSchema = {
+    type: "object",
+    properties: {
+      path: {
+        type: "string",
+        description: "Path to PDF under workspace/",
+      },
+    },
+    required: ["path"],
+  } as const;
 
   async run(input: Record<string, unknown>, _context: ToolContext): Promise<unknown> {
     const { path } = input;

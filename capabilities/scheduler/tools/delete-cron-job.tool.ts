@@ -5,6 +5,16 @@ import { readCronJobs, writeCronJobs } from "../scheduler-utils.js";
 export class DeleteCronJobTool implements Tool {
   name = "delete_cron_job";
   description = "Delete a cron job definition by id.";
+  inputSchema = {
+    type: "object",
+    properties: {
+      id: {
+        type: "string",
+        description: "Cron job id to remove.",
+      },
+    },
+    required: ["id"],
+  } as const;
 
   async run(input: Record<string, unknown>, _context: ToolContext): Promise<unknown> {
     const id = input.id;

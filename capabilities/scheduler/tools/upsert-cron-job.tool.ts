@@ -16,6 +16,26 @@ function generateCronJobId(): string {
 export class UpsertCronJobTool implements Tool {
   name = "upsert_cron_job";
   description = "Create or update a cron job definition.";
+  inputSchema = {
+    type: "object",
+    properties: {
+      name: { type: "string", description: "Human-readable job label." },
+      schedule: {
+        type: "string",
+        description: "Five cron fields (minute hour dom month dow).",
+      },
+      task: { type: "string", description: "Instruction or payload to run when triggered." },
+      id: {
+        type: "string",
+        description: "Existing job id for update; omit to create.",
+      },
+      enabled: {
+        type: "boolean",
+        description: "Whether the job runs; defaults true.",
+      },
+    },
+    required: ["name", "schedule", "task"],
+  } as const;
 
   async run(input: Record<string, unknown>, _context: ToolContext): Promise<unknown> {
     const name = input.name;

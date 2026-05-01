@@ -1,6 +1,12 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import type { LlmAdapter, LongTermMemoryType, Skill, SkillContext } from "../common/interfaces/types.js";
+import type {
+  JsonInputSchema,
+  LlmAdapter,
+  LongTermMemoryType,
+  Skill,
+  SkillContext,
+} from "../common/interfaces/types.js";
 
 type SkillStep =
   | {
@@ -35,11 +41,13 @@ interface SkillConfig {
   name: string;
   description: string;
   steps: SkillStep[];
+  inputSchema?: JsonInputSchema;
 }
 
 export class ConfigSkill implements Skill {
   name: string;
   description: string;
+  readonly inputSchema?: JsonInputSchema;
 
   constructor(
     private readonly config: SkillConfig,
@@ -48,6 +56,7 @@ export class ConfigSkill implements Skill {
   ) {
     this.name = config.name;
     this.description = config.description;
+    this.inputSchema = config.inputSchema;
   }
 
   async run(input: Record<string, unknown>, context: SkillContext): Promise<unknown> {
@@ -213,6 +222,11 @@ function parseSkillConfig(value: unknown, sourceName: string): SkillConfig {
   }
   if (!Array.isArray(obj.steps)) {
     throw new Error(`Invalid skill config in ${sourceName}: steps must be an array.`);
+  }
+  if ("inputSchema" in obj && obj.inputSchema !== undefined && obj.inputSchema !== null) {
+    if (typeof obj.inputSchema !== "object" || Array.isArray(obj.inputSchema)) {
+      throw new Error(`Invalid skill config in ${sourceName}: inputSchema must be a plain object when present.`);
+    }
   }
   return obj as unknown as SkillConfig;
 }

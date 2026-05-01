@@ -2,6 +2,20 @@
   "schemaVersion": "1",
   "name": "search_emails",
   "description": "Search Gmail emails by query string.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "query": {
+        "type": "string",
+        "description": "Gmail search query."
+      },
+      "maxResults": {
+        "type": "number",
+        "description": "Optional cap; default 5."
+      }
+    },
+    "required": ["query"]
+  },
   "steps": [
     {
       "type": "tool_call",

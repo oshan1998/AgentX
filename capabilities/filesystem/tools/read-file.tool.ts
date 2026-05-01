@@ -4,6 +4,16 @@ import type { Tool, ToolContext } from "../../../common/interfaces/types.js";
 export class ReadFileTool implements Tool {
   name = "read_file";
   description = "Read text content from a file path.";
+  inputSchema = {
+    type: "object",
+    properties: {
+      path: {
+        type: "string",
+        description: "File path under workspace/",
+      },
+    },
+    required: ["path"],
+  } as const;
 
   async run(input: Record<string, unknown>, _context: ToolContext): Promise<unknown> {
     const path = input.path;

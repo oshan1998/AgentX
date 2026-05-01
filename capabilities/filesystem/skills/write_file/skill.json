@@ -2,6 +2,20 @@
   "schemaVersion": "1",
   "name": "write_file",
   "description": "Write content to a file using the write_file tool.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "description": "Destination path under workspace/."
+      },
+      "content": {
+        "type": "string",
+        "description": "File contents."
+      }
+    },
+    "required": ["path", "content"]
+  },
   "steps": [
     {
       "type": "tool_call",

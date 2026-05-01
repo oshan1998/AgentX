@@ -41,6 +41,9 @@ export interface ToolContext {
   sessionId: string;
 }
 
+/** JSON Schema–style shape for planner-visible tool/skill inputs (typically type "object", properties, required). */
+export type JsonInputSchema = Record<string, unknown>;
+
 export interface SkillContext {
   sessionId: string;
   runTool: (name: string, input: Record<string, unknown>) => Promise<unknown>;
@@ -52,12 +55,16 @@ export interface SkillContext {
 export interface Tool {
   name: string;
   description: string;
+  /** When set, appended to the system prompt so the model knows valid tool_call.input. */
+  inputSchema?: JsonInputSchema;
   run(input: Record<string, unknown>, context: ToolContext): Promise<unknown>;
 }
 
 export interface Skill {
   name: string;
   description: string;
+  /** When set, appended to the system prompt so the model knows valid skill_call.input. */
+  inputSchema?: JsonInputSchema;
   run(input: Record<string, unknown>, context: SkillContext): Promise<unknown>;
 }
 

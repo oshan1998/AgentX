@@ -2,6 +2,16 @@
   "schemaVersion": "1",
   "name": "cancel_scheduled_task",
   "description": "Cancel a scheduled cron task by ID.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "Cron job id to delete."
+      }
+    },
+    "required": ["id"]
+  },
   "steps": [
     {
       "type": "tool_call",

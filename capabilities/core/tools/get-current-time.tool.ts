@@ -21,6 +21,16 @@ function buildFormatter(timeZone: string): Intl.DateTimeFormat {
 export class GetCurrentTimeTool implements Tool {
   name = "get_current_time";
   description = "Get current date/time for a specific IANA timezone.";
+  inputSchema = {
+    type: "object",
+    description: "All fields optional; omit or use {} for UTC.",
+    properties: {
+      timeZone: {
+        type: "string",
+        description: "IANA zone e.g. America/New_York; defaults to UTC.",
+      },
+    },
+  };
 
   async run(input: Record<string, unknown>, _context: ToolContext): Promise<unknown> {
     const timeZoneRaw = input.timeZone;

@@ -2,6 +2,16 @@
   "schemaVersion": "1",
   "name": "read_pdf",
   "description": "Read and extract text from a PDF file.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "description": "PDF path under workspace/."
+      }
+    },
+    "required": ["path"]
+  },
   "steps": [
     {
       "type": "tool_call",

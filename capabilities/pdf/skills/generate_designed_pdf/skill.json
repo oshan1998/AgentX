@@ -2,13 +2,40 @@
   "schemaVersion": "1",
   "name": "generate_designed_pdf",
   "description": "Generate a beautiful, custom-designed PDF using HTML and CSS.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "userRequest": {
+        "type": "string",
+        "description": "What the PDF should contain and how it should look."
+      },
+      "outputPath": {
+        "type": "string",
+        "description": "Where to save the PDF under workspace/."
+      },
+      "format": {
+        "type": "string",
+        "description": "Paper size e.g. A4; optional."
+      },
+      "landscape": {
+        "type": "boolean",
+        "description": "Optional page orientation."
+      }
+    },
+    "required": ["userRequest", "outputPath"]
+  },
   "steps": [
+    {
+  "type": "llm",
+  "promptTemplate": "User request:\n{{input.userRequest}}",
+  "saveAs": "design"
+},
     {
       "type": "tool_call",
       "tool": "generate_designed_pdf",
       "input": {
         "outputPath": "{{input.outputPath}}",
-        "html": "{{input.html}}",
+        "html": "{{design.html}}",
         "format": "{{input.format}}",
         "landscape": "{{input.landscape}}"
       },
@@ -16,7 +43,7 @@
     },
     {
       "type": "respond",
-      "messageTemplate": "I have successfully generated your custom-designed PDF at {{result.outputPath}}. The layout was rendered using HTML/CSS for maximum design flexibility."
+      "messageTemplate": "Your designed PDF has been generated successfully at {{result.outputPath}}."
     }
   ]
 }

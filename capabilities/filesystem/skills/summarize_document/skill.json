@@ -2,6 +2,16 @@
   "schemaVersion": "1",
   "name": "summarize_document",
   "description": "Summarize a document using read_file + LLM.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "description": "Document path to read."
+      }
+    },
+    "required": ["path"]
+  },
   "steps": [
     {
       "type": "tool_call",

@@ -1,10 +1,32 @@
 import puppeteer from "puppeteer";
 import type { Tool, ToolContext } from "../../../common/interfaces/types.js";
-import { logger } from "../../../services/logger.js";
+import { logger } from "../../../common/services/logger.js";
 
 export class GenerateDesignedPdfTool implements Tool {
   name = "generate_designed_pdf";
   description = "Generate a PDF file from HTML content, allowing for complex designs, CSS styling, and layouts.";
+  inputSchema = {
+    type: "object",
+    properties: {
+      outputPath: {
+        type: "string",
+        description: "Where to save the PDF (under workspace/).",
+      },
+      html: {
+        type: "string",
+        description: "Full HTML document body or page to render.",
+      },
+      format: {
+        type: "string",
+        description: 'Paper size label e.g. "A4", "Letter". Default A4.',
+      },
+      landscape: {
+        type: "boolean",
+        description: "Optional; portrait if omitted/false.",
+      },
+    },
+    required: ["outputPath", "html"],
+  } as const;
 
   async run(input: Record<string, unknown>, _context: ToolContext): Promise<unknown> {
     const { outputPath, html } = input;

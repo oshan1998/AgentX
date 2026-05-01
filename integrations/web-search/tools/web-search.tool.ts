@@ -15,6 +15,17 @@ interface TavilySearchResponse {
 export class WebSearchTool implements Tool {
   name = "web_search";
   description = "Search the web with Tavily and return top results.";
+  inputSchema = {
+    type: "object",
+    properties: {
+      query: { type: "string", description: "Search query." },
+      maxResults: {
+        type: "number",
+        description: "1–10; default 5.",
+      },
+    },
+    required: ["query"],
+  } as const;
 
   async run(input: Record<string, unknown>, _context: ToolContext): Promise<unknown> {
     const query = input.query;

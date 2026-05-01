@@ -3,6 +3,7 @@ import type {
   LongTermMemoryEntry,
   SessionMemory,
 } from "../common/interfaces/types.js";
+import { formatInputSchemaForPrompt } from "../common/services/format-input-schema.js";
 import type { Soul, User } from "../managers/profile-manager.js";
 
 interface PromptBuilderInput {
@@ -133,14 +134,22 @@ ${recentMessages}
     const tools =
       input.toolRegistry
         .list()
-        .map((t) => `- ${t.name}${t.description ? `: ${t.description}` : ""}`)
-        .join("\n") || "none";
+        .map((t) => {
+          const head = `- ${t.name}${t.description ? `: ${t.description}` : ""}`;
+          const schemaLines = formatInputSchemaForPrompt(t.inputSchema);
+          return schemaLines ? `${head}\n${schemaLines}` : head;
+        })
+        .join("\n\n") || "none";
 
     const skills =
       input.skillRegistry
         .list()
-        .map((s) => `- ${s.name}${s.description ? `: ${s.description}` : ""}`)
-        .join("\n") || "none";
+        .map((s) => {
+          const head = `- ${s.name}${s.description ? `: ${s.description}` : ""}`;
+          const schemaLines = formatInputSchemaForPrompt(s.inputSchema);
+          return schemaLines ? `${head}\n${schemaLines}` : head;
+        })
+        .join("\n\n") || "none";
 
     const memory =
       input.relevantLongTermMemory
@@ -204,6 +213,7 @@ Allowed JSON decisions:
 
 Important JSON rules:
 - The "thought" field is MANDATORY. Use it to reason step-by-step about the task, the last observation, and your next move.
+- For tool_call and skill_call, the "input" object MUST match the "input:" / schema section shown for that exact tool or skill name under Available tools / Available skills.
 - The "type" field must be exactly one of: respond, tool_call, skill_call, memory_write, profile_write.
 - Never put a tool or skill name directly in the "type" field.
 - For file writing, use:
@@ -215,13 +225,12 @@ Important JSON rules:
 
 Decision rules:
 - Use tool_call for direct external actions.
-- Use skill_call only for reusable workflows.
+- Use skill_call only for if the task do in better way by using a skill.
 - Use memory_write only when useful long-term information should be saved.
 - Use profile_write only when updating the user's profile or agent soul.
 - Use respond only when the full task is complete.
 - Do not ask the user unless required.
 - If the previous action failed, use the "thought" field to analyze why and use "Last observation" to decide the next correction.
-
 Available tools:
 ${tools}
 

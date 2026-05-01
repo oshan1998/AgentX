@@ -2,6 +2,20 @@
   "schemaVersion": "1",
   "name": "web_search",
   "description": "Search the web using Tavily and return top matches.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "query": {
+        "type": "string",
+        "description": "Search query."
+      },
+      "maxResults": {
+        "type": "number",
+        "description": "1–10; optional."
+      }
+    },
+    "required": ["query"]
+  },
   "steps": [
     {
       "type": "tool_call",

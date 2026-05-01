@@ -1,8 +1,9 @@
 import type { SkillRegistry, ToolRegistry } from "../common/interfaces/registry.js";
 import type { AgentDecision, LongTermMemoryEntry } from "../common/interfaces/types.js";
+import { logger } from "../common/services/logger.js";
 import { MemoryManager } from "../managers/memory-manager.js";
 import { ProfileManager } from "../managers/profile-manager.js";
-import { logger } from "../services/logger.js";
+
 
 export class Executor {
   constructor(

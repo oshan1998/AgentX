@@ -4,6 +4,16 @@ import type { Tool, ToolContext } from "../../../common/interfaces/types.js";
 export class SearchMemoryTool implements Tool {
   name = "search_memory";
   description = "Search long-term memory entries by text.";
+  inputSchema = {
+    type: "object",
+    properties: {
+      query: {
+        type: "string",
+        description: "Free-text query to match memory entries.",
+      },
+    },
+    required: ["query"],
+  } as const;
 
   constructor(private readonly memoryManager: MemoryManager) {}
 

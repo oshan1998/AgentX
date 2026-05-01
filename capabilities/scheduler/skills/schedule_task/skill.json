@@ -2,6 +2,32 @@
   "schemaVersion": "1",
   "name": "schedule_task",
   "description": "Create or update a scheduled cron task.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "Existing job id when updating; omit for new job."
+      },
+      "name": {
+        "type": "string",
+        "description": "Display name."
+      },
+      "schedule": {
+        "type": "string",
+        "description": "Five-field cron expression."
+      },
+      "task": {
+        "type": "string",
+        "description": "What to run when the schedule fires."
+      },
+      "enabled": {
+        "type": "boolean",
+        "description": "Optional; defaults true."
+      }
+    },
+    "required": ["name", "schedule", "task"]
+  },
   "steps": [
     {
       "type": "tool_call",

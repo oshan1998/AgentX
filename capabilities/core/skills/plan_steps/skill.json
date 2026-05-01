@@ -2,6 +2,16 @@
   "schemaVersion": "1",
   "name": "plan_steps",
   "description": "Turn an objective into ordered implementation steps.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "objective": {
+        "type": "string",
+        "description": "Goal to break into numbered steps."
+      }
+    },
+    "required": ["objective"]
+  },
   "steps": [
     {
       "type": "llm",

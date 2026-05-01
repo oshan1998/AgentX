@@ -5,6 +5,11 @@ import { readCronJobs } from "../scheduler-utils.js";
 export class ListCronJobsTool implements Tool {
   name = "list_cron_jobs";
   description = "List saved cron job definitions.";
+  inputSchema = {
+    type: "object",
+    description: "No arguments required.",
+    properties: {},
+  };
 
   async run(_input: Record<string, unknown>, _context: ToolContext): Promise<unknown> {
     const storePath = path.join(process.cwd(), "memory", "cron-jobs.json");

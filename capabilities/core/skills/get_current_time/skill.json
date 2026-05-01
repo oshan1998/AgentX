@@ -2,6 +2,16 @@
   "schemaVersion": "1",
   "name": "get_current_time",
   "description": "Get current time for a requested timezone.",
+  "inputSchema": {
+    "type": "object",
+    "description": "Optional timezone; omit or {} for UTC.",
+    "properties": {
+      "timeZone": {
+        "type": "string",
+        "description": "IANA timezone identifier."
+      }
+    }
+  },
   "steps": [
     {
       "type": "tool_call",
