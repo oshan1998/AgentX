@@ -1,5 +1,5 @@
 import puppeteer from "puppeteer";
-import type { Tool, ToolContext } from "../../../interfaces/types.js";
+import type { Tool, ToolContext } from "../../../common/interfaces/types.js";
 import { logger } from "../../../services/logger.js";
 
 export class GenerateDesignedPdfTool implements Tool {

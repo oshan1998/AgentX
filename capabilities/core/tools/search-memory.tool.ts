@@ -1,5 +1,5 @@
 import { MemoryManager } from "../../../managers/memory-manager.js";
-import type { Tool, ToolContext } from "../../../interfaces/types.js";
+import type { Tool, ToolContext } from "../../../common/interfaces/types.js";
 
 export class SearchMemoryTool implements Tool {
   name = "search_memory";

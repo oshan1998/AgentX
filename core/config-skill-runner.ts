@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import type { LlmAdapter, LongTermMemoryType, Skill, SkillContext } from "../interfaces/types.js";
+import type { LlmAdapter, LongTermMemoryType, Skill, SkillContext } from "../common/interfaces/types.js";
 
 type SkillStep =
   | {

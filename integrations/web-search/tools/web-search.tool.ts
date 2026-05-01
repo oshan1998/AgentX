@@ -1,4 +1,4 @@
-import type { Tool, ToolContext } from "../../../interfaces/types.js";
+import type { Tool, ToolContext } from "../../../common/interfaces/types.js";
 
 interface TavilySearchResult {
   title?: string;

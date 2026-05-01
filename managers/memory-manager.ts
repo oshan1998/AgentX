@@ -5,7 +5,7 @@ import type {
   LongTermMemoryEntry,
   Message,
   SessionMemory,
-} from "../interfaces/types.js";
+} from "../common/interfaces/types.js";
 
 export class MemoryManager {
   constructor(

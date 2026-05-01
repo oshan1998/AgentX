@@ -1,7 +1,7 @@
 import path from "node:path";
-import { SkillRegistry } from "../interfaces/registry.js";
+import { SkillRegistry } from "../common/interfaces/registry.js";
 import { loadConfigSkills } from "../core/config-skill-runner.js";
-import type { LlmAdapter } from "../interfaces/types.js";
+import type { LlmAdapter } from "../common/interfaces/types.js";
 
 export class SkillManager {
   private readonly skillRegistry = new SkillRegistry();

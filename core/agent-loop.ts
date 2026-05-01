@@ -1,14 +1,14 @@
-import type { SkillRegistry, ToolRegistry } from "../interfaces/registry.js";
+import type { SkillRegistry, ToolRegistry } from "../common/interfaces/registry.js";
 import type {
   AgentDecision,
   LlmAdapter,
   Message,
-} from "../interfaces/types.js";
+} from "../common/interfaces/types.js";
 import { Executor } from "./executor.js";
 import { MemoryManager } from "../managers/memory-manager.js";
 import { PromptBuilder } from "./prompt-builder.js";
 import { ProfileManager } from "../managers/profile-manager.js";
-import { logger } from "../services/logger.js";
+import { logger } from "../common/services/logger.js";
 
 interface AgentLoopDependencies {
   llm: LlmAdapter;

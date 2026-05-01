@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { Tool, ToolContext } from "../../../interfaces/types.js";
+import type { Tool, ToolContext } from "../../../common/interfaces/types.js";
 import { readCronJobs, writeCronJobs } from "../scheduler-utils.js";
 
 function isValidCronExpression(value: string): boolean {

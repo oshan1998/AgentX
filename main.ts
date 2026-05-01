@@ -1,19 +1,35 @@
-import "dotenv/config";
+import express from "express";
 import path from "node:path";
-import readline from "node:readline/promises";
-import { stdin as input, stdout as output } from "node:process";
 import { AgentLoop } from "./core/agent-loop.js";
 import { createLlmAdapter } from "./llm-adapters/factory.js";
 import { MemoryManager } from "./managers/memory-manager.js";
 import { ProfileManager } from "./managers/profile-manager.js";
-import { SchedulerRunner } from "./services/scheduler-runner.js";
-import { ToolManager } from "./managers/tool-manager.js";
+import { SecretsManager } from "./managers/secrets-manager.js";
 import { SkillManager } from "./managers/skill-manager.js";
-import { logger } from "./services/logger.js";
-async function bootstrap(): Promise<void> {
-  const sessionId = process.env.AGENTIX_SESSION_ID ?? "default-session";
-  const memoryPath = path.join(process.cwd(), "memory");
+import { SchedulerRunner } from "./common/services/scheduler-runner.js";
+import { ToolManager } from "./managers/tool-manager.js";
+import { logger } from "./common/services/logger.js";
 
+// Services
+import { ChatService } from "./controllers/chat/chat.service.js";
+import { SessionService } from "./controllers/session/session.service.js";
+import { IntegrationService } from "./controllers/integration/integration.service.js";
+
+// Controllers
+import { ChatController } from "./controllers/chat/chat.controller.js";
+import { SessionController } from "./controllers/session/session.controller.js";
+import { IntegrationController } from "./controllers/integration/integration.controller.js";
+
+async function main() {
+  const app = express();
+  app.use(express.json());
+  const port = process.env.PORT || 3000;
+
+  // Serve static UI
+  app.use(express.static(path.join(process.cwd(), "ui")));
+
+  // ── Core dependencies ──────────────────────────────────
+  const memoryPath = path.join(process.cwd(), "memory");
   const memoryManager = new MemoryManager(memoryPath);
   await memoryManager.init();
 
@@ -25,7 +41,6 @@ async function bootstrap(): Promise<void> {
 
   const llm = createLlmAdapter();
 
-  // Use SkillManager to load and register all skills
   const skillManager = new SkillManager(llm);
   const skillRegistry = await skillManager.loadAllSkills();
 
@@ -36,29 +51,41 @@ async function bootstrap(): Promise<void> {
     toolRegistry,
     skillRegistry,
   });
+
   const schedulerRunner = new SchedulerRunner(agentLoop);
   schedulerRunner.start();
 
-  const rl = readline.createInterface({ input, output });
-  logger.info("Agentix CLI started.");
-  output.write("Agentix CLI started. Type 'exit' to quit.\n");
+  const secretsManager = new SecretsManager();
+  await secretsManager.init();
 
-  while (true) {
-    const userInput = await rl.question("You> ");
-    if (userInput.trim().toLowerCase() === "exit") {
-      break;
-    }
-    const response = await agentLoop.handleUserInput(sessionId, userInput);
-    output.write(`Agentix> ${response}\n`);
-  }
+  // ── Service layer ──────────────────────────────────────
+  const chatService = new ChatService(agentLoop, memoryManager, llm);
+  const sessionService = new SessionService(memoryManager);
+  const integrationService = new IntegrationService(secretsManager);
 
-  rl.close();
-  schedulerRunner.stop();
+  // ── Controller layer ───────────────────────────────────
+  const chatController = new ChatController(chatService);
+  const sessionController = new SessionController(sessionService);
+  const integrationController = new IntegrationController(integrationService);
+
+  // ── Routes ─────────────────────────────────────────────
+  // Chat
+  app.post("/api/chat", chatController.handleChat);
+
+  // Sessions
+  app.get("/api/sessions", sessionController.listSessions);
+  app.post("/api/sessions", sessionController.createSession);
+  app.get("/api/session/:id", sessionController.getSessionHistory);
+
+  // Integrations — Gmail
+  app.get("/api/auth/gmail", integrationController.getGmailAuthUrl);
+  app.get("/api/auth/gmail/callback", integrationController.handleGmailCallback);
+  app.get("/api/auth/gmail/status", integrationController.getGmailStatus);
+  app.delete("/api/auth/gmail", integrationController.disconnectGmail);
+
+  app.listen(port, () => {
+    logger.info(`UI server running at http://localhost:${port}`);
+  });
 }
 
-bootstrap().catch((error: unknown) => {
-  const message = error instanceof Error ? error.message : String(error);
-  logger.error(`Fatal error: ${message}`);
-  output.write(`Fatal error: ${message}\n`);
-  process.exitCode = 1;
-});
+main();

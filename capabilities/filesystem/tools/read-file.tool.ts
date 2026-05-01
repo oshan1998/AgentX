@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import type { Tool, ToolContext } from "../../../interfaces/types.js";
+import type { Tool, ToolContext } from "../../../common/interfaces/types.js";
 
 export class ReadFileTool implements Tool {
   name = "read_file";

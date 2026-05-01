@@ -1,5 +1,5 @@
 import { VertexAI, GenerativeModel, GenerateContentRequest } from "@google-cloud/vertexai";
-import type { AgentDecision, LlmAdapter } from "../interfaces/types.js";
+import type { AgentDecision, LlmAdapter } from "../common/interfaces/types.js";
 
 interface GeminiAdapterOptions {
   projectId: string;

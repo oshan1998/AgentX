@@ -1,4 +1,4 @@
-import type { AgentDecision, LlmAdapter } from "../interfaces/types.js";
+import type { AgentDecision, LlmAdapter } from "../common/interfaces/types.js";
 
 export interface OllamaAdapterOptions {
   model?: string;

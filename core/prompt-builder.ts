@@ -1,8 +1,8 @@
-import type { SkillRegistry, ToolRegistry } from "../interfaces/registry.js";
+import type { SkillRegistry, ToolRegistry } from "../common/interfaces/registry.js";
 import type {
   LongTermMemoryEntry,
   SessionMemory,
-} from "../interfaces/types.js";
+} from "../common/interfaces/types.js";
 import type { Soul, User } from "../managers/profile-manager.js";
 
 interface PromptBuilderInput {

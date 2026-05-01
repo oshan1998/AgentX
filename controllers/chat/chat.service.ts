@@ -1,6 +1,6 @@
 import { AgentLoop } from "../../core/agent-loop.js";
 import { MemoryManager } from "../../managers/memory-manager.js";
-import type { LlmAdapter } from "../../interfaces/types.js";
+import type { LlmAdapter } from "../../common/interfaces/types.js";
 
 export interface ChatResponse {
   response: string;

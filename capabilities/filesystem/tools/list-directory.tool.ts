@@ -1,5 +1,5 @@
 import { readdir } from "node:fs/promises";
-import type { Tool, ToolContext } from "../../../interfaces/types.js";
+import type { Tool, ToolContext } from "../../../common/interfaces/types.js";
 
 export class ListDirectoryTool implements Tool {
   name = "list_directory";

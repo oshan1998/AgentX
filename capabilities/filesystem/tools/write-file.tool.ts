@@ -1,5 +1,5 @@
 import { writeFile } from "node:fs/promises";
-import type { Tool, ToolContext } from "../../../interfaces/types.js";
+import type { Tool, ToolContext } from "../../../common/interfaces/types.js";
 
 export class WriteFileTool implements Tool {
   name = "write_file";

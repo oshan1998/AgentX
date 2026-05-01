@@ -1,6 +1,6 @@
 import { google } from "googleapis";
 import { SecretsManager } from "../../managers/secrets-manager.js";
-import { logger } from "../../services/logger.js";
+import { logger } from "../../common/services/logger.js";
 
 const GMAIL_SCOPES = [
   "https://www.googleapis.com/auth/gmail.readonly",

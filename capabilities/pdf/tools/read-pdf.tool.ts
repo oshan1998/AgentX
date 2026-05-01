@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import pdf from "pdf-parse";
-import type { Tool, ToolContext } from "../../../interfaces/types.js";
+import type { Tool, ToolContext } from "../../../common/interfaces/types.js";
 import { logger } from "../../../services/logger.js";
 
 export class ReadPdfTool implements Tool {

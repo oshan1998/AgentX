@@ -1,6 +1,6 @@
 import path from "node:path";
-import { ToolRegistry } from "../interfaces/registry.js";
-import type { Tool } from "../interfaces/types.js";
+import { ToolRegistry } from "../common/interfaces/registry.js";
+import type { Tool } from "../common/interfaces/types.js";
 import { MemoryManager } from "./memory-manager.js";
 
 export class ToolManager {
