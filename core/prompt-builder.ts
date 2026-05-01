@@ -224,8 +224,8 @@ Important JSON rules:
 - When saving to profile_write, provide the FULL structured content object that matches the target schema.
 
 Decision rules:
-- Use tool_call for direct external actions.
-- Use skill_call only for if the task do in better way by using a skill.
+- Use tool_call for direct external actions (files, scheduling, Gmail, web search, PDF text extraction, time, memory search, etc.).
+- Use skill_call only for workflows listed under Available skills (multi-step flows that compose tools and/or an internal LLM).
 - Use memory_write only when useful long-term information should be saved.
 - Use profile_write only when updating the user's profile or agent soul.
 - Use respond only when the full task is complete.

@@ -27,7 +27,9 @@ Minimal but scalable single-agent framework in Node.js + TypeScript.
 - Core capability tools:
   - `ask_user`, `search_memory`, `get_current_time`
 - Core capability skills:
-  - `remember_fact`, `plan_steps`, `get_current_time`
+  - `remember_fact`, `plan_steps`, `bootstrap_finalize` (onboarding)
+- Filesystem skills (multi-step): `summarize_document`, `extract_tasks`
+- PDF skill: `generate_designed_pdf`
 - OpenAI adapter plus mock adapter fallback
 - Interactive CLI (`main.ts`)
 
