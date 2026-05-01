@@ -4,6 +4,7 @@ import type { LlmAdapter } from "../../common/interfaces/types.js";
 
 export interface ChatResponse {
   response: string;
+  runId: string;
 }
 
 /**
@@ -22,7 +23,7 @@ export class ChatService {
    * Process a user chat message.
    * Automatically generates a session title from the first user message.
    */
-  async handleMessage(sessionId: string, message: string): Promise<ChatResponse> {
+  async handleMessage(sessionId: string, message: string, runId: string): Promise<ChatResponse> {
     // Auto-generate title from the first user message using LLM
     const session = await this.memoryManager.getSession(sessionId);
     const hasUserMessages = session.messages.some((m: any) => m.role === "user");
@@ -46,7 +47,7 @@ export class ChatService {
         });
     }
 
-    const response = await this.agentLoop.handleUserInput(sessionId, message);
-    return { response };
+    const response = await this.agentLoop.handleUserInput(sessionId, message, { runId });
+    return { response, runId };
   }
 }

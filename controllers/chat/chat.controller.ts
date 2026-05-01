@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { Request, Response } from "express";
 import { ChatService } from "./chat.service.js";
 
@@ -10,7 +11,7 @@ export class ChatController {
 
   /** POST /api/chat */
   handleChat = async (req: Request, res: Response): Promise<void> => {
-    const { message, sessionId } = req.body;
+    const { message, sessionId, runId: bodyRunId } = req.body;
 
     if (!message || typeof message !== "string") {
       res.status(400).json({ error: "Missing message" });
@@ -23,8 +24,11 @@ export class ChatController {
         ? sessionId
         : "web-session";
 
+    const runId =
+      typeof bodyRunId === "string" && bodyRunId.length > 0 ? bodyRunId : randomUUID();
+
     try {
-      const result = await this.chatService.handleMessage(sid, message);
+      const result = await this.chatService.handleMessage(sid, message, runId);
       res.json(result);
     } catch (e) {
       res.status(500).json({ error: String(e) });

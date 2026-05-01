@@ -4,7 +4,9 @@ import type {
   LlmAdapter,
   Message,
 } from "../common/interfaces/types.js";
+import type { SessionTraceHub } from "../common/realtime/session-trace-hub.js";
 import { Executor } from "./executor.js";
+import type { ExecutorTraceContext } from "./executor.js";
 import { MemoryManager } from "../managers/memory-manager.js";
 import { PromptBuilder } from "./prompt-builder.js";
 import { ProfileManager } from "../managers/profile-manager.js";
@@ -17,6 +19,7 @@ interface AgentLoopDependencies {
   toolRegistry: ToolRegistry;
   skillRegistry: SkillRegistry;
   maxIterations?: number;
+  sessionTraceHub?: SessionTraceHub;
 }
 
 export class AgentLoop {
@@ -34,16 +37,31 @@ export class AgentLoop {
     this.maxIterations = deps.maxIterations ?? 50;
   }
 
-  async handleUserInput(sessionId: string, userInput: string): Promise<string> {
+  async handleUserInput(
+    sessionId: string,
+    userInput: string,
+    options?: { runId?: string },
+  ): Promise<string> {
     logger.info(`Handling user input for session ${sessionId}`, { userInput });
     await this.deps.memoryManager.appendSessionMessage(
       sessionId,
       this.message("user", userInput),
     );
 
+    const tracer =
+      options?.runId && this.deps.sessionTraceHub
+        ? this.deps.sessionTraceHub.createRunTracer(sessionId, options.runId)
+        : undefined;
+
     let lastObservation: string | undefined;
 
     for (let i = 0; i < this.maxIterations; i += 1) {
+      const iteration = i + 1;
+      let thoughtOpen = false;
+      const traceCtx: ExecutorTraceContext | undefined = tracer
+        ? { iteration, tracer }
+        : undefined;
+
       try {
         const session = await this.deps.memoryManager.getSession(sessionId);
 
@@ -70,9 +88,15 @@ export class AgentLoop {
           isBootstrapComplete,
         });
 
+        tracer?.thought(iteration, "start");
+        thoughtOpen = true;
+
         const decision = await this.deps.llm.decide(userPrompt, systemPrompt);
         logger.info(`Agent Thought: ${decision.thought}`);
         logger.debug("Received decision from LLM", { type: decision.type, tool: decision.tool, skill: decision.skill });
+
+        tracer?.thought(iteration, "end", decision.thought ?? "");
+        thoughtOpen = false;
 
         if (decision.type === "respond") {
           const finalMessage = decision.message ?? "";
@@ -83,10 +107,12 @@ export class AgentLoop {
             this.message("assistant", finalMessage),
           );
 
+          tracer?.runDone("complete");
+
           return finalMessage;
         }
 
-        const result = await this.executor.executeDecision(sessionId, decision);
+        const result = await this.executor.executeDecision(sessionId, decision, traceCtx);
         logger.info(`Executed decision`, { type: decision.type, tool: decision.tool, skill: decision.skill });
 
         lastObservation = this.formatExecutionFeedback(decision, result);
@@ -96,6 +122,14 @@ export class AgentLoop {
           this.message("tool", lastObservation),
         );
       } catch (error) {
+        if (thoughtOpen) {
+          tracer?.thought(
+            iteration,
+            "end",
+            error instanceof Error ? error.message : String(error),
+          );
+          thoughtOpen = false;
+        }
         logger.error(`Error in agent loop iteration ${i + 1} for session ${sessionId}`, { error: error instanceof Error ? error.message : String(error) });
         lastObservation =
           error instanceof Error
@@ -111,6 +145,8 @@ export class AgentLoop {
 
     const fallback = "I could not finalize a response within iteration limits.";
     logger.warn(`Agent failed to respond within max iterations for session ${sessionId}`);
+
+    tracer?.runDone("max_iterations");
 
     await this.deps.memoryManager.appendSessionMessage(
       sessionId,

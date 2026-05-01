@@ -2,6 +2,7 @@ import type { Server as HttpServer } from "node:http";
 import type { RawData } from "ws";
 import { WebSocketServer, WebSocket } from "ws";
 import { logger } from "../services/logger.js";
+import type { SessionTraceHub } from "./session-trace-hub.js";
 import { parseClientMessage, sendJson, type ClientMessage } from "./ws-protocol.js";
 
 const WS_PATH = "/ws";
@@ -14,7 +15,11 @@ function rawToString(data: RawData): string {
   return Buffer.from(data).toString("utf8");
 }
 
-function dispatch(socket: WebSocket, message: ClientMessage): void {
+function dispatch(
+  socket: WebSocket,
+  message: ClientMessage,
+  traceHub: SessionTraceHub,
+): void {
   switch (message.type) {
     case "hello": {
       logger.debug("WebSocket hello", { clientVersion: message.payload?.clientVersion });
@@ -31,6 +36,14 @@ function dispatch(socket: WebSocket, message: ClientMessage): void {
       });
       break;
     }
+    case "subscribe": {
+      traceHub.subscribe(socket, message.payload.sessionId);
+      break;
+    }
+    case "unsubscribe": {
+      traceHub.unsubscribe(socket, message.payload.sessionId);
+      break;
+    }
     default: {
       const _exhaustive: never = message;
       void _exhaustive;
@@ -41,7 +54,10 @@ function dispatch(socket: WebSocket, message: ClientMessage): void {
 /**
  * Attach a WebSocket server to the same HTTP server as Express (path `/ws`).
  */
-export function attachWebSocketGateway(httpServer: HttpServer): WebSocketServer {
+export function attachWebSocketGateway(
+  httpServer: HttpServer,
+  traceHub: SessionTraceHub,
+): WebSocketServer {
   const wss = new WebSocketServer({ server: httpServer, path: WS_PATH });
 
   wss.on("connection", (socket: WebSocket, req) => {
@@ -64,7 +80,7 @@ export function attachWebSocketGateway(httpServer: HttpServer): WebSocketServer 
       }
 
       try {
-        dispatch(socket, message);
+        dispatch(socket, message, traceHub);
       } catch (err) {
         logger.error("WebSocket handler error", { err });
         sendJson(socket, {
@@ -75,6 +91,7 @@ export function attachWebSocketGateway(httpServer: HttpServer): WebSocketServer 
     });
 
     socket.on("close", (code, reason) => {
+      traceHub.removeSocket(socket);
       logger.info("WebSocket client disconnected", {
         ip,
         code,

@@ -2,6 +2,7 @@ import express from "express";
 import http from "node:http";
 import path from "node:path";
 import { attachWebSocketGateway } from "./common/realtime/ws-gateway.js";
+import { SessionTraceHub } from "./common/realtime/session-trace-hub.js";
 import { AgentLoop } from "./core/agent-loop.js";
 import { createLlmAdapter } from "./llm-adapters/factory.js";
 import { MemoryManager } from "./managers/memory-manager.js";
@@ -46,12 +47,15 @@ async function main() {
   const skillManager = new SkillManager(llm);
   const skillRegistry = await skillManager.loadAllSkills();
 
+  const sessionTraceHub = new SessionTraceHub();
+
   const agentLoop = new AgentLoop({
     llm,
     memoryManager,
     profileManager,
     toolRegistry,
     skillRegistry,
+    sessionTraceHub,
   });
 
   const schedulerRunner = new SchedulerRunner(agentLoop);
@@ -86,7 +90,7 @@ async function main() {
   app.delete("/api/auth/gmail", integrationController.disconnectGmail);
 
   const server = http.createServer(app);
-  attachWebSocketGateway(server);
+  attachWebSocketGateway(server, sessionTraceHub);
 
   server.listen(port, () => {
     logger.info(`HTTP + WebSocket server at http://localhost:${port} (ws path /ws)`);
