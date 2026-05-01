@@ -1,5 +1,7 @@
 import express from "express";
+import http from "node:http";
 import path from "node:path";
+import { attachWebSocketGateway } from "./common/realtime/ws-gateway.js";
 import { AgentLoop } from "./core/agent-loop.js";
 import { createLlmAdapter } from "./llm-adapters/factory.js";
 import { MemoryManager } from "./managers/memory-manager.js";
@@ -83,8 +85,11 @@ async function main() {
   app.get("/api/auth/gmail/status", integrationController.getGmailStatus);
   app.delete("/api/auth/gmail", integrationController.disconnectGmail);
 
-  app.listen(port, () => {
-    logger.info(`UI server running at http://localhost:${port}`);
+  const server = http.createServer(app);
+  attachWebSocketGateway(server);
+
+  server.listen(port, () => {
+    logger.info(`HTTP + WebSocket server at http://localhost:${port} (ws path /ws)`);
   });
 }
 
