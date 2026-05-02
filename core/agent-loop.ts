@@ -7,7 +7,11 @@ import {
   type SkillDelegateRunner,
 } from "../common/interfaces/types.js";
 import type { SessionTraceHub } from "../common/realtime/session-trace-hub.js";
-import { AgentRunOutcome, AgentTracePhase, type AgentTraceRunOutcome } from "../common/realtime/agent-trace-types.js";
+import {
+  AgentRunOutcome,
+  AgentTracePhase,
+  type AgentTraceRunOutcome,
+} from "../common/realtime/agent-trace-types.js";
 import { Executor } from "./executor.js";
 import type { ExecutorInvocationContext, ExecutorTraceContext } from "./executor.js";
 import {
@@ -18,6 +22,8 @@ import { MemoryManager } from "../managers/memory-manager.js";
 import { PromptBuilder } from "./prompt-builder.js";
 import { ProfileManager } from "../managers/profile-manager.js";
 import { logger } from "../common/services/logger.js";
+
+// ─── Public types ────────────────────────────────────────────────────────────
 
 export interface AgentRunHandleOptions {
   runId?: string;
@@ -33,6 +39,7 @@ export interface AgentRunSummary {
   reply: string;
   outcome: AgentTraceRunOutcome;
 }
+
 export enum AgentType {
   Primary = "primary",
   SubAgent = "sub_agent",
@@ -50,6 +57,29 @@ interface AgentLoopDependencies {
   agentType: AgentType;
   skillDelegateRunner?: SkillDelegateRunner;
 }
+
+// ─── Internal types ──────────────────────────────────────────────────────────
+
+/**
+ * Signals that the loop should stop early and return a given outcome + message.
+ * Thrown by abort/deadline checks so the main loop stays uncluttered.
+ */
+class EarlyExit {
+  constructor(
+    readonly outcome: AgentTraceRunOutcome,
+    readonly message: string,
+  ) {}
+}
+
+/** Carries the result of one successful iteration. */
+interface IterationResult {
+  /** Set when the agent produced a final reply and the loop should end. */
+  finalReply?: string;
+  /** Observation to feed into the next iteration. */
+  observation?: string;
+}
+
+// ─── Class ───────────────────────────────────────────────────────────────────
 
 export class AgentLoop {
   private readonly promptBuilder = new PromptBuilder();
@@ -69,6 +99,8 @@ export class AgentLoop {
     this.maxIterations = deps.maxIterations ?? 50;
   }
 
+  // ── Public API ─────────────────────────────────────────────────────────────
+
   async handleUserInput(
     sessionId: string,
     userInput: string,
@@ -84,14 +116,11 @@ export class AgentLoop {
     options?: AgentRunHandleOptions,
   ): Promise<AgentRunSummary> {
     const isSubAgent = this.deps.agentType === AgentType.SubAgent;
-    logger.info(`Handling user input for session ${sessionId}`, {
-      userInput,
-      isSubAgent,
-    });
+    logger.info(`Handling user input for session ${sessionId}`, { userInput, isSubAgent });
 
     await this.deps.memoryManager.appendSessionMessage(
       sessionId,
-      this.message("user", userInput),
+      AgentLoop.message("user", userInput),
     );
 
     const tracer =
@@ -99,216 +128,262 @@ export class AgentLoop {
         ? this.deps.sessionTraceHub.createRunTracer(sessionId, options.runId)
         : undefined;
 
-    let lastObservation: string | undefined;
-
-    const iterCap =
-      options?.maxIterations !== undefined
-        ? Math.max(1, Math.min(options.maxIterations, this.maxIterations))
-        : this.maxIterations;
-
-    let outcome: AgentTraceRunOutcome = AgentRunOutcome.COMPLETE;
-
+    const iterCap = this.resolveIterationCap(options?.maxIterations);
     const invocation: ExecutorInvocationContext = {
       runId: options?.runId,
       abortSignal: options?.abortSignal,
     };
 
-    for (let i = 0; i < iterCap; i += 1) {
+    let lastObservation: string | undefined;
+
+    for (let i = 0; i < iterCap; i++) {
       const iteration = i + 1;
-
-      if (options?.abortSignal?.aborted) {
-        outcome = AgentRunOutcome.CANCELLED;
-        const msg =
-          isSubAgent
-            ? "Sub-agent task was cancelled — report partial findings to principal."
-            : "This run was cancelled before completion.";
-        tracer?.runDone(outcome);
-        await this.deps.memoryManager.appendSessionMessage(
-          sessionId,
-          this.message("assistant", msg),
-        );
-        return { reply: msg, outcome };
-      }
-
-      if (
-        typeof options?.deadlineAt === "number" &&
-        Number.isFinite(options.deadlineAt) &&
-        Date.now() > options.deadlineAt
-      ) {
-        outcome = AgentRunOutcome.TIMED_OUT;
-        const msg =
-          isSubAgent
-            ? "Sub-agent task hit its time budget — summarize progress for principal."
-            : "This run stopped because its time budget was exceeded.";
-        tracer?.runDone(outcome);
-        await this.deps.memoryManager.appendSessionMessage(
-          sessionId,
-          this.message("assistant", msg),
-        );
-        return { reply: msg, outcome };
-      }
-
-      let thoughtOpen = false;
-      const traceCtx: ExecutorTraceContext | undefined = tracer
-        ? { iteration, tracer }
-        : undefined;
+      const traceCtx: ExecutorTraceContext | undefined = tracer ? { iteration, tracer } : undefined;
 
       try {
-        const session = await this.deps.memoryManager.getSession(sessionId);
+        this.checkForEarlyExit(options, isSubAgent);
 
-        const allMemory = await this.deps.memoryManager.getLongTermMemory();
-        const isBootstrapComplete = isSubAgent
-          ? true
-          : allMemory.some((m) => m.content === "bootstrap_complete");
-
-        const relevantLongTermMemory =
-          await this.deps.memoryManager.searchLongTermMemory(userInput);
-
-        const soul = await this.deps.profileManager.getSoul();
-        const user = await this.deps.profileManager.getUser();
-
-        const { systemPrompt, userPrompt } = this.promptBuilder.build({
-          latestUserMessage: userInput,
-          session,
-          relevantLongTermMemory,
-          soul,
-          user,
-          toolRegistry: this.deps.toolRegistry,
-          skillRegistry: this.deps.skillRegistry,
-          lastObservation,
-          iteration: i + 1,
-          maxIterations: iterCap,
-          isBootstrapComplete,
-          isSubAgent,
-          subAgentSystemPromptAppend:
-            isSubAgent ? options?.subAgentSystemPromptAppend : undefined,
-        });
-
-        tracer?.thought(iteration, AgentTracePhase.START);
-        thoughtOpen = true;
-
-        const decision = await this.deps.llm.decide(userPrompt, systemPrompt);
-        logger.info(`Agent Thought: ${decision.thought}`);
-        logger.debug("Received decision from LLM", {
-          type: decision.type,
-          tool: decision.tool,
-          skill: decision.skill,
-        });
-
-        tracer?.thought(iteration, AgentTracePhase.END, decision.thought ?? "");
-        thoughtOpen = false;
-
-        if (decision.type === DecisionType.Respond) {
-          const finalMessage = decision.message ?? "";
-          logger.info(`Agent responded for session ${sessionId}`, {
-            message: finalMessage,
-          });
-
-          await this.deps.memoryManager.appendSessionMessage(
-            sessionId,
-            this.message("assistant", finalMessage),
-          );
-
-          outcome = AgentRunOutcome.COMPLETE;
-          tracer?.runDone(outcome);
-
-          return { reply: finalMessage, outcome };
-        }
-
-        const result = await this.executor.executeDecision(
+        const result = await this.runIteration(
           sessionId,
-          decision,
+          userInput,
+          { iteration, iterCap, isSubAgent, lastObservation, options },
           traceCtx,
           invocation,
         );
-        logger.info(`Executed decision`, {
-          type: decision.type,
-          tool: decision.tool,
-          skill: decision.skill,
-        });
 
-        lastObservation = this.formatExecutionFeedback(decision, result);
-
-        await this.deps.memoryManager.appendSessionMessage(
-          sessionId,
-          this.message("tool", lastObservation),
-        );
-      } catch (error) {
-        if (thoughtOpen) {
-          tracer?.thought(
-            iteration,
-            AgentTracePhase.END,
-            error instanceof Error ? error.message : String(error),
-          );
-          thoughtOpen = false;
+        if (result.finalReply !== undefined) {
+          tracer?.runDone(AgentRunOutcome.COMPLETE);
+          return { reply: result.finalReply, outcome: AgentRunOutcome.COMPLETE };
         }
-        logger.error(
-          `Error in agent loop iteration ${i + 1} for session ${sessionId}`,
-          { error: error instanceof Error ? error.message : String(error) },
-        );
-        lastObservation =
-          error instanceof Error
-            ? `Error: ${error.message}`
-            : `Error: ${String(error)}`;
 
+        lastObservation = result.observation;
+
+      } catch (error) {
+        if (error instanceof EarlyExit) {
+          tracer?.runDone(error.outcome);
+          await this.deps.memoryManager.appendSessionMessage(
+            sessionId,
+            AgentLoop.message("assistant", error.message),
+          );
+          return { reply: error.message, outcome: error.outcome };
+        }
+
+        lastObservation = this.handleIterationError(sessionId, iteration, error);
         await this.deps.memoryManager.appendSessionMessage(
           sessionId,
-          this.message("tool", lastObservation),
+          AgentLoop.message("tool", lastObservation),
         );
       }
     }
 
-    const fallback =
-      isSubAgent
-        ? "Could not finalize delegated task — tell the principal what you tried."
-        : "I could not finalize a response within iteration limits.";
-    logger.warn(`Agent failed to respond within iteration limits for session ${sessionId}`);
+    return this.buildMaxIterationsOutcome(sessionId, isSubAgent, tracer);
+  }
 
-    outcome = AgentRunOutcome.MAX_ITERATIONS;
-    tracer?.runDone(outcome);
+  // ── Iteration helpers ──────────────────────────────────────────────────────
 
+  /**
+   * Runs a single agent iteration: builds the prompt, calls the LLM, and
+   * either returns the final reply or executes the chosen tool/skill.
+   */
+  private async runIteration(
+    sessionId: string,
+    userInput: string,
+    ctx: {
+      iteration: number;
+      iterCap: number;
+      isSubAgent: boolean;
+      lastObservation: string | undefined;
+      options?: AgentRunHandleOptions;
+    },
+    traceCtx: ExecutorTraceContext | undefined,
+    invocation: ExecutorInvocationContext,
+  ): Promise<IterationResult> {
+    const { systemPrompt, userPrompt } = await this.buildPrompt(sessionId, userInput, ctx);
+
+    traceCtx?.tracer.thought(ctx.iteration, AgentTracePhase.START);
+
+    let decision: AgentDecision;
+    try {
+      decision = await this.deps.llm.decide(userPrompt, systemPrompt);
+    } catch (error) {
+      traceCtx?.tracer.thought(
+        ctx.iteration,
+        AgentTracePhase.END,
+        error instanceof Error ? error.message : String(error),
+      );
+      throw error;
+    }
+
+    logger.info(`Agent thought: ${decision.thought}`);
+    logger.debug("Received decision from LLM", {
+      type: decision.type,
+      tool: decision.tool,
+      skill: decision.skill,
+    });
+
+    traceCtx?.tracer.thought(ctx.iteration, AgentTracePhase.END, decision.thought ?? "");
+
+    if (decision.type === DecisionType.Respond) {
+      return this.handleRespond(sessionId, decision.message ?? "");
+    }
+
+    return this.handleToolOrSkill(sessionId, decision, traceCtx, invocation);
+  }
+
+  private async buildPrompt(
+    sessionId: string,
+    userInput: string,
+    ctx: {
+      iteration: number;
+      iterCap: number;
+      isSubAgent: boolean;
+      lastObservation: string | undefined;
+      options?: AgentRunHandleOptions;
+    },
+  ) {
+    const session = await this.deps.memoryManager.getSession(sessionId);
+    const allMemory = await this.deps.memoryManager.getLongTermMemory();
+    const relevantLongTermMemory = await this.deps.memoryManager.searchLongTermMemory(userInput);
+    const soul = await this.deps.profileManager.getSoul();
+    const user = await this.deps.profileManager.getUser();
+
+    const isBootstrapComplete = ctx.isSubAgent
+      ? true
+      : allMemory.some((m) => m.content === "bootstrap_complete");
+
+    return this.promptBuilder.build({
+      latestUserMessage: userInput,
+      session,
+      relevantLongTermMemory,
+      soul,
+      user,
+      toolRegistry: this.deps.toolRegistry,
+      skillRegistry: this.deps.skillRegistry,
+      lastObservation: ctx.lastObservation,
+      iteration: ctx.iteration,
+      maxIterations: ctx.iterCap,
+      isBootstrapComplete,
+      isSubAgent: ctx.isSubAgent,
+      subAgentSystemPromptAppend: ctx.isSubAgent ? ctx.options?.subAgentSystemPromptAppend : undefined,
+    });
+  }
+
+  private async handleRespond(sessionId: string, finalMessage: string): Promise<IterationResult> {
+    logger.info(`Agent responded for session ${sessionId}`, { message: finalMessage });
     await this.deps.memoryManager.appendSessionMessage(
       sessionId,
-      this.message("assistant", fallback),
+      AgentLoop.message("assistant", finalMessage),
+    );
+    return { finalReply: finalMessage };
+  }
+
+  private async handleToolOrSkill(
+    sessionId: string,
+    decision: AgentDecision,
+    traceCtx: ExecutorTraceContext | undefined,
+    invocation: ExecutorInvocationContext,
+  ): Promise<IterationResult> {
+    const result = await this.executor.executeDecision(sessionId, decision, traceCtx, invocation);
+    logger.info("Executed decision", {
+      type: decision.type,
+      tool: decision.tool,
+      skill: decision.skill,
+    });
+
+    const observation = AgentLoop.formatFeedback(decision, result);
+    await this.deps.memoryManager.appendSessionMessage(
+      sessionId,
+      AgentLoop.message("tool", observation),
+    );
+    return { observation };
+  }
+
+  // ── Guard helpers ──────────────────────────────────────────────────────────
+
+  /**
+   * Throws `EarlyExit` if the run should stop due to cancellation or deadline.
+   * Keeping checks here prevents duplicated branching inside the main loop.
+   */
+  private checkForEarlyExit(
+    options: AgentRunHandleOptions | undefined,
+    isSubAgent: boolean,
+  ): void {
+    if (options?.abortSignal?.aborted) {
+      throw new EarlyExit(
+        AgentRunOutcome.CANCELLED,
+        isSubAgent
+          ? "Sub-agent task was cancelled — report partial findings to principal."
+          : "This run was cancelled before completion.",
+      );
+    }
+
+    if (
+      typeof options?.deadlineAt === "number" &&
+      Number.isFinite(options.deadlineAt) &&
+      Date.now() > options.deadlineAt
+    ) {
+      throw new EarlyExit(
+        AgentRunOutcome.TIMED_OUT,
+        isSubAgent
+          ? "Sub-agent task hit its time budget — summarize progress for principal."
+          : "This run stopped because its time budget was exceeded.",
+      );
+    }
+  }
+
+  private handleIterationError(sessionId: string, iteration: number, error: unknown): string {
+    const message = error instanceof Error ? error.message : String(error);
+    logger.error(`Error in agent loop iteration ${iteration} for session ${sessionId}`, {
+      error: message,
+    });
+    return `Error: ${message}`;
+  }
+
+  private async buildMaxIterationsOutcome(
+    sessionId: string,
+    isSubAgent: boolean,
+    tracer: ReturnType<SessionTraceHub["createRunTracer"]> | undefined,
+  ): Promise<AgentRunSummary> {
+    logger.warn(`Agent failed to respond within iteration limits for session ${sessionId}`);
+
+    const reply = isSubAgent
+      ? "Could not finalize delegated task — tell the principal what you tried."
+      : "I could not finalize a response within iteration limits.";
+
+    tracer?.runDone(AgentRunOutcome.MAX_ITERATIONS);
+    await this.deps.memoryManager.appendSessionMessage(
+      sessionId,
+      AgentLoop.message("assistant", reply),
     );
 
-    return { reply: fallback, outcome };
+    return { reply, outcome: AgentRunOutcome.MAX_ITERATIONS };
   }
 
-  private formatExecutionFeedback(
-    decision: AgentDecision,
-    result: unknown,
-  ): string {
-    if (decision.type === DecisionType.ToolCall) {
-      return `Tool ${decision.tool} result: ${this.stringify(result)}`;
-    }
-    if (decision.type === DecisionType.SkillCall) {
-      return `Skill ${decision.skill} result: ${this.stringify(result)}`;
-    }
-    if (decision.type === DecisionType.MemoryWrite) {
-      return `Memory write result: ${this.stringify(result)}`;
-    }
-    if (decision.type === DecisionType.ProfileWrite) {
-      return `Profile write result: ${this.stringify(result)}`;
-    }
-    if (decision.type === DecisionType.Respond) {
-      return `Response: ${this.stringify(result)}`;
-    }
-    return this.stringify(result);
+  // ── Private utilities ──────────────────────────────────────────────────────
+
+  private resolveIterationCap(requested: number | undefined): number {
+    if (requested === undefined) return this.maxIterations;
+    return Math.max(1, Math.min(requested, this.maxIterations));
   }
 
-  private stringify(value: unknown): string {
-    if (typeof value === "string") {
-      return value;
-    }
-    return JSON.stringify(value, null, 2);
-  }
-
-  private message(role: Message["role"], content: string): Message {
-    return {
-      role,
-      content,
-      createdAt: new Date().toISOString(),
+  private static formatFeedback(decision: AgentDecision, result: unknown): string {
+    const label: Record<DecisionType, string> = {
+      [DecisionType.ToolCall]: `Tool ${decision.tool} result`,
+      [DecisionType.SkillCall]: `Skill ${decision.skill} result`,
+      [DecisionType.MemoryWrite]: "Memory write result",
+      [DecisionType.ProfileWrite]: "Profile write result",
+      [DecisionType.Respond]: "Response",
     };
+
+    const prefix = label[decision.type] ?? "Result";
+    return `${prefix}: ${AgentLoop.stringify(result)}`;
+  }
+
+  private static stringify(value: unknown): string {
+    return typeof value === "string" ? value : JSON.stringify(value, null, 2);
+  }
+
+  private static message(role: Message["role"], content: string): Message {
+    return { role, content, createdAt: new Date().toISOString() };
   }
 }
