@@ -2,7 +2,7 @@
   "schemaVersion": "1",
   "kind": "agentic",
   "name": "generate_designed_pdf",
-  "description": "Lay out supplied content into a beautiful PDF using HTML/CSS. Spawns a focused sub-agent that designs HTML and calls generate_designed_pdf; you provide the text/data and paths.",
+  "description": "Design and generate a professional PDF layout using the provided content, data, and file paths. This skill is responsible for transforming sufficient user-supplied content into a visually polished HTML/CSS design and then generating the final PDF through a focused sub-agent that handles presentation and formatting.",
   "inputSchema": {
     "type": "object",
     "properties": {

@@ -2,11 +2,12 @@ import type {
   JsonInputSchema,
   Skill,
   SkillContext,
-} from "../common/interfaces/types.js";
 
+} from "../common/interfaces/types.js";
+import { SkillType } from "../common/interfaces/types.js";
 export interface AgenticSkillConfig {
   schemaVersion: "1";
-  kind: "agentic";
+  kind: SkillType.Agentic;
   name: string;
   description: string;
   inputSchema?: JsonInputSchema;
@@ -24,6 +25,7 @@ export class AgenticSkill implements Skill {
   readonly name: string;
   readonly description: string;
   readonly inputSchema?: JsonInputSchema;
+  readonly kind: SkillType.Agentic = SkillType.Agentic as const;
 
   constructor(
     private readonly config: AgenticSkillConfig,
@@ -118,7 +120,7 @@ export function parseAgenticSkillJson(
   }
   return {
     schemaVersion: "1",
-    kind: "agentic",
+    kind: SkillType.Agentic,
     name: obj.name,
     description: obj.description,
     inputSchema: obj.inputSchema as JsonInputSchema | undefined,

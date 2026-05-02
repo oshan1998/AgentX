@@ -2,10 +2,11 @@ import type { SkillRegistry, ToolRegistry } from "../common/interfaces/registry.
 import type {
   LongTermMemoryEntry,
   SessionMemory,
+  Skill,
 } from "../common/interfaces/types.js";
 import { formatInputSchemaForPrompt } from "../common/services/format-input-schema.js";
 import type { Soul, User } from "../managers/profile-manager.js";
-
+import { DecisionType, SkillType } from "../common/interfaces/types.js";
 const SESSION_MESSAGE_LIMIT = 20;
 
 interface PromptBuilderInput {
@@ -28,6 +29,13 @@ interface PromptBuilderInput {
 export interface BuiltPrompt {
   systemPrompt: string;
   userPrompt: string;
+}
+
+function formatSkillCatalogLine(s: Skill): string {
+  const tag = s.kind === SkillType.Agentic ? SkillType.Agentic : SkillType.Workflow;
+  const head = `- ${s.name} [${tag}]${s.description ? `: ${s.description}` : ""}`;
+  const schemaLines = formatInputSchemaForPrompt(s.inputSchema);
+  return schemaLines ? `${head}\n${schemaLines}` : head;
 }
 
 export class PromptBuilder {
@@ -67,11 +75,7 @@ export class PromptBuilder {
     const skills =
       input.skillRegistry
         .list()
-        .map((s) => {
-          const head = `- ${s.name}${s.description ? `: ${s.description}` : ""}`;
-          const schemaLines = formatInputSchemaForPrompt(s.inputSchema);
-          return schemaLines ? `${head}\n${schemaLines}` : head;
-        })
+        .map((s) => formatSkillCatalogLine(s))
         .join("\n\n") || "none";
 
     const memory =
@@ -135,7 +139,7 @@ Operational rules:
 Available tools:
 ${tools}
 
-Available skills:
+Available skills (tag: [workflow] = step runner, [agentic] = specialist sub-agent):
 ${skills}
 
 ${input.subAgentSystemPromptAppend?.trim() ? `---\n\n## Domain instructions\n\n${input.subAgentSystemPromptAppend.trim()}` : ""}
@@ -265,11 +269,7 @@ ${recentMessages}
     const skills =
       input.skillRegistry
         .list()
-        .map((s) => {
-          const head = `- ${s.name}${s.description ? `: ${s.description}` : ""}`;
-          const schemaLines = formatInputSchemaForPrompt(s.inputSchema);
-          return schemaLines ? `${head}\n${schemaLines}` : head;
-        })
+        .map((s) => formatSkillCatalogLine(s))
         .join("\n\n") || "none";
 
     const memory =
@@ -307,7 +307,7 @@ Allowed JSON decisions:
 
 3. Skill call:
 {
-  "thought": "This task requires a multi-step workflow for document analysis. I will invoke the research_document skill.",
+  "thought": "A listed skill matches this request; I will use it with complete input per its schema rather than re-implementing the same work with raw tools.",
   "type": "skill_call",
   "skill": "skill_name",
   "input": {}
@@ -335,8 +335,8 @@ Allowed JSON decisions:
 Important JSON rules:
 - The "thought" field is MANDATORY. Use it to reason step-by-step about the task, the last observation, and your next move.
 - For tool_call and skill_call, the "input" object MUST match the "input:" / schema section shown for that exact tool or skill name under Available tools / Available skills.
-- The "type" field must be exactly one of: respond, tool_call, skill_call, memory_write, profile_write.
-- Never put a tool or skill name directly in the "type" field.
+- The "type" field must be exactly one of: ${Object.values(DecisionType).join("", )}.
+- Never put a tool or skill name directly in the "type" field.  
 - For file writing, use:
   {"thought": "...", "type": "tool_call", "tool": "write_file", "input": {"path": "workspace/test.txt", "content": "..."}}
 - IMPORTANT: All files created or updated (PDFs, text files, etc.) MUST be stored within the 'workspace/' directory.
@@ -359,10 +359,18 @@ Important JSON rules:
     "input": {...}
   }
 
+Capabilities (how to use your abilities fully):
+- Tools (Available tools): single-step actions—call one tool when it directly fits (files, APIs, search, etc.).
+- Skills (Available skills): named packages tagged [workflow] or [agentic]:
+  - [workflow]: fixed multi-step flow (tools and/or internal LLM steps in sequence).
+  - [agentic]: runs an isolated specialist sub-agent with allow-listed tools/skills and domain instructions; use when the task matches that skill’s description.
+- Prefer skill_call when a listed skill’s name/description matches the user’s goal—do not manually replicate the same steps with separate tool_calls unless no skill fits.
+- delegate_sub_agent (tool): use when no listed skill fits but you still want a focused sub-run with a custom task and allow-list you specify; you remain responsible for persisting results.
+
 Decision rules:
-- Use tool_call for direct external actions (files, scheduling, Gmail, web search, PDF text extraction, time, memory search, etc.).
-- Use the delegate_sub_agent tool when a child needs a strict allow-list of tools/skills plus an isolated transcript; you remain responsible for persistence.
-- Use skill_call only for workflows listed under Available skills (multi-step flows that compose tools and/or an internal LLM).
+- Use tool_call for direct external actions when no packaged skill applies (files, scheduling, Gmail, web search, PDF text extraction, time, memory search, etc.).
+- Use skill_call for any skill under Available skills whose description fits; supply complete input per that skill’s schema.
+- Use the delegate_sub_agent tool when a child needs a strict allow-list of tools/skills plus an isolated transcript and no listed skill matches.
 - Use memory_write only when useful long-term information should be saved.
 - Use profile_write only when updating the user's profile or agent soul.
 - Use respond only when the full task is complete.
@@ -371,13 +379,13 @@ Decision rules:
 
 Validation rule:
 - If "type" is not one of:
-respond | tool_call | skill_call | memory_write | profile_write
+${Object.values(DecisionType).join(" | ")}
 - the response is invalid.
 
 Available tools:
 ${tools}
 
-Available skills:
+Available skills (tag: [workflow] = step runner, [agentic] = specialist sub-agent):
 ${skills}
 `.trim();
 

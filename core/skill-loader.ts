@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import type { LlmAdapter, Skill } from "../common/interfaces/types.js";
+import { SkillType, type LlmAdapter, type Skill } from "../common/interfaces/types.js";
 import {
   type AgenticSkillConfig,
   AgenticSkill,
@@ -40,7 +40,7 @@ export async function loadSkillsFromDirectory(skillDir: string, llm: LlmAdapter)
     } catch {
       // optional prompt file; fallback used
     }
-    if (config.kind === "agentic") {
+    if (config.kind === SkillType.Agentic) {
       loaded.push(new AgenticSkill(config, promptMarkdown));
     } else {
       loaded.push(new WorkflowSkill(config, promptMarkdown, llm));
@@ -61,7 +61,7 @@ function parseSkillJson(
   if (obj.schemaVersion !== "1") {
     throw new Error(`Invalid skill config in ${sourceName}: schemaVersion must be "1".`);
   }
-  if (obj.kind === "agentic") {
+  if (obj.kind === SkillType.Agentic) {
     return parseAgenticSkillJson(obj, sourceName);
   }
   return parseWorkflowSkillJson(obj, sourceName);

@@ -8,7 +8,7 @@ export enum DecisionType {
 
 export enum SkillType{
   Agentic = "agentic",
-  Delegated = "delegated",
+  Workflow = "workflow",
 }
 
 export enum ProfileTarget {
@@ -107,6 +107,11 @@ export interface Skill {
   description: string;
   /** When set, appended to the system prompt so the model knows valid skill_call.input. */
   inputSchema?: JsonInputSchema;
+  /**
+   * How the skill executes: step runner vs delegated sub-agent.
+   * Shown in catalog as [workflow] or [agentic]. Omit = treat as workflow in prompts.
+   */
+  kind?: SkillType;
   run(input: Record<string, unknown>, context: SkillContext): Promise<unknown>;
 }
 

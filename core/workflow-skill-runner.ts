@@ -7,10 +7,10 @@ import {
   type SkillContext,
   type SkillStep,
 } from "../common/interfaces/types.js";
-
+import { SkillType } from "../common/interfaces/types.js";
 export interface WorkflowSkillConfig {
   schemaVersion: "1";
-  kind?: "workflow";
+  kind?: SkillType.Workflow;
   name: string;
   description: string;
   steps: SkillStep[];
@@ -24,6 +24,8 @@ export class WorkflowSkill implements Skill {
   name: string;
   description: string;
   readonly inputSchema?: JsonInputSchema;
+  readonly kind= SkillType.Workflow
+
 
   constructor(
     private readonly config: WorkflowSkillConfig,

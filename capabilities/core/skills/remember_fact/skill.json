@@ -1,5 +1,6 @@
 {
   "schemaVersion": "1",
+  "kind": "workflow",
   "name": "remember_fact",
   "description": "Persist a meaningful long-term memory entry.",
   "inputSchema": {
