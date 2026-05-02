@@ -1,4 +1,16 @@
-export type DecisionType = "respond" | "tool_call" | "skill_call" | "memory_write" | "profile_write";
+
+export enum DecisionType {
+  Respond = "respond",
+  ToolCall = "tool_call",
+  SkillCall = "skill_call",
+  MemoryWrite = "memory_write",
+  ProfileWrite = "profile_write",
+}
+
+export enum ProfileTarget {
+  Soul = "soul",
+  User = "user",
+}
 
 export interface AgentDecision {
   thought: string;
@@ -8,7 +20,7 @@ export interface AgentDecision {
   skill?: string;
   input?: Record<string, unknown>;
   memoryEntry?: Omit<LongTermMemoryEntry, "id" | "createdAt">;
-  target?: "soul" | "user";
+  target?: ProfileTarget;
   content?: Record<string, unknown>;
 }
 
@@ -21,6 +33,8 @@ export interface Message {
 
 export interface SessionMemory {
   sessionId: string;
+  /** Principal session when this one was created for an isolated sub-agent run. */
+  parentSessionId?: string;
   title?: string;
   createdAt: string;
   updatedAt: string;
@@ -39,6 +53,9 @@ export interface LongTermMemoryEntry {
 
 export interface ToolContext {
   sessionId: string;
+  /** Host run id (tracing / delegation linkage). */
+  runId?: string;
+  abortSignal?: AbortSignal;
 }
 
 /** JSON Schema–style shape for planner-visible tool/skill inputs (typically type "object", properties, required). */
@@ -46,6 +63,7 @@ export type JsonInputSchema = Record<string, unknown>;
 
 export interface SkillContext {
   sessionId: string;
+  abortSignal?: AbortSignal;
   runTool: (name: string, input: Record<string, unknown>) => Promise<unknown>;
   searchMemory: (query: string) => Promise<LongTermMemoryEntry[]>;
   writeMemory: (entry: Omit<LongTermMemoryEntry, "id" | "createdAt">) => Promise<LongTermMemoryEntry>;
@@ -72,3 +90,40 @@ export interface LlmAdapter {
   decide(prompt: string, systemPrompt?: string): Promise<AgentDecision>;
   complete(prompt: string, systemPrompt?: string): Promise<string>;
 }
+
+export enum SkillStepType {
+  ToolCall = "tool_call",
+  Llm = "llm",
+  MemoryWrite = "memory_write",
+  Respond = "respond",
+  ProfileWrite = "profile_write",
+}
+export type SkillStep =
+  | {
+      type: SkillStepType.ToolCall;
+      tool: string;
+      input?: Record<string, unknown>;
+      saveAs?: string;
+    }
+  | {
+      type: SkillStepType.Llm;
+      promptTemplate: string;
+      saveAs?: string;
+      /** When true, parse the model reply as JSON (with loose extraction if wrapped in prose). Enables {{saveAs.field}} templates. */
+      parseOutputAsJson?: boolean;
+    }
+  | {
+      type: SkillStepType.MemoryWrite;
+      memoryType?: LongTermMemoryType;
+      memoryTypeTemplate?: string;
+      contentTemplate: string;
+    }
+  | {
+      type: SkillStepType.Respond;
+      messageTemplate: string;
+    }
+  | {
+      type: SkillStepType.ProfileWrite;
+      target: ProfileTarget;
+      contentTemplate: string;
+    };

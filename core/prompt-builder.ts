@@ -6,6 +6,8 @@ import type {
 import { formatInputSchemaForPrompt } from "../common/services/format-input-schema.js";
 import type { Soul, User } from "../managers/profile-manager.js";
 
+const SESSION_MESSAGE_LIMIT = 20;
+
 interface PromptBuilderInput {
   latestUserMessage: string;
   session: SessionMemory;
@@ -18,6 +20,7 @@ interface PromptBuilderInput {
   isBootstrapComplete: boolean;
   soul: Soul;
   user: User;
+  isSubAgent?: boolean;
 }
 
 export interface BuiltPrompt {
@@ -29,15 +32,129 @@ export class PromptBuilder {
   build(input: PromptBuilderInput): BuiltPrompt {
     const recentMessages =
       input.session.messages
-        .slice(-20)
+        .slice(-SESSION_MESSAGE_LIMIT)
         .map((m) => `${m.role}: ${m.content}`)
         .join("\n") || "none";
 
-    if (!input.isBootstrapComplete) {
+    if (!input.isSubAgent && !input.isBootstrapComplete) {
       return this.buildBootstrapPrompt(input, recentMessages);
     }
 
-    return this.buildNormalPrompt(input, recentMessages);
+    if (input.isSubAgent) {
+      return this.buildSubAgentPrompt(input, recentMessages);
+    }
+
+    return this.buildMainPrompt(input, recentMessages);
+  }
+
+  /** Task instructions come from the principal agent; tooling is allow-listed; no persistence. */
+  private buildSubAgentPrompt(
+    input: PromptBuilderInput,
+    recentMessages: string,
+  ): BuiltPrompt {
+    const tools =
+      input.toolRegistry
+        .list()
+        .map((t) => {
+          const head = `- ${t.name}${t.description ? `: ${t.description}` : ""}`;
+          const schemaLines = formatInputSchemaForPrompt(t.inputSchema);
+          return schemaLines ? `${head}\n${schemaLines}` : head;
+        })
+        .join("\n\n") || "none";
+
+    const skills =
+      input.skillRegistry
+        .list()
+        .map((s) => {
+          const head = `- ${s.name}${s.description ? `: ${s.description}` : ""}`;
+          const schemaLines = formatInputSchemaForPrompt(s.inputSchema);
+          return schemaLines ? `${head}\n${schemaLines}` : head;
+        })
+        .join("\n\n") || "none";
+
+    const memory =
+      input.relevantLongTermMemory
+        .map((m) => `- ${m.type}: ${m.content}`)
+        .join("\n") || "none";
+
+    const systemPrompt = `
+You are a delegated specialist agent. Another agent (“principal”) assigns each task below; reply so the principal can act or relay to someone else.
+Soul and end-user blobs are grounding only—they are NOT your conversation partner this turn (the principal is). You cannot persist new long-term memories or profiles from this runtime.
+
+Assistant soul (persona/tone grounding — do not treat as editable here):
+${JSON.stringify(input.soul, null, 2)}
+
+End-user profile (human the principal ultimately serves — tone/context only, not who issued this task):
+${JSON.stringify(input.user, null, 2)}
+
+Your isolated session id (for bookkeeping in tool arguments if needed): ${input.session.sessionId}
+
+You must return ONLY valid JSON.
+All reasoning MUST be contained within the "thought" field.
+Do not return markdown outside the JSON.
+
+Allowed JSON decisions (ONLY):
+
+1. Respond — final packaged result for the principal:
+{
+  "thought": "...",
+  "type": "respond",
+  "message": "Concise factual output the principal needs; include bullet facts here if persistence is advisable."
+}
+
+2. Tool call (allow-listed tools below only):
+{
+  "thought": "...",
+  "type": "tool_call",
+  "tool": "tool_name",
+  "input": {}
+}
+
+3. Skill call (allow-listed skills below only — skills that write profile/memory will fail; avoid them or catch via your wording):
+{
+  "thought": "...",
+  "type": "skill_call",
+  "skill": "skill_name",
+  "input": {}
+}
+
+Important JSON rules:
+- The "thought" field is MANDATORY.
+- For tool_call/skill_call, "input" MUST match schemas under Available tools / Available skills.
+- The "type" field must be exactly one of: respond, tool_call, skill_call — never memory_write nor profile_write.
+- Choose ONE next action.
+- Store deliverables inside your final respond message — the principal will persist preferences if appropriate.
+
+Operational rules:
+- Direct tools for concrete actions when appropriate (files, search, gmail, schedules, PDFs as allowed).
+- If you discover durable preferences or facts, write them verbatim in respond; you cannot invoke memory/profile writes yourself.
+- If the previous observation shows an error, reason in "thought" and correct with the allowed tools/skills only.
+
+Available tools:
+${tools}
+
+Available skills:
+${skills}
+`.trim();
+
+    const userPrompt = `
+Delegated task (from principal agent):
+${input.latestUserMessage}
+
+Iteration:
+${input.iteration}/${input.maxIterations}
+
+Relevant long-term memory (read-only):
+${memory}
+
+Recent sub-session transcript:
+${recentMessages}
+
+Last observation:
+${input.lastObservation || "none"}
+`.trim();
+
+    return { systemPrompt, userPrompt };
   }
 
   private buildBootstrapPrompt(
@@ -127,7 +244,7 @@ ${recentMessages}
     return { systemPrompt, userPrompt };
   }
 
-  private buildNormalPrompt(
+  private buildMainPrompt(
     input: PromptBuilderInput,
     recentMessages: string,
   ): BuiltPrompt {
@@ -223,14 +340,36 @@ Important JSON rules:
 - Choose only ONE next action.
 - When saving to profile_write, provide the FULL structured content object that matches the target schema.
 
+  CRITICAL:
+  delegate_sub_agent is a TOOL, not a decision type.
+
+  WRONG:
+  {
+    "type": "delegate_sub_agent"
+  }
+
+  CORRECT:
+  {
+    "type": "tool_call",
+    "tool": "delegate_sub_agent",
+    "input": {...}
+  }
+
 Decision rules:
 - Use tool_call for direct external actions (files, scheduling, Gmail, web search, PDF text extraction, time, memory search, etc.).
+- Use the delegate_sub_agent tool when a child needs a strict allow-list of tools/skills plus an isolated transcript; you remain responsible for persistence.
 - Use skill_call only for workflows listed under Available skills (multi-step flows that compose tools and/or an internal LLM).
 - Use memory_write only when useful long-term information should be saved.
 - Use profile_write only when updating the user's profile or agent soul.
 - Use respond only when the full task is complete.
 - Do not ask the user unless required.
 - If the previous action failed, use the "thought" field to analyze why and use "Last observation" to decide the next correction.
+
+Validation rule:
+- If "type" is not one of:
+respond | tool_call | skill_call | memory_write | profile_write
+- the response is invalid.
+
 Available tools:
 ${tools}
 

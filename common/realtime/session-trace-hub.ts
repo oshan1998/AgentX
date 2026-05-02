@@ -1,15 +1,21 @@
 import { WebSocket } from "ws";
-import { logger } from "../services/logger.js";
 import type { AgentTracePayload, AgentTraceStep, RunTracer } from "./agent-trace-types.js";
+import { logger } from "../services/logger.js";
 
 const OPEN = WebSocket.OPEN;
 
 /**
  * Tracks which sockets want trace events per session and broadcasts payloads.
+ * Sequencing is per (sessionId, runId); all run steps use this hub so delegation can interleave coherently.
  */
 export class SessionTraceHub {
   private readonly sessionSockets = new Map<string, Set<WebSocket>>();
   private readonly socketSessions = new Map<WebSocket, Set<string>>();
+  private readonly seqByRun = new Map<string, number>();
+
+  private seqKey(sessionId: string, runId: string): string {
+    return `${sessionId}\u0000${runId}`;
+  }
 
   subscribe(socket: WebSocket, sessionId: string): void {
     if (!sessionId) return;
@@ -58,11 +64,11 @@ export class SessionTraceHub {
     this.socketSessions.delete(socket);
   }
 
-  emitTrace(trace: AgentTracePayload): void {
-    const set = this.sessionSockets.get(trace.sessionId);
+  broadcastTrace(payload: AgentTracePayload): void {
+    const set = this.sessionSockets.get(payload.sessionId);
     if (!set?.size) return;
 
-    const frame = JSON.stringify({ type: "agent_trace", payload: trace });
+    const frame = JSON.stringify({ type: "agent_trace", payload });
 
     for (const ws of set) {
       if (ws.readyState === OPEN) {
@@ -71,40 +77,56 @@ export class SessionTraceHub {
     }
   }
 
+  emitTraceStep(sessionId: string, runId: string, fragment: AgentTraceStep): void {
+    const k = this.seqKey(sessionId, runId);
+    const seq = (this.seqByRun.get(k) ?? 0) + 1;
+    this.seqByRun.set(k, seq);
+    const payload: AgentTracePayload = {
+      sessionId,
+      runId,
+      seq,
+      ts: new Date().toISOString(),
+      ...fragment,
+    };
+    this.broadcastTrace(payload);
+  }
+
   createRunTracer(sessionId: string, runId: string): RunTracer {
-    let seq = 0;
-    const emit = (step: AgentTraceStep): void => {
-      const payload: AgentTracePayload = {
-        sessionId,
-        runId,
-        seq: (seq += 1),
-        ts: new Date().toISOString(),
-        ...step,
-      };
-      this.emitTrace(payload);
+    const emitFrag = (fragment: AgentTraceStep): void => {
+      this.emitTraceStep(sessionId, runId, fragment);
     };
 
     return {
       thought(iteration: number, phase: "start" | "end", text?: string): void {
-        emit({ step: "thought", iteration, phase, ...(text !== undefined ? { text } : {}) });
+        emitFrag({
+          step: "thought",
+          iteration,
+          phase,
+          ...(text !== undefined ? { text } : {}),
+        });
       },
       tool(iteration: number, name: string, phase: "start" | "end"): void {
-        emit({ step: "tool", iteration, name, phase });
+        emitFrag({ step: "tool", iteration, name, phase });
       },
       skill(iteration: number, name: string, phase: "start" | "end"): void {
-        emit({ step: "skill", iteration, name, phase });
+        emitFrag({ step: "skill", iteration, name, phase });
       },
-      skillTool(iteration: number, skill: string, tool: string, phase: "start" | "end"): void {
-        emit({ step: "skill_tool", iteration, skill, tool, phase });
+      skillTool(
+        iteration: number,
+        skill: string,
+        tool: string,
+        phase: "start" | "end",
+      ): void {
+        emitFrag({ step: "skill_tool", iteration, skill, tool, phase });
       },
       memoryWrite(iteration: number, phase: "start" | "end"): void {
-        emit({ step: "memory_write", iteration, phase });
+        emitFrag({ step: "memory_write", iteration, phase });
       },
       profileWrite(iteration: number, phase: "start" | "end", target?: string): void {
-        emit({ step: "profile_write", iteration, phase, target });
+        emitFrag({ step: "profile_write", iteration, phase, target });
       },
-      runDone(outcome: "complete" | "max_iterations"): void {
-        emit({ step: "run_done", outcome });
+      runDone(outcome): void {
+        emitFrag({ step: "run_done", outcome });
       },
     };
   }

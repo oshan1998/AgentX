@@ -66,6 +66,21 @@ export class MemoryManager {
     await this.saveSession(session);
   }
 
+  /** Child session persisted as `<id>.json` with `parentSessionId` linkage. */
+  async createChildSession(parentSessionId: string): Promise<string> {
+    const sessionId = `sub_${randomUUID()}`;
+    const now = new Date().toISOString();
+    const session: SessionMemory = {
+      sessionId,
+      parentSessionId,
+      createdAt: now,
+      updatedAt: now,
+      messages: [],
+    };
+    await this.saveSession(session);
+    return sessionId;
+  }
+
   async getLongTermMemory(): Promise<LongTermMemoryEntry[]> {
     const raw = await readFile(this.getLongTermPath(), "utf-8");
     return JSON.parse(raw) as LongTermMemoryEntry[];
@@ -94,17 +109,13 @@ export class MemoryManager {
 
     const allEntries = await this.getLongTermMemory();
 
+    if (tokens.length === 0) {
+      return allEntries;
+    }
+
     return allEntries.filter((item) => {
       const text = `${item.type} ${item.content}`.toLowerCase();
-
-      // 1. token match (better than includes)
-      const tokenMatch = tokens.some((t) => text.includes(t));
-
-      // 2. regex match (for phrases)
-      const regex = new RegExp(tokens.join("|"), "i");
-      const regexMatch = regex.test(text);
-
-      return tokenMatch || regexMatch;
+      return tokens.some((t) => text.includes(t));
     });
   }
 

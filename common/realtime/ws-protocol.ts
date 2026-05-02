@@ -1,5 +1,5 @@
 /**
- * WebSocket JSON envelope — keep in sync with AgentX-Frontend/src/realtime/protocol.ts
+ * WebSocket JSON envelope — keep in sync with AgentX-Frontend/src/realtime/protocol.ts (agent_trace payloads).
  */
 
 import type { AgentTracePayload } from "./agent-trace-types.js";

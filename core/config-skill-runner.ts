@@ -1,42 +1,16 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import type {
-  JsonInputSchema,
-  LlmAdapter,
-  LongTermMemoryType,
-  Skill,
-  SkillContext,
+import {
+  SkillStepType,
+  type JsonInputSchema,
+  type LlmAdapter,
+  type LongTermMemoryType,
+  type Skill,
+  type SkillContext,
+  type SkillStep,
 } from "../common/interfaces/types.js";
 
-type SkillStep =
-  | {
-      type: "tool_call";
-      tool: string;
-      input?: Record<string, unknown>;
-      saveAs?: string;
-    }
-  | {
-      type: "llm";
-      promptTemplate: string;
-      saveAs?: string;
-      /** When true, parse the model reply as JSON (with loose extraction if wrapped in prose). Enables {{saveAs.field}} templates. */
-      parseOutputAsJson?: boolean;
-    }
-  | {
-      type: "memory_write";
-      memoryType?: LongTermMemoryType;
-      memoryTypeTemplate?: string;
-      contentTemplate: string;
-    }
-  | {
-      type: "respond";
-      messageTemplate: string;
-    }
-  | {
-      type: "profile_write";
-      target: "soul" | "user";
-      contentTemplate: string;
-    };
+
 
 interface SkillConfig {
   schemaVersion: "1";
@@ -65,7 +39,7 @@ export class ConfigSkill implements Skill {
     const state: Record<string, unknown> = { input };
 
     for (const step of this.config.steps) {
-      if (step.type === "tool_call") {
+      if (step.type === SkillStepType.ToolCall) {
         const toolInput = this.resolveRecordTemplate(step.input ?? {}, state);
         const result = await context.runTool(step.tool, toolInput);
         if (step.saveAs) {
@@ -76,7 +50,7 @@ export class ConfigSkill implements Skill {
         continue;
       }
 
-      if (step.type === "llm") {
+      if (step.type === SkillStepType.Llm) {
         const prompt = this.interpolate(step.promptTemplate, state);
         const raw = await this.llm.complete(prompt, this.promptMarkdown);
         let output: unknown = raw;
@@ -94,7 +68,7 @@ export class ConfigSkill implements Skill {
         continue;
       }
 
-      if (step.type === "memory_write") {
+      if (step.type === SkillStepType.MemoryWrite) {
         const content = this.interpolate(step.contentTemplate, state);
         const memoryType = this.resolveMemoryType(step, state);
         await context.writeMemory({
@@ -105,11 +79,11 @@ export class ConfigSkill implements Skill {
         continue;
       }
 
-      if (step.type === "respond") {
+      if (step.type === SkillStepType.Respond) {
         return this.interpolate(step.messageTemplate, state);
       }
 
-      if (step.type === "profile_write") {
+      if (step.type === SkillStepType.ProfileWrite) {
         const contentRaw = this.interpolate(step.contentTemplate, state);
         let content: Record<string, unknown>;
         try {

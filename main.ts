@@ -4,6 +4,8 @@ import path from "node:path";
 import { attachWebSocketGateway } from "./common/realtime/ws-gateway.js";
 import { SessionTraceHub } from "./common/realtime/session-trace-hub.js";
 import { AgentLoop } from "./core/agent-loop.js";
+import { AgentRuntimeFactory } from "./core/agent-runtime-factory.js";
+import { registerDelegateToolOnce } from "./core/sub-agent-registry.js";
 import { createLlmAdapter } from "./llm-adapters/factory.js";
 import { MemoryManager } from "./managers/memory-manager.js";
 import { ProfileManager } from "./managers/profile-manager.js";
@@ -48,6 +50,16 @@ async function main() {
   const skillRegistry = await skillManager.loadAllSkills();
 
   const sessionTraceHub = new SessionTraceHub();
+
+  const agentRuntimeFactory = new AgentRuntimeFactory({
+    llm,
+    memoryManager,
+    profileManager,
+    masterToolRegistry: toolRegistry,
+    masterSkillRegistry: skillRegistry,
+    sessionTraceHub,
+  });
+  registerDelegateToolOnce(toolRegistry, agentRuntimeFactory.delegateTool);
 
   const agentLoop = new AgentLoop({
     llm,
