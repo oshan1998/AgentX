@@ -1,4 +1,6 @@
+import { z } from "zod";
 import type { Tool, ToolContext } from "../../../common/interfaces/types.js";
+import { parseToolInput, zodSchemaToJsonInputSchema } from "../../../common/services/zod-tool-schema.js";
 
 interface TavilySearchResult {
   title?: string;
@@ -12,28 +14,24 @@ interface TavilySearchResponse {
   results?: TavilySearchResult[];
 }
 
+export const webSearchInputSchema = z.object({
+  query: z.string().min(1).describe("Search query."),
+  maxResults: z
+    .number()
+    .finite()
+    .optional()
+    .describe("1–10; default 5."),
+});
+
+export type WebSearchInput = z.infer<typeof webSearchInputSchema>;
+
 export class WebSearchTool implements Tool {
   name = "web_search";
   description = "Search the web with Tavily and return top results.";
-  inputSchema = {
-    type: "object",
-    properties: {
-      query: { type: "string", description: "Search query." },
-      maxResults: {
-        type: "number",
-        description: "1–10; default 5.",
-      },
-    },
-    required: ["query"],
-  } as const;
+  inputSchema = zodSchemaToJsonInputSchema(webSearchInputSchema);
 
   async run(input: Record<string, unknown>, _context: ToolContext): Promise<unknown> {
-    const query = input.query;
-    const maxResultsRaw = input.maxResults;
-
-    if (typeof query !== "string" || query.trim().length === 0) {
-      throw new Error("web_search requires { query: string }.");
-    }
+    const { query, maxResults: maxResultsRaw } = parseToolInput(this.name, webSearchInputSchema, input);
 
     const maxResults =
       typeof maxResultsRaw === "number" && Number.isFinite(maxResultsRaw)

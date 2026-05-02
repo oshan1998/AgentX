@@ -21,7 +21,9 @@
     "pdfkit": "^0.18.0",
     "puppeteer": "^24.42.0",
     "winston": "^3.19.0",
-    "ws": "^8.20.0"
+    "ws": "^8.20.0",
+    "zod": "^4.4.2",
+    "zod-to-json-schema": "^3.25.2"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",

@@ -1,71 +1,62 @@
 import puppeteer from "puppeteer";
+import { z } from "zod";
 import type { Tool, ToolContext } from "../../../common/interfaces/types.js";
 import { logger } from "../../../common/services/logger.js";
+import { parseToolInput, zodSchemaToJsonInputSchema } from "../../../common/services/zod-tool-schema.js";
+
+export const generateDesignedPdfInputSchema = z.object({
+  outputPath: z.string().min(1).describe("Where to save the PDF (under workspace/)."),
+  html: z.string().min(1).describe("Full HTML document body or page to render."),
+  format: z
+    .string()
+    .optional()
+    .describe('Paper size label e.g. "A4", "Letter". Default A4.'),
+  landscape: z
+    .union([z.boolean(), z.literal("true")])
+    .optional()
+    .describe("Optional; portrait if omitted/false."),
+});
+
+export type GenerateDesignedPdfInput = z.infer<typeof generateDesignedPdfInputSchema>;
 
 export class GenerateDesignedPdfTool implements Tool {
   name = "generate_designed_pdf";
-  description = "Generate a PDF file from HTML content, allowing for complex designs, CSS styling, and layouts.";
-  inputSchema = {
-    type: "object",
-    properties: {
-      outputPath: {
-        type: "string",
-        description: "Where to save the PDF (under workspace/).",
-      },
-      html: {
-        type: "string",
-        description: "Full HTML document body or page to render.",
-      },
-      format: {
-        type: "string",
-        description: 'Paper size label e.g. "A4", "Letter". Default A4.',
-      },
-      landscape: {
-        type: "boolean",
-        description: "Optional; portrait if omitted/false.",
-      },
-    },
-    required: ["outputPath", "html"],
-  } as const;
+  description =
+    "Generate a PDF file from HTML content, allowing for complex designs, CSS styling, and layouts.";
+  inputSchema = zodSchemaToJsonInputSchema(generateDesignedPdfInputSchema);
 
   async run(input: Record<string, unknown>, _context: ToolContext): Promise<unknown> {
-    const { outputPath, html } = input;
-    const format = input.format || "A4";
-    const landscape = input.landscape === "true" || input.landscape === true;
-
-    if (typeof outputPath !== "string" || !outputPath) {
-      throw new Error("generate_designed_pdf requires an 'outputPath' string.");
-    }
-
-    if (typeof html !== "string" || !html) {
-      throw new Error("generate_designed_pdf requires an 'html' string.");
-    }
+    const { outputPath, html, format: formatRaw, landscape: landscapeRaw } = parseToolInput(
+      this.name,
+      generateDesignedPdfInputSchema,
+      input,
+    );
+    const format = formatRaw ?? "A4";
+    const landscape = landscapeRaw === "true" || landscapeRaw === true;
 
     try {
       logger.info(`Starting designed PDF generation for: ${outputPath}`);
-      
-      // On Mac, we try to use the system Chrome if puppeteer didn't download its own
+
       const executablePath = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-      
+
       const browser = await puppeteer.launch({
         headless: true,
-        executablePath: executablePath,
+        executablePath,
         args: ["--no-sandbox", "--disable-setuid-sandbox"],
       });
-      
+
       const page = await browser.newPage();
-      
-      // Set the content of the page
-      await page.setContent(html, { 
+
+      await page.setContent(html, {
         waitUntil: "networkidle0",
-        timeout: 30000 
+        timeout: 30000,
       });
-      
-      // Generate the PDF
+
       await page.pdf({
         path: outputPath,
-        format: format as any,
-        landscape: landscape as boolean,
+        // Puppeteer PaperFormat is a fixed union; model-supplied labels are passed through like before.
+        format: format as "A4" | "Letter",
+        landscape,
         printBackground: true,
         margin: {
           top: "0px",
@@ -76,12 +67,12 @@ export class GenerateDesignedPdfTool implements Tool {
       });
 
       await browser.close();
-      
+
       logger.info(`Designed PDF successfully generated at: ${outputPath}`);
-      return { 
-        success: true, 
+      return {
+        success: true,
         outputPath,
-        message: "PDF generated successfully with custom design." 
+        message: "PDF generated successfully with custom design.",
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

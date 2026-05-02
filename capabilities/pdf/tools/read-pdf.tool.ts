@@ -1,39 +1,33 @@
 import { readFile } from "node:fs/promises";
 import pdf from "pdf-parse";
+import { z } from "zod";
 import type { Tool, ToolContext } from "../../../common/interfaces/types.js";
 import { logger } from "../../../common/services/logger.js";
+import { parseToolInput, zodSchemaToJsonInputSchema } from "../../../common/services/zod-tool-schema.js";
 
+export const readPdfInputSchema = z.object({
+  path: z.string().min(1).describe("Path to PDF under workspace/"),
+});
+
+export type ReadPdfInput = z.infer<typeof readPdfInputSchema>;
 
 export class ReadPdfTool implements Tool {
   name = "read_pdf";
   description = "Extract text content from a PDF file.";
-  inputSchema = {
-    type: "object",
-    properties: {
-      path: {
-        type: "string",
-        description: "Path to PDF under workspace/",
-      },
-    },
-    required: ["path"],
-  } as const;
+  inputSchema = zodSchemaToJsonInputSchema(readPdfInputSchema);
 
   async run(input: Record<string, unknown>, _context: ToolContext): Promise<unknown> {
-    const { path } = input;
-
-    if (typeof path !== "string" || !path) {
-      throw new Error("read_pdf requires a 'path' string.");
-    }
+    const { path: pdfPath } = parseToolInput(this.name, readPdfInputSchema, input);
 
     try {
-      const dataBuffer = await readFile(path);
+      const dataBuffer = await readFile(pdfPath);
       const data = await pdf(dataBuffer);
-      
+
       return {
         text: data.text,
         info: data.info,
         numpages: data.numpages,
-        success: true
+        success: true,
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

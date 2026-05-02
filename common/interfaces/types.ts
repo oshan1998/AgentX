@@ -1,4 +1,3 @@
-
 export enum DecisionType {
   Respond = "respond",
   ToolCall = "tool_call",

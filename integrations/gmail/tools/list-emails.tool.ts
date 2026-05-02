@@ -1,22 +1,28 @@
+import { z } from "zod";
 import type { Tool, ToolContext } from "../../../common/interfaces/types.js";
+import { parseToolInput, zodSchemaToJsonInputSchema } from "../../../common/services/zod-tool-schema.js";
 import { getGmailClient } from "../gmail-auth.js";
+
+export const listEmailsInputSchema = z
+  .object({
+    maxResults: z
+      .number()
+      .finite()
+      .positive()
+      .optional()
+      .describe("Default 5."),
+  })
+  .describe("Optional cap on how many ids to fetch.");
+
+export type ListEmailsInput = z.infer<typeof listEmailsInputSchema>;
 
 export class ListEmailsTool implements Tool {
   name = "list_emails";
   description = "List recent emails from Gmail inbox.";
-  inputSchema = {
-    type: "object",
-    description: "Optional cap on how many ids to fetch.",
-    properties: {
-      maxResults: {
-        type: "number",
-        description: "Default 5.",
-      },
-    },
-  };
+  inputSchema = zodSchemaToJsonInputSchema(listEmailsInputSchema);
 
   async run(input: Record<string, unknown>, _context: ToolContext): Promise<unknown> {
-    const raw = input.maxResults;
+    const { maxResults: raw } = parseToolInput(this.name, listEmailsInputSchema, input);
     const maxResults =
       typeof raw === "number" && Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 5;
 

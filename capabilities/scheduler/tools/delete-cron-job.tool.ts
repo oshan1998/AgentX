@@ -1,26 +1,22 @@
 import path from "node:path";
+import { z } from "zod";
 import type { Tool, ToolContext } from "../../../common/interfaces/types.js";
+import { parseToolInput, zodSchemaToJsonInputSchema } from "../../../common/services/zod-tool-schema.js";
 import { readCronJobs, writeCronJobs } from "../scheduler-utils.js";
+
+export const deleteCronJobInputSchema = z.object({
+  id: z.string().min(1).describe("Cron job id to remove."),
+});
+
+export type DeleteCronJobInput = z.infer<typeof deleteCronJobInputSchema>;
 
 export class DeleteCronJobTool implements Tool {
   name = "delete_cron_job";
   description = "Delete a cron job definition by id.";
-  inputSchema = {
-    type: "object",
-    properties: {
-      id: {
-        type: "string",
-        description: "Cron job id to remove.",
-      },
-    },
-    required: ["id"],
-  } as const;
+  inputSchema = zodSchemaToJsonInputSchema(deleteCronJobInputSchema);
 
   async run(input: Record<string, unknown>, _context: ToolContext): Promise<unknown> {
-    const id = input.id;
-    if (typeof id !== "string" || id.trim().length === 0) {
-      throw new Error("delete_cron_job requires { id: string }.");
-    }
+    const { id } = parseToolInput(this.name, deleteCronJobInputSchema, input);
 
     const storePath = path.join(process.cwd(), "memory", "cron-jobs.json");
     const jobs = await readCronJobs(storePath);

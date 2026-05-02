@@ -1,4 +1,6 @@
+import { z } from "zod";
 import type { Tool, ToolContext } from "../../../common/interfaces/types.js";
+import { parseToolInput, zodSchemaToJsonInputSchema } from "../../../common/services/zod-tool-schema.js";
 
 function normalizeTimeZone(value: string): string {
   return value.trim();
@@ -18,22 +20,24 @@ function buildFormatter(timeZone: string): Intl.DateTimeFormat {
   });
 }
 
+export const getCurrentTimeInputSchema = z
+  .object({
+    timeZone: z
+      .string()
+      .optional()
+      .describe("IANA zone e.g. America/New_York; defaults to UTC."),
+  })
+  .describe("All fields optional; omit or use {} for UTC.");
+
+export type GetCurrentTimeInput = z.infer<typeof getCurrentTimeInputSchema>;
+
 export class GetCurrentTimeTool implements Tool {
   name = "get_current_time";
   description = "Get current date/time for a specific IANA timezone.";
-  inputSchema = {
-    type: "object",
-    description: "All fields optional; omit or use {} for UTC.",
-    properties: {
-      timeZone: {
-        type: "string",
-        description: "IANA zone e.g. America/New_York; defaults to UTC.",
-      },
-    },
-  };
+  inputSchema = zodSchemaToJsonInputSchema(getCurrentTimeInputSchema);
 
   async run(input: Record<string, unknown>, _context: ToolContext): Promise<unknown> {
-    const timeZoneRaw = input.timeZone;
+    const { timeZone: timeZoneRaw } = parseToolInput(this.name, getCurrentTimeInputSchema, input);
     const timeZone =
       typeof timeZoneRaw === "string" && timeZoneRaw.trim().length > 0
         ? normalizeTimeZone(timeZoneRaw)

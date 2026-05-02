@@ -1,7 +1,7 @@
 import { WebSocket } from "ws";
 import type { AgentTracePayload, AgentTraceStep, RunTracer } from "./agent-trace-types.js";
 import { logger } from "../services/logger.js";
-
+import { AgentTracePhase } from "./agent-trace-types.js";
 const OPEN = WebSocket.OPEN;
 
 /**
@@ -97,7 +97,7 @@ export class SessionTraceHub {
     };
 
     return {
-      thought(iteration: number, phase: "start" | "end", text?: string): void {
+      thought(iteration: number, phase: AgentTracePhase, text?: string): void {
         emitFrag({
           step: "thought",
           iteration,
@@ -105,24 +105,24 @@ export class SessionTraceHub {
           ...(text !== undefined ? { text } : {}),
         });
       },
-      tool(iteration: number, name: string, phase: "start" | "end"): void {
+      tool(iteration: number, name: string, phase: AgentTracePhase): void {
         emitFrag({ step: "tool", iteration, name, phase });
       },
-      skill(iteration: number, name: string, phase: "start" | "end"): void {
+      skill(iteration: number, name: string, phase: AgentTracePhase): void {
         emitFrag({ step: "skill", iteration, name, phase });
       },
       skillTool(
         iteration: number,
         skill: string,
         tool: string,
-        phase: "start" | "end",
+        phase: AgentTracePhase,
       ): void {
         emitFrag({ step: "skill_tool", iteration, skill, tool, phase });
       },
-      memoryWrite(iteration: number, phase: "start" | "end"): void {
+      memoryWrite(iteration: number, phase: AgentTracePhase): void {
         emitFrag({ step: "memory_write", iteration, phase });
       },
-      profileWrite(iteration: number, phase: "start" | "end", target?: string): void {
+      profileWrite(iteration: number, phase: AgentTracePhase, target?: string): void {
         emitFrag({ step: "profile_write", iteration, phase, target });
       },
       runDone(outcome): void {
