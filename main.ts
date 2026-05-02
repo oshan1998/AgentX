@@ -91,6 +91,7 @@ async function main() {
   // ── Routes ─────────────────────────────────────────────
   // Chat
   app.post("/api/chat", chatController.handleChat);
+  app.post("/api/chat/cancel", chatController.handleCancelChat);
 
   // Sessions
   app.get("/api/sessions", sessionController.listSessions);

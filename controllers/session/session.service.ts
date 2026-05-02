@@ -30,7 +30,7 @@ export class SessionService {
     const sessionsDir = path.join(process.cwd(), "memory", "sessions");
     const files = await fs.readdir(sessionsDir);
     const sessionIds = files
-      .filter((f) => f.endsWith(".json"))
+      .filter((f) => f.endsWith(".json") && !f.startsWith("sub_"))
       .map((f) => f.replace(/\.json$/, ""));
 
     const sessions = await Promise.all(

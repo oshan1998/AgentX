@@ -85,6 +85,8 @@ export class AgentLoop {
   private readonly promptBuilder = new PromptBuilder();
   private readonly executor: Executor;
   private readonly maxIterations: number;
+  /** runId → controller for cooperative cancel (explicit stop or layered with caller signal). */
+  private readonly activeRunControllers = new Map<string, AbortController>();
 
   constructor(private readonly deps: AgentLoopDependencies) {
     const policy = deps.executionPolicy ?? PRIMARY_AGENT_EXECUTION_POLICY;
@@ -97,6 +99,17 @@ export class AgentLoop {
       deps.skillDelegateRunner,
     );
     this.maxIterations = deps.maxIterations ?? 50;
+  }
+
+  /**
+   * Abort an in-flight run registered under `runId` (e.g. from POST /api/chat/cancel).
+   * Returns false if no active run matches.
+   */
+  cancelRun(runId: string): boolean {
+    const ac = this.activeRunControllers.get(runId);
+    if (!ac) return false;
+    ac.abort();
+    return true;
   }
 
   // ── Public API ─────────────────────────────────────────────────────────────
@@ -128,55 +141,80 @@ export class AgentLoop {
         ? this.deps.sessionTraceHub.createRunTracer(sessionId, options.runId)
         : undefined;
 
-    const iterCap = this.resolveIterationCap(options?.maxIterations);
-    const invocation: ExecutorInvocationContext = {
-      runId: options?.runId,
-      abortSignal: options?.abortSignal,
-    };
+    /** Options with `abortSignal` merged via `cancelRun` + optional caller HTTP disconnect signal. */
+    let loopHandleOptions = options;
 
-    let lastObservation: string | undefined;
+    let registeredRunId: string | undefined;
 
-    for (let i = 0; i < iterCap; i++) {
-      const iteration = i + 1;
-      const traceCtx: ExecutorTraceContext | undefined = tracer ? { iteration, tracer } : undefined;
-
-      try {
-        this.checkForEarlyExit(options, isSubAgent);
-
-        const result = await this.runIteration(
-          sessionId,
-          userInput,
-          { iteration, iterCap, isSubAgent, lastObservation, options },
-          traceCtx,
-          invocation,
-        );
-
-        if (result.finalReply !== undefined) {
-          tracer?.runDone(AgentRunOutcome.COMPLETE);
-          return { reply: result.finalReply, outcome: AgentRunOutcome.COMPLETE };
-        }
-
-        lastObservation = result.observation;
-
-      } catch (error) {
-        if (error instanceof EarlyExit) {
-          tracer?.runDone(error.outcome);
-          await this.deps.memoryManager.appendSessionMessage(
-            sessionId,
-            AgentLoop.message("assistant", error.message),
-          );
-          return { reply: error.message, outcome: error.outcome };
-        }
-
-        lastObservation = this.handleIterationError(sessionId, iteration, error);
-        await this.deps.memoryManager.appendSessionMessage(
-          sessionId,
-          AgentLoop.message("tool", lastObservation),
-        );
-      }
+    if (options?.runId) {
+      const cancelAc = new AbortController();
+      this.activeRunControllers.set(options.runId, cancelAc);
+      registeredRunId = options.runId;
+      loopHandleOptions = {
+        ...options,
+        abortSignal:
+          options.abortSignal !== undefined
+            ? AbortSignal.any([cancelAc.signal, options.abortSignal])
+            : cancelAc.signal,
+      };
     }
 
-    return this.buildMaxIterationsOutcome(sessionId, isSubAgent, tracer);
+    try {
+      const iterCap = this.resolveIterationCap(options?.maxIterations);
+      const invocation: ExecutorInvocationContext = {
+        runId: options?.runId,
+        abortSignal: loopHandleOptions?.abortSignal,
+      };
+
+      let lastObservation: string | undefined;
+
+      for (let i = 0; i < iterCap; i++) {
+        const iteration = i + 1;
+        const traceCtx: ExecutorTraceContext | undefined = tracer
+          ? { iteration, tracer }
+          : undefined;
+
+        try {
+          this.checkForEarlyExit(loopHandleOptions, isSubAgent);
+
+          const result = await this.runIteration(
+            sessionId,
+            userInput,
+            { iteration, iterCap, isSubAgent, lastObservation, options },
+            traceCtx,
+            invocation,
+          );
+
+          if (result.finalReply !== undefined) {
+            tracer?.runDone(AgentRunOutcome.COMPLETE);
+            return { reply: result.finalReply, outcome: AgentRunOutcome.COMPLETE };
+          }
+
+          lastObservation = result.observation;
+        } catch (error) {
+          if (error instanceof EarlyExit) {
+            tracer?.runDone(error.outcome);
+            await this.deps.memoryManager.appendSessionMessage(
+              sessionId,
+              AgentLoop.message("assistant", error.message),
+            );
+            return { reply: error.message, outcome: error.outcome };
+          }
+
+          lastObservation = this.handleIterationError(sessionId, iteration, error);
+          await this.deps.memoryManager.appendSessionMessage(
+            sessionId,
+            AgentLoop.message("tool", lastObservation),
+          );
+        }
+      }
+
+      return this.buildMaxIterationsOutcome(sessionId, isSubAgent, tracer);
+    } finally {
+      if (registeredRunId) {
+        this.activeRunControllers.delete(registeredRunId);
+      }
+    }
   }
 
   // ── Iteration helpers ──────────────────────────────────────────────────────

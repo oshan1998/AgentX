@@ -23,7 +23,16 @@ export class ChatService {
    * Process a user chat message.
    * Automatically generates a session title from the first user message.
    */
-  async handleMessage(sessionId: string, message: string, runId: string): Promise<ChatResponse> {
+  cancelRun(runId: string): boolean {
+    return this.agentLoop.cancelRun(runId);
+  }
+
+  async handleMessage(
+    sessionId: string,
+    message: string,
+    runId: string,
+    abortSignal?: AbortSignal,
+  ): Promise<ChatResponse> {
     // Auto-generate title from the first user message using LLM
     const session = await this.memoryManager.getSession(sessionId);
     const hasUserMessages = session.messages.some((m: any) => m.role === "user");
@@ -47,7 +56,10 @@ export class ChatService {
         });
     }
 
-    const response = await this.agentLoop.handleUserInput(sessionId, message, { runId });
+    const response = await this.agentLoop.handleUserInput(sessionId, message, {
+      runId,
+      abortSignal,
+    });
     return { response, runId };
   }
 }
