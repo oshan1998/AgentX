@@ -1,5 +1,11 @@
 import type { SkillRegistry, ToolRegistry } from "../common/interfaces/registry.js";
-import { DecisionType, type AgentDecision, type LongTermMemoryEntry, type ToolContext } from "../common/interfaces/types.js";
+import {
+  DecisionType,
+  type AgentDecision,
+  type LongTermMemoryEntry,
+  type SkillDelegateRunner,
+  type ToolContext,
+} from "../common/interfaces/types.js";
 import { AgentTracePhase, type RunTracer } from "../common/realtime/agent-trace-types.js";
 import { logger } from "../common/services/logger.js";
 import { MemoryManager } from "../managers/memory-manager.js";
@@ -27,6 +33,7 @@ export class Executor {
     private readonly toolRegistry: ToolRegistry,
     private readonly skillRegistry: SkillRegistry,
     private readonly executionPolicy: ExecutionPolicy = PRIMARY_AGENT_EXECUTION_POLICY,
+    private readonly skillDelegateRunner?: SkillDelegateRunner,
   ) {}
 
   async executeDecision(
@@ -162,6 +169,10 @@ export class Executor {
           }
           return this.profileManager.setUser(content);
         },
+        delegateSubAgent: this.skillDelegateRunner
+          ? async (params) =>
+              this.skillDelegateRunner!(sessionId, tcx, params)
+          : undefined,
       });
       logger.debug(`Skill execution completed: ${decision.skill}`);
       trace?.tracer.skill(iter, skillName, AgentTracePhase.END);

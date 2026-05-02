@@ -4,6 +4,7 @@ import {
   type AgentDecision,
   type LlmAdapter,
   type Message,
+  type SkillDelegateRunner,
 } from "../common/interfaces/types.js";
 import type { SessionTraceHub } from "../common/realtime/session-trace-hub.js";
 import { AgentRunOutcome, AgentTracePhase, type AgentTraceRunOutcome } from "../common/realtime/agent-trace-types.js";
@@ -24,6 +25,8 @@ export interface AgentRunHandleOptions {
   deadlineAt?: number;
   /** Per-handle cap bounded by AgentLoop constructed maxIterations. */
   maxIterations?: number;
+  /** Merged into sub-agent system prompt after the base delegate template. */
+  subAgentSystemPromptAppend?: string;
 }
 
 export interface AgentRunSummary {
@@ -45,6 +48,7 @@ interface AgentLoopDependencies {
   sessionTraceHub?: SessionTraceHub;
   executionPolicy?: ExecutionPolicy;
   agentType: AgentType;
+  skillDelegateRunner?: SkillDelegateRunner;
 }
 
 export class AgentLoop {
@@ -60,6 +64,7 @@ export class AgentLoop {
       deps.toolRegistry,
       deps.skillRegistry,
       policy,
+      deps.skillDelegateRunner,
     );
     this.maxIterations = deps.maxIterations ?? 50;
   }
@@ -175,6 +180,8 @@ export class AgentLoop {
           maxIterations: iterCap,
           isBootstrapComplete,
           isSubAgent,
+          subAgentSystemPromptAppend:
+            isSubAgent ? options?.subAgentSystemPromptAppend : undefined,
         });
 
         tracer?.thought(iteration, AgentTracePhase.START);

@@ -21,6 +21,8 @@ interface PromptBuilderInput {
   soul: Soul;
   user: User;
   isSubAgent?: boolean;
+  /** Appended to sub-agent system prompt (agentic skills / delegate). */
+  subAgentSystemPromptAppend?: string;
 }
 
 export interface BuiltPrompt {
@@ -135,6 +137,8 @@ ${tools}
 
 Available skills:
 ${skills}
+
+${input.subAgentSystemPromptAppend?.trim() ? `---\n\n## Domain instructions\n\n${input.subAgentSystemPromptAppend.trim()}` : ""}
 `.trim();
 
     const userPrompt = `

@@ -54,6 +54,12 @@ export const delegateSubAgentInputSchema = z.object({
     .describe(
       `Optional wall-clock budget in ms (default ${SUB_AGENT_DEFAULT_WALL_CLOCK_MS}, max ${SUB_AGENT_HARD_MAX_WALL_CLOCK_MS}).`,
     ),
+  systemPromptAppend: z
+    .string()
+    .optional()
+    .describe(
+      "Optional text appended after the base delegated-specialist system prompt (domain instructions).",
+    ),
 });
 
 export type DelegateSubAgentInput = z.infer<typeof delegateSubAgentInputSchema>;

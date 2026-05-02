@@ -3,7 +3,7 @@ import http from "node:http";
 import path from "node:path";
 import { attachWebSocketGateway } from "./common/realtime/ws-gateway.js";
 import { SessionTraceHub } from "./common/realtime/session-trace-hub.js";
-import { AgentLoop } from "./core/agent-loop.js";
+import { AgentLoop, AgentType } from "./core/agent-loop.js";
 import { AgentRuntimeFactory } from "./core/agent-runtime-factory.js";
 import { registerDelegateToolOnce } from "./core/sub-agent-registry.js";
 import { createLlmAdapter } from "./llm-adapters/factory.js";
@@ -68,6 +68,8 @@ async function main() {
     toolRegistry,
     skillRegistry,
     sessionTraceHub,
+    agentType: AgentType.Primary,
+    skillDelegateRunner: agentRuntimeFactory.skillDelegateRunner,
   });
 
   const schedulerRunner = new SchedulerRunner(agentLoop);

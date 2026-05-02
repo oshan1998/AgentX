@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { SkillRegistry, ToolRegistry } from "../common/interfaces/registry.js";
-import type { LlmAdapter, Tool, ToolContext } from "../common/interfaces/types.js";
+import type { LlmAdapter, SkillDelegateRunner, Tool, ToolContext } from "../common/interfaces/types.js";
 import type { SessionTraceHub } from "../common/realtime/session-trace-hub.js";
 import { MemoryManager } from "../managers/memory-manager.js";
 import { ProfileManager } from "../managers/profile-manager.js";
@@ -42,8 +42,23 @@ function normalizeNameList(v: unknown): string[] {
 
 export class AgentRuntimeFactory {
   private delegateMemo?: Tool;
+  /** Same delegation path as `delegate_sub_agent`, for agentic skills and nested sub-agents. */
+  readonly skillDelegateRunner: SkillDelegateRunner;
 
-  constructor(private readonly deps: AgentRuntimeFactoryDeps) {}
+  constructor(private readonly deps: AgentRuntimeFactoryDeps) {
+    this.skillDelegateRunner = (_sessionId, tcx, params) =>
+      this.runDelegatedTurn(
+        {
+          task: params.task,
+          toolNames: params.toolNames,
+          skillNames: params.skillNames,
+          maxIterations: params.maxIterations,
+          deadlineMs: params.deadlineMs,
+          systemPromptAppend: params.systemPromptAppend,
+        },
+        tcx,
+      );
+  }
 
   /** Tool registered onto the principal registry so only the host agent may delegate. */
   get delegateTool(): Tool {
@@ -92,6 +107,12 @@ export class AgentRuntimeFactory {
         : SUB_AGENT_DEFAULT_WALL_CLOCK_MS;
     const deadlineAt = Date.now() + wallMs;
 
+    const systemPromptAppendRaw = input.systemPromptAppend;
+    const systemPromptAppend =
+      typeof systemPromptAppendRaw === "string" && systemPromptAppendRaw.trim().length > 0
+        ? systemPromptAppendRaw.trim()
+        : undefined;
+
     const parentSessionId = ctx.sessionId;
     const parentRunId = ctx.runId;
     const hub = this.deps.sessionTraceHub;
@@ -137,6 +158,7 @@ export class AgentRuntimeFactory {
       sessionTraceHub: this.deps.sessionTraceHub,
       executionPolicy: SUB_AGENT_EXECUTION_POLICY,
       agentType: AgentType.SubAgent,
+      skillDelegateRunner: this.skillDelegateRunner,
     });
 
     let summary;
@@ -146,6 +168,7 @@ export class AgentRuntimeFactory {
         abortSignal: ac.signal,
         deadlineAt,
         maxIterations: cappedIter,
+        subAgentSystemPromptAppend: systemPromptAppend,
       });
     } catch (err) {
       if (hub && parentRunId) {

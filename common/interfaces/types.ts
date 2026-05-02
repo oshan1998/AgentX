@@ -6,6 +6,11 @@ export enum DecisionType {
   ProfileWrite = "profile_write",
 }
 
+export enum SkillType{
+  Agentic = "agentic",
+  Delegated = "delegated",
+}
+
 export enum ProfileTarget {
   Soul = "soul",
   User = "user",
@@ -57,6 +62,24 @@ export interface ToolContext {
   abortSignal?: AbortSignal;
 }
 
+/** Parameters for nested sub-agent runs (agentic skills and delegate tool). */
+export interface DelegateSubAgentParams {
+  task: string;
+  toolNames?: string[];
+  skillNames?: string[];
+  /** Appended after the standard delegated-specialist system prompt (e.g. skill `prompt.md`). */
+  systemPromptAppend?: string;
+  maxIterations?: number;
+  deadlineMs?: number;
+}
+
+/** Injected into Executor so agentic skills can spawn a sub-agent with allow-listed tools. */
+export type SkillDelegateRunner = (
+  sessionId: string,
+  tcx: ToolContext,
+  params: DelegateSubAgentParams,
+) => Promise<unknown>;
+
 /** JSON Schema–style shape for planner-visible tool/skill inputs (typically type "object", properties, required). */
 export type JsonInputSchema = Record<string, unknown>;
 
@@ -67,6 +90,8 @@ export interface SkillContext {
   searchMemory: (query: string) => Promise<LongTermMemoryEntry[]>;
   writeMemory: (entry: Omit<LongTermMemoryEntry, "id" | "createdAt">) => Promise<LongTermMemoryEntry>;
   writeProfile: (target: "soul" | "user", content: Record<string, unknown>) => Promise<unknown>;
+  /** When set (principal runtime), agentic skills use this to run an isolated sub-loop with skill-defined tools and prompt.md. */
+  delegateSubAgent?: (params: DelegateSubAgentParams) => Promise<unknown>;
 }
 
 export interface Tool {

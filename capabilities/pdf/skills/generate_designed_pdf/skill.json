@@ -1,13 +1,14 @@
 {
   "schemaVersion": "1",
+  "kind": "agentic",
   "name": "generate_designed_pdf",
-  "description": "Lay out supplied content into a beautiful PDF using HTML/CSS. The caller provides the text/data; this skill designs and renders it.",
+  "description": "Lay out supplied content into a beautiful PDF using HTML/CSS. Spawns a focused sub-agent that designs HTML and calls generate_designed_pdf; you provide the text/data and paths.",
   "inputSchema": {
     "type": "object",
     "properties": {
       "content": {
         "type": "string",
-        "description": "Exact material to include in the PDF (body copy, lists, tables as text, etc.). The skill must not invent or replace facts; only structure and style it."
+        "description": "Exact material to include in the PDF (body copy, lists, tables as text, etc.). The sub-agent must not invent or replace facts; only structure and style them."
       },
       "designBrief": {
         "type": "string",
@@ -28,27 +29,7 @@
     },
     "required": ["content", "outputPath"]
   },
-  "steps": [
-    {
-      "type": "llm",
-      "parseOutputAsJson": true,
-      "promptTemplate": "Content to render in the PDF (preserve meaning; structure for readability; escape properly for HTML):\n\n{{input.content}}\n\nDesign and layout preferences (optional):\n\n{{input.designBrief}}",
-      "saveAs": "design"
-    },
-    {
-      "type": "tool_call",
-      "tool": "generate_designed_pdf",
-      "input": {
-        "outputPath": "{{input.outputPath}}",
-        "html": "{{design.html}}",
-        "format": "{{input.format}}",
-        "landscape": "{{input.landscape}}"
-      },
-      "saveAs": "result"
-    },
-    {
-      "type": "respond",
-      "messageTemplate": "Your designed PDF has been generated successfully at {{result.outputPath}}."
-    }
-  ]
+  "toolNames": ["generate_designed_pdf"],
+  "maxIterations": 16,
+  "deadlineMs": 180000
 }

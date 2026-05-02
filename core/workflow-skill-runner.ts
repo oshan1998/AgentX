@@ -1,5 +1,3 @@
-import { readFile } from "node:fs/promises";
-import path from "node:path";
 import {
   SkillStepType,
   type JsonInputSchema,
@@ -10,25 +8,27 @@ import {
   type SkillStep,
 } from "../common/interfaces/types.js";
 
-
-
-interface SkillConfig {
+export interface WorkflowSkillConfig {
   schemaVersion: "1";
+  kind?: "workflow";
   name: string;
   description: string;
   steps: SkillStep[];
   inputSchema?: JsonInputSchema;
 }
 
-export class ConfigSkill implements Skill {
+/**
+ * Step-based skills: `tool_call`, `llm` (with optional `prompt.md` as LLM system context), `memory_write`, `respond`, `profile_write`.
+ */
+export class WorkflowSkill implements Skill {
   name: string;
   description: string;
   readonly inputSchema?: JsonInputSchema;
 
   constructor(
-    private readonly config: SkillConfig,
+    private readonly config: WorkflowSkillConfig,
     private readonly promptMarkdown: string,
-    private readonly llm: LlmAdapter
+    private readonly llm: LlmAdapter,
   ) {
     this.name = config.name;
     this.description = config.description;
@@ -74,7 +74,7 @@ export class ConfigSkill implements Skill {
         await context.writeMemory({
           type: memoryType,
           content,
-          sourceSessionId: context.sessionId
+          sourceSessionId: context.sessionId,
         });
         continue;
       }
@@ -88,7 +88,7 @@ export class ConfigSkill implements Skill {
         let content: Record<string, unknown>;
         try {
           content = JSON.parse(contentRaw);
-        } catch (e) {
+        } catch {
           throw new Error(`Failed to parse profile_write content as JSON: ${contentRaw}`);
         }
         await context.writeProfile(step.target, content);
@@ -99,10 +99,9 @@ export class ConfigSkill implements Skill {
     return state.lastResult ?? "Skill completed.";
   }
 
-
   private resolveRecordTemplate(
     value: Record<string, unknown>,
-    state: Record<string, unknown>
+    state: Record<string, unknown>,
   ): Record<string, unknown> {
     const output: Record<string, unknown> = {};
     for (const [key, raw] of Object.entries(value)) {
@@ -161,7 +160,7 @@ export class ConfigSkill implements Skill {
 
   private resolveMemoryType(
     step: Extract<SkillStep, { type: "memory_write" }>,
-    state: Record<string, unknown>
+    state: Record<string, unknown>,
   ): LongTermMemoryType {
     if (step.memoryType) {
       return step.memoryType;
@@ -172,63 +171,35 @@ export class ConfigSkill implements Skill {
         return rendered;
       }
       throw new Error(
-        `Invalid memory type from template: ${rendered}. Expected user_preference|behavior_rule|fact.`
+        `Invalid memory type from template: ${rendered}. Expected user_preference|behavior_rule|fact.`,
       );
     }
     throw new Error("memory_write step requires memoryType or memoryTypeTemplate.");
   }
 }
 
-export async function loadConfigSkills(skillDir: string, llm: LlmAdapter): Promise<ConfigSkill[]> {
-  const { readdir } = await import("node:fs/promises");
-  let dirEntries;
-  try {
-    dirEntries = await readdir(skillDir, { withFileTypes: true });
-  } catch {
-    return [];
-  }
-  const skillFolders = dirEntries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
-  const loaded: ConfigSkill[] = [];
-
-  for (const folderName of skillFolders) {
-    const skillPath = path.join(skillDir, folderName);
-    const jsonPath = path.join(skillPath, "skill.json");
-    const raw = await readFile(jsonPath, "utf-8");
-    const config = parseSkillConfig(JSON.parse(raw), `${folderName}/skill.json`);
-    const promptPath = path.join(skillPath, "prompt.md");
-    let promptMarkdown = "You are a helpful assistant.";
-    try {
-      promptMarkdown = await readFile(promptPath, "utf-8");
-    } catch {
-      // optional prompt file; fallback used
-    }
-    loaded.push(new ConfigSkill(config, promptMarkdown, llm));
-  }
-
-  return loaded;
-}
-
-function parseSkillConfig(value: unknown, sourceName: string): SkillConfig {
-  if (!value || typeof value !== "object") {
-    throw new Error(`Invalid skill config in ${sourceName}: expected object.`);
-  }
-  const obj = value as Record<string, unknown>;
-  if (obj.schemaVersion !== "1") {
-    throw new Error(`Invalid skill config in ${sourceName}: schemaVersion must be "1".`);
+export function parseWorkflowSkillJson(
+  obj: Record<string, unknown>,
+  sourceName: string,
+): WorkflowSkillConfig {
+  if (obj.kind !== undefined && obj.kind !== "workflow") {
+    throw new Error(`Invalid workflow skill in ${sourceName}: unknown kind "${String(obj.kind)}".`);
   }
   if (typeof obj.name !== "string" || obj.name.length === 0) {
-    throw new Error(`Invalid skill config in ${sourceName}: missing name.`);
+    throw new Error(`Invalid workflow skill in ${sourceName}: missing name.`);
   }
   if (typeof obj.description !== "string" || obj.description.length === 0) {
-    throw new Error(`Invalid skill config in ${sourceName}: missing description.`);
+    throw new Error(`Invalid workflow skill in ${sourceName}: missing description.`);
   }
   if (!Array.isArray(obj.steps)) {
-    throw new Error(`Invalid skill config in ${sourceName}: steps must be an array.`);
+    throw new Error(`Invalid workflow skill in ${sourceName}: steps must be an array.`);
   }
   if ("inputSchema" in obj && obj.inputSchema !== undefined && obj.inputSchema !== null) {
     if (typeof obj.inputSchema !== "object" || Array.isArray(obj.inputSchema)) {
-      throw new Error(`Invalid skill config in ${sourceName}: inputSchema must be a plain object when present.`);
+      throw new Error(
+        `Invalid workflow skill in ${sourceName}: inputSchema must be a plain object when present.`,
+      );
     }
   }
-  return obj as unknown as SkillConfig;
+  return obj as unknown as WorkflowSkillConfig;
 }
