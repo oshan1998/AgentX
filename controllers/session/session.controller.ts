@@ -38,4 +38,19 @@ export class SessionController {
       res.status(404).json({ error: "Session not found" });
     }
   };
+
+  /** GET /api/session/:id/plan */
+  getSessionPlan = async (req: Request<{ id: string }>, res: Response): Promise<void> => {
+    const sessionId = req.params.id;
+    try {
+      const plan = await this.sessionService.getSessionPlan(sessionId);
+      if (!plan) {
+        res.status(404).json({ error: "Plan not found" });
+        return;
+      }
+      res.json(plan);
+    } catch (e) {
+      res.status(500).json({ error: String(e) });
+    }
+  };
 }

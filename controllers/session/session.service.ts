@@ -67,4 +67,9 @@ export class SessionService {
       messages: filteredMessages,
     };
   }
+
+  /** Get the task plan for a session. */
+  async getSessionPlan(sessionId: string) {
+    return this.memoryManager.readTaskPlan(sessionId);
+  }
 }

@@ -98,6 +98,7 @@ async function main() {
   app.get("/api/sessions", sessionController.listSessions);
   app.post("/api/sessions", sessionController.createSession);
   app.get("/api/session/:id", sessionController.getSessionHistory);
+  app.get("/api/session/:id/plan", sessionController.getSessionPlan);
 
   // Integrations — Gmail
   app.get("/api/auth/gmail", integrationController.getGmailAuthUrl);
