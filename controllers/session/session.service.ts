@@ -27,11 +27,7 @@ export class SessionService {
 
   /** List all sessions with their id and title. */
   async listSessions(): Promise<SessionSummary[]> {
-    const sessionsDir = path.join(process.cwd(), "memory", "sessions");
-    const files = await fs.readdir(sessionsDir);
-    const sessionIds = files
-      .filter((f) => f.endsWith(".json") && !f.startsWith("sub_"))
-      .map((f) => f.replace(/\.json$/, ""));
+    const sessionIds = await this.memoryManager.listRootSessions();
 
     const sessions = await Promise.all(
       sessionIds.map(async (id) => {

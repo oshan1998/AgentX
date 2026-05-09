@@ -1,0 +1,69 @@
+import { z } from "zod";
+
+export const taskPlanStatusSchema = z.enum([
+  "pending",
+  "in_progress",
+  "completed",
+  "blocked",
+]);
+
+export const taskPlanItemSchema = z.object({
+  id: z.string().min(1).describe("Stable machine id for the step (e.g. market_overview)."),
+  status: taskPlanStatusSchema,
+  title: z.string().optional().describe("Human-readable label for the step."),
+  notes: z
+    .string()
+    .optional()
+    .describe(
+      "Compact findings / facts for this step so later turns need not rely on chat memory. Prefer storing large material via artifact_path + write_file.",
+    ),
+  artifact_path: z
+    .string()
+    .optional()
+    .describe(
+      "Path under workspace/ where the full step output lives (e.g. workspace/tasks/market_overview.md). Read this file in later steps instead of re-deriving from the transcript.",
+    ),
+  blocked_reason: z
+    .string()
+    .optional()
+    .describe("Why this task is blocked (dependencies, missing input, failure)."),
+});
+
+export const taskPlanDocumentSchema = z.object({
+  schemaVersion: z.literal(1),
+  updatedAt: z.string(),
+  tasks: z.array(taskPlanItemSchema),
+});
+
+export const writeTaskPlanInputSchema = z.object({
+  tasks: z.array(taskPlanItemSchema).describe("Full ordered task list; replaces any existing plan."),
+});
+
+export const patchTaskPlanTaskInputSchema = z.object({
+  id: z.string().min(1),
+  status: taskPlanStatusSchema,
+  title: z.string().optional(),
+  notes: z
+    .string()
+    .optional()
+    .describe("Replace task notes; use empty string to clear. Leave unset to keep previous."),
+  artifact_path: z
+    .string()
+    .optional()
+    .describe("Set or change workspace file path; empty string clears. Leave unset to keep previous."),
+  blocked_reason: z.string().optional(),
+});
+
+export type TaskPlanStatus = z.infer<typeof taskPlanStatusSchema>;
+export type TaskPlanItem = z.infer<typeof taskPlanItemSchema>;
+export type TaskPlanDocument = z.infer<typeof taskPlanDocumentSchema>;
+export type WriteTaskPlanInput = z.infer<typeof writeTaskPlanInputSchema>;
+export type PatchTaskPlanTaskInput = z.infer<typeof patchTaskPlanTaskInputSchema>;
+
+export function emptyTaskPlanDocument(): TaskPlanDocument {
+  return {
+    schemaVersion: 1,
+    updatedAt: new Date().toISOString(),
+    tasks: [],
+  };
+}

@@ -368,6 +368,7 @@ Capabilities (how to use your abilities fully):
 - delegate_sub_agent (tool): use when no listed skill fits but you still want a focused sub-run with a custom task and allow-list you specify; you remain responsible for persisting results.
 
 Decision rules:
+- For multi-step work, use read_task_plan / write_task_plan / patch_task_plan_task to track steps and statuses across iterations. Store gathered facts in workspace files (write_file) and set each task’s artifact_path plus short notes in the plan so later steps read_file instead of relying on chat memory.
 - Use tool_call for direct external actions when no packaged skill applies (files, scheduling, Gmail, web search, PDF text extraction, time, memory search, etc.).
 - Use skill_call for any skill under Available skills whose description fits; supply complete input per that skill’s schema.
 - Use the delegate_sub_agent tool when a child needs a strict allow-list of tools/skills plus an isolated transcript and no listed skill matches.

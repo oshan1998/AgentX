@@ -26,8 +26,10 @@ Minimal but scalable single-agent framework in Node.js + TypeScript.
   - Optional advanced TS skills for custom logic (not required for current capabilities/integrations)
 - Core capability tools:
   - `ask_user`, `search_memory`, `get_current_time`
+  - Task plan (session file `memory/sessions/<id>.task-plan.json`; tasks support `notes` + `artifact_path` under `workspace/`): `read_task_plan`, `write_task_plan`, `patch_task_plan_task`
 - Core capability skills:
-  - `remember_fact`, `plan_steps`, `bootstrap_finalize` (onboarding)
+  - `remember_fact`, `bootstrap_finalize` (onboarding)
+  - `plan_steps` [agentic]: builds ordered steps and persists them via task-plan tools (`read_task_plan`, `write_task_plan`, `patch_task_plan_task`)
 - Filesystem skills (multi-step): `summarize_document`, `extract_tasks`
 - PDF skill: `generate_designed_pdf`
 - OpenAI adapter plus mock adapter fallback
