@@ -27,6 +27,24 @@ export const taskPlanItemSchema = z.object({
     .string()
     .optional()
     .describe("Why this task is blocked (dependencies, missing input, failure)."),
+  depends_on: z
+    .array(z.string())
+    .optional()
+    .describe(
+      "IDs of tasks that must complete before this one starts. Empty or omitted = no dependencies (can run immediately). Used by orchestrate_task_graph for parallel execution.",
+    ),
+  tool_names: z
+    .array(z.string())
+    .optional()
+    .describe(
+      "Tool names the worker sub-agent may use for this task. Used by orchestrate_task_graph.",
+    ),
+  skill_names: z
+    .array(z.string())
+    .optional()
+    .describe(
+      "Skill names the worker sub-agent may use for this task. Used by orchestrate_task_graph.",
+    ),
 });
 
 export const taskPlanDocumentSchema = z.object({

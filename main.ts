@@ -60,6 +60,7 @@ async function main() {
     sessionTraceHub,
   });
   registerDelegateToolOnce(toolRegistry, agentRuntimeFactory.delegateTool);
+  registerDelegateToolOnce(toolRegistry, agentRuntimeFactory.orchestrateTool);
 
   const agentLoop = new AgentLoop({
     llm,

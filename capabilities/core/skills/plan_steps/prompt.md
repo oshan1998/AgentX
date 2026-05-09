@@ -5,7 +5,8 @@ The **skill input** in the delegated task is the source of truth. Read the JSON:
 ## Goals
 
 1. Produce an ordered plan with **stable ids** and statuses.
-2. Design the plan so the **principal agent** can keep **facts out of the chat** by writing **`workspace/...` files** and recording **`artifact_path`** + short **`notes`** on each task—later steps **read those files** instead of “remembering” the transcript.
+2. Design the plan so the **principal agent** can keep **facts out of the chat** by writing **`workspace/...` files** and recording **`artifact_path`** + short **`notes`** on each task—later steps **read those files** instead of "remembering" the transcript.
+3. Identify tasks that can run **in parallel** and express their dependencies as a **DAG** (Directed Acyclic Graph).
 
 ## What you do
 
@@ -16,9 +17,21 @@ The **skill input** in the delegated task is the source of truth. Read the JSON:
    - **`status`**: usually start as `pending` (or first step `in_progress` if appropriate).
    - **`artifact_path`** (recommended): where the principal should save **full** findings for this step, e.g. `workspace/tasks/market_overview.md`. Use one path per task id so `read_file` is deterministic later.
    - **`notes`** (optional): one or two sentences on what belongs in that artifact—**not** a dump of research (that goes in the file).
+   - **`depends_on`** (recommended): array of task IDs that must complete before this task starts. Leave empty `[]` or omit for tasks with no dependencies. Tasks without dependencies can run **in parallel**.
+   - **`tool_names`** (recommended): array of tool names the worker sub-agent may use for this task (e.g. `["web_search", "write_file"]`).
+   - **`skill_names`** (optional): array of skill names the worker sub-agent may use.
 3. **write_task_plan** with `{ "tasks": [ ... ] }` — **full replace** unless the objective says to extend an existing plan.
 4. **patch_task_plan_task** for single-task updates (status, `notes`, `artifact_path`, `blocked_reason`) without rewriting the list.
 5. **respond** to the principal: numbered steps, mention that **bulk evidence must be written to `artifact_path` files** during execution, and that **`read_task_plan`** + **`read_file`** should drive later steps.
+
+## Parallelism guidelines
+
+When designing the plan, think about which tasks are **independent** and can run at the same time:
+- Tasks that research **different topics** (e.g. market analysis + competitor analysis) → no dependency, run in parallel.
+- Tasks that **synthesize or compare** results from prior tasks → set `depends_on` to those upstream task IDs.
+- A final **summary/report** task should `depends_on` all content-producing tasks.
+
+The principal agent can use `orchestrate_task_graph` to execute all parallelizable tasks simultaneously using worker sub-agents instead of running them one at a time.
 
 ## Status values
 
