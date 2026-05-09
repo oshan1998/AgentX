@@ -145,36 +145,42 @@ export class WorkerPool {
       ts: ts(),
     });
 
+    let result: string | undefined;
+    let error: string | undefined;
+
     try {
-      const result = await this.executeTask(
+      result = await this.executeTask(
         task,
         parentSessionId,
         ac,
       );
-
-      this.eventBus.emit("task_completed", {
-        taskId: task.id,
-        workerId,
-        result,
-        ts: ts(),
-      });
     } catch (err) {
-      const error =
-        err instanceof Error ? err.message : String(err);
-
+      error = err instanceof Error ? err.message : String(err);
       logger.error(
         `[WorkerPool] Worker ${workerId} failed on task "${task.id}"`,
         { error },
       );
-
-      this.eventBus.emit("task_failed", {
-        taskId: task.id,
-        workerId,
-        error,
-        ts: ts(),
-      });
     } finally {
+      // CRITICAL: Remove worker from active set BEFORE emitting events.
+      // This ensures that Scheduler.checkDone sees activeCount === 0 and
+      // availableSlots is correct for subsequent dispatches.
       this.workers.delete(task.id);
+
+      if (error !== undefined) {
+        this.eventBus.emit("task_failed", {
+          taskId: task.id,
+          workerId,
+          error,
+          ts: ts(),
+        });
+      } else {
+        this.eventBus.emit("task_completed", {
+          taskId: task.id,
+          workerId,
+          result: result!,
+          ts: ts(),
+        });
+      }
     }
   }
 
@@ -191,11 +197,11 @@ export class WorkerPool {
     // Clone allow-listed tools and skills
     const subTools = cloneToolWhitelist(
       this.deps.masterToolRegistry,
-      task.toolNames,
+      task.tool_names,
     );
     const subSkills = cloneSkillWhitelist(
       this.deps.masterSkillRegistry,
-      task.skillNames ?? [],
+      task.skill_names ?? [],
     );
 
     // Resolve iteration/deadline caps

@@ -142,15 +142,19 @@ export class Scheduler {
 
   private checkDone(resolve: (result: SchedulerResult) => void): void {
     if (this.graph.isFinished() && this.pool.activeCount === 0) {
-      this.eventBus.removeAllListeners();
       const result = this.buildResult();
 
+      // Emit first, while listeners are still active
       this.eventBus.emit("graph_done", {
         completedCount: result.completedCount,
         failedCount: result.failedCount,
         ts: new Date().toISOString(),
       });
 
+      // Cleanup listeners after emission
+      this.eventBus.removeAllListeners();
+
+      // Finally resolve the promise to unblock the orchestrator
       resolve(result);
     }
   }

@@ -9,6 +9,7 @@ import type {
 } from "../common/interfaces/types.js";
 import { z } from "zod";
 import {
+  PatchTaskPlanTaskInput,
   taskPlanDocumentSchema,
   taskPlanItemSchema,
   type TaskPlanDocument,
@@ -26,6 +27,9 @@ export class MemoryManager {
     private readonly sessionsDir = "sessions",
     private readonly longTermFile = "long-term.json",
   ) {}
+
+  /** Map of rootSessionId -> last plan update promise (sequential lock) */
+  private readonly planLocks = new Map<string, Promise<any>>();
 
   async init(): Promise<void> {
     await mkdir(this.getSessionsPath(), { recursive: true });
@@ -180,6 +184,79 @@ export class MemoryManager {
       JSON.stringify(normalized, null, 2),
       "utf-8",
     );
+  }
+
+  async patchTaskPlanTask(
+    sessionId: string,
+    patch: PatchTaskPlanTaskInput,
+  ): Promise<TaskPlanDocument> {
+    const rootId = await this.resolveTaskPlanSessionId(sessionId);
+    
+    // Serialize updates for this session to prevent read-modify-write race conditions
+    const currentLock = this.planLocks.get(rootId) || Promise.resolve();
+    const nextLock = currentLock.then(async () => {
+      const doc = (await this.readTaskPlan(rootId)) ?? {
+        schemaVersion: 1,
+        updatedAt: new Date().toISOString(),
+        tasks: [],
+      };
+
+      const existingIndex = doc.tasks.findIndex((t) => t.id === patch.id);
+      const existing = existingIndex !== -1 ? doc.tasks[existingIndex] : undefined;
+      const merged = this.mergeTaskPlanItem(existing, patch);
+
+      const nextTasks = existingIndex !== -1
+        ? doc.tasks.map((t, i) => (i === existingIndex ? merged : t))
+        : [...doc.tasks, merged];
+
+      const next: TaskPlanDocument = {
+        ...doc,
+        updatedAt: new Date().toISOString(),
+        tasks: nextTasks,
+      };
+
+      await this.writeTaskPlan(rootId, next);
+      return next;
+    });
+
+    this.planLocks.set(rootId, nextLock);
+    
+    // Clean up map entry when promise settled to avoid long-term memory growth
+    nextLock.catch(() => {}).finally(() => {
+      if (this.planLocks.get(rootId) === nextLock) {
+        this.planLocks.delete(rootId);
+      }
+    });
+
+    return nextLock;
+  }
+
+  private mergeTaskPlanItem(
+    existing: TaskPlanItem | undefined,
+    patch: PatchTaskPlanTaskInput,
+  ): TaskPlanItem {
+    const title = patch.title ?? existing?.title;
+    const notes = patch.notes !== undefined ? (patch.notes.length > 0 ? patch.notes : undefined) : existing?.notes;
+    const artifact_path = patch.artifact_path !== undefined ? (patch.artifact_path.length > 0 ? patch.artifact_path : undefined) : existing?.artifact_path;
+    
+    let blocked_reason: string | undefined;
+    if (patch.blocked_reason !== undefined) {
+      blocked_reason = patch.blocked_reason;
+    } else if (patch.status === "blocked") {
+      blocked_reason = existing?.blocked_reason;
+    }
+
+    const item: TaskPlanItem = {
+      id: patch.id,
+      status: patch.status,
+    };
+
+    if (title) item.title = title;
+    if (notes) item.notes = notes;
+    if (artifact_path) item.artifact_path = artifact_path;
+    if (blocked_reason) item.blocked_reason = blocked_reason;
+
+    return item;
   }
 
   async searchLongTermMemory(query: string): Promise<LongTermMemoryEntry[]> {

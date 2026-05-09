@@ -17,13 +17,13 @@ export interface TaskNode {
   /** Human-readable title. */
   title: string;
   /** IDs of tasks that must complete before this one can start. */
-  dependsOn: string[];
+  depends_on: string[];
   /** The task instruction for the sub-agent. */
   instruction: string;
   /** Tool allow-list for the worker sub-agent. */
-  toolNames: string[];
+  tool_names: string[];
   /** Skill allow-list for the worker sub-agent (optional). */
-  skillNames?: string[];
+  skill_names?: string[];
   /** Optional path where the worker should write its output. */
   artifactPath?: string;
   /** Current execution status. */
@@ -161,7 +161,7 @@ export class TaskGraph {
   /** Build a reverse index: for each task, which tasks depend on it. */
   private buildDependentsIndex(): void {
     for (const node of this.nodes.values()) {
-      for (const dep of node.dependsOn) {
+      for (const dep of node.depends_on) {
         let set = this.dependents.get(dep);
         if (!set) {
           set = new Set();
@@ -227,7 +227,7 @@ export class TaskGraph {
   }
 
   private allDependenciesMet(node: TaskNode): boolean {
-    return node.dependsOn.every((depId) => {
+    return node.depends_on.every((depId) => {
       const dep = this.nodes.get(depId);
       return dep?.status === TaskNodeStatus.Completed;
     });
@@ -237,7 +237,7 @@ export class TaskGraph {
   private validate(): void {
     // Check for missing dependency references
     for (const node of this.nodes.values()) {
-      for (const dep of node.dependsOn) {
+      for (const dep of node.depends_on) {
         if (!this.nodes.has(dep)) {
           throw new Error(
             `Task "${node.id}" depends on "${dep}" which does not exist in the graph.`,
@@ -250,7 +250,7 @@ export class TaskGraph {
     const inDegree = new Map<string, number>();
     for (const node of this.nodes.values()) {
       if (!inDegree.has(node.id)) inDegree.set(node.id, 0);
-      for (const dep of node.dependsOn) {
+      for (const dep of node.depends_on) {
         inDegree.set(node.id, (inDegree.get(node.id) ?? 0) + 1);
       }
     }

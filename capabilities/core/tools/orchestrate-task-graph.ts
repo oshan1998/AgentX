@@ -16,16 +16,16 @@ import { TaskNodeStatus, type TaskGraphConfig } from "../../../core/orchestrator
 const taskNodeInputSchema = z.object({
   id: z.string().min(1).describe("Stable snake_case id for this task (e.g. market_overview)."),
   title: z.string().min(1).describe("Human-readable title."),
-  dependsOn: z
+  depends_on: z
     .array(z.string())
     .default([])
     .describe("IDs of tasks that must complete before this one starts. Empty = no dependencies."),
   instruction: z.string().min(1).describe("Clear task instructions for the sub-agent worker."),
-  toolNames: z
+  tool_names: z
     .array(z.string())
     .default([])
     .describe("Tool names the worker may use (subset of your catalog)."),
-  skillNames: z
+  skill_names: z
     .array(z.string())
     .optional()
     .describe("Skill names the worker may use (optional subset of your catalog)."),
@@ -84,10 +84,10 @@ export class OrchestrateTaskGraphTool implements Tool {
       nodes: validated.tasks.map((t) => ({
         id: t.id,
         title: t.title,
-        dependsOn: t.dependsOn,
+        depends_on: t.depends_on,
         instruction: t.instruction,
-        toolNames: t.toolNames,
-        skillNames: t.skillNames,
+        tool_names: t.tool_names,
+        skill_names: t.skill_names,
         artifactPath: t.artifactPath,
         status: TaskNodeStatus.Pending,
       })),

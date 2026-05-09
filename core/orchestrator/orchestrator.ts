@@ -149,6 +149,32 @@ export class Orchestrator {
       });
     }
 
+    // Wire task-plan.json synchronization
+    eventBus.on("task_started", (evt) => {
+      this.deps.memoryManager.patchTaskPlanTask(sessionId, {
+        id: evt.taskId,
+        status: "in_progress",
+      }).catch(err => logger.error(`[Orchestrator] Failed to update plan (started) for ${evt.taskId}: ${err}`));
+    });
+
+    eventBus.on("task_completed", (evt) => {
+      const node = taskGraph.getNode(evt.taskId);
+      this.deps.memoryManager.patchTaskPlanTask(sessionId, {
+        id: evt.taskId,
+        status: "completed",
+        notes: evt.result,
+        artifact_path: node?.artifactPath,
+      }).catch(err => logger.error(`[Orchestrator] Failed to update plan (completed) for ${evt.taskId}: ${err}`));
+    });
+
+    eventBus.on("task_failed", (evt) => {
+      this.deps.memoryManager.patchTaskPlanTask(sessionId, {
+        id: evt.taskId,
+        status: "blocked",
+        blocked_reason: evt.error,
+      }).catch(err => logger.error(`[Orchestrator] Failed to update plan (failed) for ${evt.taskId}: ${err}`));
+    });
+
     // Run the scheduler
     let schedulerResult: SchedulerResult;
     try {
