@@ -1,16 +1,15 @@
-import type { ZodError, ZodType } from "zod";
-import { zodToJsonSchema } from "zod-to-json-schema";
+import { z, type ZodError, type ZodType } from "zod";
 import type { JsonInputSchema } from "../interfaces/types.js";
 
 /**
- * Converts a Zod object schema to a JSON Schema fragment suitable for
+ * Converts a Zod schema to a JSON Schema fragment suitable for
  * {@link formatInputSchemaForPrompt} and `Tool.inputSchema`.
  *
- * `zod-to-json-schema` typings target Zod 3 internals; Zod 4 schemas work at runtime — cast at this boundary only.
+ * Uses Zod 4's native `z.toJSONSchema()` — the external `zod-to-json-schema`
+ * 3.x package is incompatible with Zod 4 and produces empty schemas.
  */
 export function zodSchemaToJsonInputSchema(schema: ZodType): JsonInputSchema {
-  type ZodToJson = Parameters<typeof zodToJsonSchema>[0];
-  return zodToJsonSchema(schema as unknown as ZodToJson, { $refStrategy: "none" }) as JsonInputSchema;
+  return z.toJSONSchema(schema) as JsonInputSchema;
 }
 
 function formatZodError(error: ZodError): string {
