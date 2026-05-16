@@ -4,8 +4,6 @@ import type { LlmAdapter, SkillDelegateRunner, Tool, ToolContext } from "../comm
 import type { SessionTraceHub } from "../common/realtime/session-trace-hub.js";
 import { MemoryManager } from "../managers/memory-manager.js";
 import { ProfileManager } from "../managers/profile-manager.js";
-import { DelegateSubAgentTool } from "../capabilities/core/tools/delegate-sub-agent.js";
-import { OrchestrateTaskGraphTool } from "../capabilities/core/tools/orchestrate-task-graph.js";
 import { Orchestrator } from "./orchestrator/orchestrator.js";
 import { AgentLoop, AgentType } from "./agent-loop.js";
 import {
@@ -43,8 +41,6 @@ function normalizeNameList(v: unknown): string[] {
 }
 
 export class AgentRuntimeFactory {
-  private delegateMemo?: Tool;
-  private orchestrateMemo?: Tool;
   private orchestratorMemo?: Orchestrator;
   /** Same delegation path as `delegate_sub_agent`, for agentic skills and nested sub-agents. */
   readonly skillDelegateRunner: SkillDelegateRunner;
@@ -64,11 +60,6 @@ export class AgentRuntimeFactory {
       );
   }
 
-  /** Tool registered onto the principal registry so only the host agent may delegate. */
-  get delegateTool(): Tool {
-    return (this.delegateMemo ??= new DelegateSubAgentTool(this));
-  }
-
   /** Lazily-created orchestrator for DAG-based parallel task execution. */
   get orchestrator(): Orchestrator {
     return (this.orchestratorMemo ??= new Orchestrator({
@@ -80,11 +71,6 @@ export class AgentRuntimeFactory {
       sessionTraceHub: this.deps.sessionTraceHub,
       skillDelegateRunner: this.skillDelegateRunner,
     }));
-  }
-
-  /** Tool registered onto the principal registry for DAG-based parallel execution. */
-  get orchestrateTool(): Tool {
-    return (this.orchestrateMemo ??= new OrchestrateTaskGraphTool(this.orchestrator));
   }
 
   async runDelegatedTurn(

@@ -1,6 +1,6 @@
-import { MemoryManager } from "../../../managers/memory-manager.js";
 import type { Tool, ToolContext } from "../../../common/interfaces/types.js";
 import { parseToolInput, zodSchemaToJsonInputSchema } from "../../../common/services/zod-tool-schema.js";
+import type { ToolDependencies } from "../../../managers/tool-manager.js";
 import {
   emptyTaskPlanDocument,
   patchTaskPlanTaskInputSchema,
@@ -15,13 +15,13 @@ export class PatchTaskPlanTaskTool implements Tool {
     "Update or append one task by id (status, title, notes, artifact_path, blocked_reason). Writes to the principal session plan when running delegated.";
   inputSchema = zodSchemaToJsonInputSchema(patchTaskPlanTaskInputSchema);
 
-  constructor(private readonly memoryManager: MemoryManager) {}
+  constructor(private readonly deps: ToolDependencies) {}
 
   async run(input: Record<string, unknown>, context: ToolContext): Promise<unknown> {
-    const ownerId = await this.memoryManager.resolveTaskPlanSessionId(context.sessionId);
+    const ownerId = await this.deps.memoryManager.resolveTaskPlanSessionId(context.sessionId);
     const patch = parseToolInput(this.name, patchTaskPlanTaskInputSchema, input);
     const doc: TaskPlanDocument =
-      (await this.memoryManager.readTaskPlan(ownerId)) ?? emptyTaskPlanDocument();
+      (await this.deps.memoryManager.readTaskPlan(ownerId)) ?? emptyTaskPlanDocument();
     const existing = doc.tasks.find((t) => t.id === patch.id);
     const merged: TaskPlanItem = mergeTask(existing, patch);
     const nextTasks = existing
@@ -32,7 +32,7 @@ export class PatchTaskPlanTaskTool implements Tool {
       updatedAt: new Date().toISOString(),
       tasks: nextTasks,
     };
-    await this.memoryManager.writeTaskPlan(ownerId, next);
+    await this.deps.memoryManager.writeTaskPlan(ownerId, next);
     return next;
   }
 }

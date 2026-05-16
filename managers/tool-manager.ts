@@ -1,19 +1,28 @@
-import path from "node:path";
-import { ToolRegistry } from "../common/interfaces/registry.js";
-import type { Tool } from "../common/interfaces/types.js";
+import { SkillRegistry, ToolRegistry } from "../common/interfaces/registry.js";
+import type { LlmAdapter, Tool } from "../common/interfaces/types.js";
 import { MemoryManager } from "./memory-manager.js";
+import { ProfileManager } from "./profile-manager.js";
+import type { SessionTraceHub } from "../common/realtime/session-trace-hub.js";
+
+export interface ToolDependencies {
+  memoryManager: MemoryManager;
+  llm: LlmAdapter;
+  profileManager: ProfileManager;
+  masterToolRegistry: ToolRegistry;
+  masterSkillRegistry: SkillRegistry;
+  sessionTraceHub?: SessionTraceHub;
+}
 
 export class ToolManager {
-  private readonly toolRegistry = new ToolRegistry();
-
   constructor(
-    private readonly memoryManager: MemoryManager,
+    private readonly deps: ToolDependencies,
     private readonly baseDir: string = process.cwd(),
   ) {}
 
   async loadAllTools(): Promise<ToolRegistry> {
     const roots = ["capabilities", "integrations"];
     const { readdir } = await import("node:fs/promises");
+    const path = await import("node:path");
 
     for (const root of roots) {
       const rootDir = path.join(this.baseDir, root);
@@ -45,9 +54,9 @@ export class ToolManager {
                 ) {
                   const maybeTool = new (
                     exported as new (...args: unknown[]) => Tool
-                  )(this.memoryManager);
+                  )(this.deps);
                   if (typeof maybeTool.name === "string") {
-                    this.toolRegistry.register(maybeTool);
+                    this.deps.masterToolRegistry.register(maybeTool);
                   }
                 }
               }
@@ -58,6 +67,6 @@ export class ToolManager {
         }
       }
     }
-    return this.toolRegistry;
+    return this.deps.masterToolRegistry;
   }
 }

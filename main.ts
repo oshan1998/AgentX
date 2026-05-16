@@ -5,7 +5,7 @@ import { attachWebSocketGateway } from "./common/realtime/ws-gateway.js";
 import { SessionTraceHub } from "./common/realtime/session-trace-hub.js";
 import { AgentLoop, AgentType } from "./core/agent-loop.js";
 import { AgentRuntimeFactory } from "./core/agent-runtime-factory.js";
-import { registerDelegateToolOnce } from "./core/sub-agent-registry.js";
+import { ToolRegistry } from "./common/interfaces/registry.js";
 import { createLlmAdapter } from "./llm-adapters/factory.js";
 import { MemoryManager } from "./managers/memory-manager.js";
 import { ProfileManager } from "./managers/profile-manager.js";
@@ -41,15 +41,23 @@ async function main() {
   const profileManager = new ProfileManager(memoryPath);
   await profileManager.init();
 
-  const toolManager = new ToolManager(memoryManager);
-  const toolRegistry = await toolManager.loadAllTools();
-
   const llm = createLlmAdapter();
 
   const skillManager = new SkillManager(llm);
   const skillRegistry = await skillManager.loadAllSkills();
 
   const sessionTraceHub = new SessionTraceHub();
+
+  const toolRegistry = new ToolRegistry();
+  const toolManager = new ToolManager({
+    memoryManager,
+    profileManager,
+    llm,
+    masterToolRegistry: toolRegistry,
+    masterSkillRegistry: skillRegistry,
+    sessionTraceHub,
+  });
+  await toolManager.loadAllTools();
 
   const agentRuntimeFactory = new AgentRuntimeFactory({
     llm,
@@ -59,8 +67,6 @@ async function main() {
     masterSkillRegistry: skillRegistry,
     sessionTraceHub,
   });
-  registerDelegateToolOnce(toolRegistry, agentRuntimeFactory.delegateTool);
-  registerDelegateToolOnce(toolRegistry, agentRuntimeFactory.orchestrateTool);
 
   const agentLoop = new AgentLoop({
     llm,

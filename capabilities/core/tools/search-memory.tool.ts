@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { MemoryManager } from "../../../managers/memory-manager.js";
 import type { Tool, ToolContext } from "../../../common/interfaces/types.js";
 import { parseToolInput, zodSchemaToJsonInputSchema } from "../../../common/services/zod-tool-schema.js";
+import type { ToolDependencies } from "../../../managers/tool-manager.js";
 
 export const searchMemoryInputSchema = z.object({
   query: z.string().min(1).describe("Free-text query to match memory entries."),
@@ -14,10 +14,10 @@ export class SearchMemoryTool implements Tool {
   description = "Search long-term memory entries by text.";
   inputSchema = zodSchemaToJsonInputSchema(searchMemoryInputSchema);
 
-  constructor(private readonly memoryManager: MemoryManager) {}
+  constructor(private readonly deps: ToolDependencies) {}
 
   async run(input: Record<string, unknown>, _context: ToolContext): Promise<unknown> {
     const { query } = parseToolInput(this.name, searchMemoryInputSchema, input);
-    return this.memoryManager.searchLongTermMemory(query);
+    return this.deps.memoryManager.searchLongTermMemory(query);
   }
 }

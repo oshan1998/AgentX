@@ -1,3 +1,8 @@
+import { MemoryManager } from "../../managers/memory-manager.js";
+import { ProfileManager } from "../../managers/profile-manager.js";
+import { SessionTraceHub } from "../realtime/session-trace-hub.js";
+import { SkillRegistry, ToolRegistry } from "./registry.js";
+
 export enum DecisionType {
   Respond = "respond",
   ToolCall = "tool_call",
@@ -60,6 +65,16 @@ export interface ToolContext {
   /** Host run id (tracing / delegation linkage). */
   runId?: string;
   abortSignal?: AbortSignal;
+}
+
+/** Dependencies provided to tools at instantiation time by ToolManager. */
+export interface ToolDependencies {
+  memoryManager: MemoryManager;
+  llm?: LlmAdapter;
+  profileManager?: ProfileManager;
+  toolRegistry?: ToolRegistry;
+  skillRegistry?: SkillRegistry;
+  sessionTraceHub?: SessionTraceHub;
 }
 
 /** Parameters for nested sub-agent runs (agentic skills and delegate tool). */

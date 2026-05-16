@@ -1,8 +1,5 @@
 /**
- * Sub-agent delegation tool (manually registered in main.ts with AgentRuntimeFactory).
- *
- * Filename is NOT `*.tool.ts` — ToolManager would otherwise instantiate tools with `(memoryManager)` only,
- * but this runner needs factory-scoped deps.
+ * Sub-agent delegation tool (Auto-registered via ToolManager).
  */
 import { z } from "zod";
 import type { Tool, ToolContext } from "../../../common/interfaces/types.js";
@@ -14,10 +11,10 @@ import {
   SUB_AGENT_HARD_MAX_WALL_CLOCK_MS,
 } from "../../../core/agent-runtime-constants.js";
 import { parseToolInput, zodSchemaToJsonInputSchema } from "../../../common/services/zod-tool-schema.js";
+import { AgentRuntimeFactory } from "../../../core/agent-runtime-factory.js";
+import type { ToolDependencies } from "../../../managers/tool-manager.js";
 
-export interface DelegateSubAgentRunner {
-  runDelegatedTurn(input: Record<string, unknown>, ctx: ToolContext): Promise<string>;
-}
+// Runner interface removed as we now use AgentRuntimeFactory directly.
 
 export const delegateSubAgentInputSchema = z.object({
   task: z
@@ -72,7 +69,10 @@ export class DelegateSubAgentTool implements Tool {
     "Do not include `delegate_sub_agent` in toolNames (recursion is blocked).";
   readonly inputSchema = zodSchemaToJsonInputSchema(delegateSubAgentInputSchema);
 
-  constructor(private readonly runner: DelegateSubAgentRunner) {}
+  private readonly runner: AgentRuntimeFactory;
+  constructor(private readonly deps: ToolDependencies) {
+    this.runner = new AgentRuntimeFactory(deps);
+  }
 
   async run(input: Record<string, unknown>, context: ToolContext): Promise<unknown> {
     const validated = parseToolInput(this.name, delegateSubAgentInputSchema, input);

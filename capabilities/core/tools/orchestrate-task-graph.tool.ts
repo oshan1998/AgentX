@@ -2,13 +2,13 @@
  * Tool: orchestrate_task_graph
  *
  * Allows the primary agent to submit a DAG of tasks for parallel execution.
- * This tool is manually registered (like delegate_sub_agent) because it needs
- * orchestrator-scoped dependencies.
+ * Auto-registered via ToolManager.
  */
 import { z } from "zod";
 import type { Tool, ToolContext } from "../../../common/interfaces/types.js";
 import { parseToolInput, zodSchemaToJsonInputSchema } from "../../../common/services/zod-tool-schema.js";
-import type { Orchestrator } from "../../../core/orchestrator/orchestrator.js";
+import { AgentRuntimeFactory } from "../../../core/agent-runtime-factory.js";
+import type { ToolDependencies } from "../../../managers/tool-manager.js";
 import { TaskNodeStatus, type TaskGraphConfig } from "../../../core/orchestrator/task-graph.js";
 
 // ─── Schema ──────────────────────────────────────────────────────────────────
@@ -67,7 +67,10 @@ export class OrchestrateTaskGraphTool implements Tool {
     "Workers cannot write memory or profiles — include facts in results for you to persist.";
   readonly inputSchema = zodSchemaToJsonInputSchema(orchestrateInputSchema);
 
-  constructor(private readonly orchestrator: Orchestrator) {}
+  private readonly factory: AgentRuntimeFactory;
+  constructor(private readonly deps: ToolDependencies) {
+    this.factory = new AgentRuntimeFactory(deps);
+  }
 
   async run(
     input: Record<string, unknown>,
@@ -93,7 +96,7 @@ export class OrchestrateTaskGraphTool implements Tool {
       })),
     };
 
-    const result = await this.orchestrator.run({
+    const result = await this.factory.orchestrator.run({
       graph: graphConfig,
       sessionId: context.sessionId,
       runId: context.runId,
