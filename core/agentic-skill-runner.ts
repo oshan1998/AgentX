@@ -75,7 +75,8 @@ export function parseAgenticSkillJson(
   if (typeof obj.description !== "string" || obj.description.length === 0) {
     throw new Error(`Invalid agentic skill in ${sourceName}: missing description.`);
   }
-  if (!Array.isArray(obj.toolNames) || obj.toolNames.length === 0) {
+  if (obj.toolNames!==undefined){
+    if (!Array.isArray(obj.toolNames) || obj.toolNames.length === 0) {
     throw new Error(`Invalid agentic skill in ${sourceName}: toolNames must be a non-empty array.`);
   }
   for (const t of obj.toolNames) {
@@ -85,6 +86,8 @@ export function parseAgenticSkillJson(
       );
     }
   }
+  }
+  
   if (obj.skillNames !== undefined) {
     if (!Array.isArray(obj.skillNames)) {
       throw new Error(`Invalid agentic skill in ${sourceName}: skillNames must be an array when present.`);
