@@ -1,11 +1,20 @@
+import { mkdir } from "node:fs/promises";
+import path from "node:path";
 import puppeteer from "puppeteer";
 import { z } from "zod";
 import type { Tool, ToolContext } from "../../../common/interfaces/types.js";
 import { logger } from "../../../common/services/logger.js";
 import { parseToolInput, zodSchemaToJsonInputSchema } from "../../../common/services/zod-tool-schema.js";
+import {
+  DEFAULT_MEMORY_BASE,
+  resolveWorkspacePath,
+} from "../../../common/services/workspace-path.js";
 
 export const generateDesignedPdfInputSchema = z.object({
-  outputPath: z.string().min(1).describe("Where to save the PDF (under workspace/)."),
+  outputPath: z
+    .string()
+    .min(1)
+    .describe("Relative output path in this session workspace (e.g. reports/summary.pdf)."),
   html: z.string().min(1).describe("Full HTML document body or page to render."),
   format: z
     .string()
@@ -25,17 +34,24 @@ export class GenerateDesignedPdfTool implements Tool {
     "Generate a PDF file from HTML content, allowing for complex designs, CSS styling, and layouts.";
   inputSchema = zodSchemaToJsonInputSchema(generateDesignedPdfInputSchema);
 
-  async run(input: Record<string, unknown>, _context: ToolContext): Promise<unknown> {
+  async run(input: Record<string, unknown>, context: ToolContext): Promise<unknown> {
     const { outputPath, html, format: formatRaw, landscape: landscapeRaw } = parseToolInput(
       this.name,
       generateDesignedPdfInputSchema,
       input,
+    );
+    const absOutputPath = resolveWorkspacePath(
+      DEFAULT_MEMORY_BASE,
+      context.sessionId,
+      outputPath,
     );
     const format = formatRaw ?? "A4";
     const landscape = landscapeRaw === "true" || landscapeRaw === true;
 
     try {
       logger.info(`Starting designed PDF generation for: ${outputPath}`);
+
+      await mkdir(path.dirname(absOutputPath), { recursive: true });
 
       const executablePath = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 
@@ -53,7 +69,7 @@ export class GenerateDesignedPdfTool implements Tool {
       });
 
       await page.pdf({
-        path: outputPath,
+        path: absOutputPath,
         // Puppeteer PaperFormat is a fixed union; model-supplied labels are passed through like before.
         format: format as "A4" | "Letter",
         landscape,

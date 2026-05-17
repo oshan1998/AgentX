@@ -21,7 +21,7 @@ export const taskPlanItemSchema = z.object({
     .string()
     .optional()
     .describe(
-      "Path under workspace/ where the full step output lives (e.g. workspace/tasks/market_overview.md). Read this file in later steps instead of re-deriving from the transcript.",
+      "Relative path in this session workspace for full step output (e.g. tasks/market_overview.md). Use the same path with read_file/write_file in later steps.",
     ),
   blocked_reason: z
     .string()
@@ -74,7 +74,7 @@ export const patchTaskPlanTaskInputSchema = z.object({
   artifact_path: z
     .string()
     .optional()
-    .describe("Set or change workspace file path; empty string clears. Leave unset to keep previous."),
+    .describe("Set or change session workspace path (relative, e.g. tasks/foo.md); empty string clears. Leave unset to keep previous."),
   blocked_reason: z.string().optional(),
   instruction: z.string().optional().describe("Update task instructions; leave unset to keep previous."),
 });

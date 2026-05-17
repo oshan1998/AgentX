@@ -4,23 +4,31 @@ import { z } from "zod";
 import type { Tool, ToolContext } from "../../../common/interfaces/types.js";
 import { logger } from "../../../common/services/logger.js";
 import { parseToolInput, zodSchemaToJsonInputSchema } from "../../../common/services/zod-tool-schema.js";
+import {
+  DEFAULT_MEMORY_BASE,
+  resolveWorkspacePath,
+} from "../../../common/services/workspace-path.js";
 
 export const readPdfInputSchema = z.object({
-  path: z.string().min(1).describe("Path to PDF under workspace/"),
+  path: z
+    .string()
+    .min(1)
+    .describe("Relative path to PDF in this session workspace (e.g. reports/out.pdf)."),
 });
 
 export type ReadPdfInput = z.infer<typeof readPdfInputSchema>;
 
 export class ReadPdfTool implements Tool {
   name = "read_pdf";
-  description = "Extract text content from a PDF file.";
+  description = "Extract text content from a PDF file in this session's workspace.";
   inputSchema = zodSchemaToJsonInputSchema(readPdfInputSchema);
 
-  async run(input: Record<string, unknown>, _context: ToolContext): Promise<unknown> {
+  async run(input: Record<string, unknown>, context: ToolContext): Promise<unknown> {
     const { path: pdfPath } = parseToolInput(this.name, readPdfInputSchema, input);
+    const absPath = resolveWorkspacePath(DEFAULT_MEMORY_BASE, context.sessionId, pdfPath);
 
     try {
-      const dataBuffer = await readFile(pdfPath);
+      const dataBuffer = await readFile(absPath);
       const data = await pdf(dataBuffer);
 
       return {

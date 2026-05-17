@@ -2,20 +2,28 @@ import { readFile } from "node:fs/promises";
 import { z } from "zod";
 import type { Tool, ToolContext } from "../../../common/interfaces/types.js";
 import { parseToolInput, zodSchemaToJsonInputSchema } from "../../../common/services/zod-tool-schema.js";
+import {
+  DEFAULT_MEMORY_BASE,
+  resolveWorkspacePath,
+} from "../../../common/services/workspace-path.js";
 
 export const readFileInputSchema = z.object({
-  path: z.string().min(1).describe("File path under workspace/"),
+  path: z
+    .string()
+    .min(1)
+    .describe("Relative path in this session workspace (e.g. tasks/foo.md or workspace/tasks/foo.md)."),
 });
 
 export type ReadFileInput = z.infer<typeof readFileInputSchema>;
 
 export class ReadFileTool implements Tool {
   name = "read_file";
-  description = "Read text content from a file path.";
+  description = "Read text content from a file path in this session's workspace.";
   inputSchema = zodSchemaToJsonInputSchema(readFileInputSchema);
 
-  async run(input: Record<string, unknown>, _context: ToolContext): Promise<unknown> {
+  async run(input: Record<string, unknown>, context: ToolContext): Promise<unknown> {
     const { path: filePath } = parseToolInput(this.name, readFileInputSchema, input);
-    return readFile(filePath, "utf-8");
+    const absPath = resolveWorkspacePath(DEFAULT_MEMORY_BASE, context.sessionId, filePath);
+    return readFile(absPath, "utf-8");
   }
 }
