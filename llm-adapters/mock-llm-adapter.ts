@@ -1,11 +1,11 @@
-import { DecisionType, type AgentDecision, type LlmAdapter } from "../common/interfaces/types.js";
+import type { AgentDecision, LlmAdapter } from "../common/interfaces/types.js";
 
 export class MockLlmAdapter implements LlmAdapter {
   async decide(prompt: string, _systemPrompt?: string): Promise<AgentDecision> {
     const lower = prompt.toLowerCase();
     if (lower.includes("list files") || lower.includes("list directory")) {
       return {
-        type: DecisionType.ToolCall,
+        type: "tool_call",
         tool: "list_directory",
         input: { path: "." },
         thought: "I need to list the files in the directory."
@@ -13,14 +13,14 @@ export class MockLlmAdapter implements LlmAdapter {
     }
     if (lower.includes("remember")) {
       return {
-        type: DecisionType.SkillCall,
+        type: "skill_call",
         skill: "remember_fact",
         input: { type: "fact", content: "User asked to remember context." },
         thought: "I need to remember the context."
       };
     }
     return {
-      type: DecisionType.Respond,
+      type: "respond",
       message:
         "Mock adapter response: configure OPENAI_API_KEY for model-driven decisions.",
       thought: "I need to respond to the user.",

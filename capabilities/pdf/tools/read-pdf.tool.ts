@@ -1,8 +1,5 @@
 import { readFile } from "node:fs/promises";
-import path from "node:path";
-// @ts-ignore
-import _pdf from "pdf-parse";
-const pdf = (_pdf as any).default || _pdf;
+import pdf from "pdf-parse";
 import { z } from "zod";
 import type { Tool, ToolContext } from "../../../common/interfaces/types.js";
 import { logger } from "../../../common/services/logger.js";
@@ -19,17 +16,11 @@ export class ReadPdfTool implements Tool {
   description = "Extract text content from a PDF file.";
   inputSchema = zodSchemaToJsonInputSchema(readPdfInputSchema);
 
-  async run(input: Record<string, unknown>, context: ToolContext): Promise<unknown> {
+  async run(input: Record<string, unknown>, _context: ToolContext): Promise<unknown> {
     const { path: pdfPath } = parseToolInput(this.name, readPdfInputSchema, input);
 
-    // Normalize and prefix with context.workDir to ensure strict sandbox/session isolation
-    const relativePath = pdfPath.startsWith("workspace/") || pdfPath.startsWith("workspace\\")
-      ? pdfPath.substring("workspace/".length)
-      : pdfPath;
-    const resolvedPath = path.join(context.workDir, relativePath);
-
     try {
-      const dataBuffer = await readFile(resolvedPath);
+      const dataBuffer = await readFile(pdfPath);
       const data = await pdf(dataBuffer);
 
       return {

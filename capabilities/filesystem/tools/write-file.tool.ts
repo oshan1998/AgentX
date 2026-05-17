@@ -17,20 +17,13 @@ export class WriteFileTool implements Tool {
     "Write text content into a file path. Creates parent directories (e.g. workspace/tasks/) if they do not exist.";
   inputSchema = zodSchemaToJsonInputSchema(writeFileInputSchema);
 
-  async run(input: Record<string, unknown>, context: ToolContext): Promise<unknown> {
+  async run(input: Record<string, unknown>, _context: ToolContext): Promise<unknown> {
     const { path: filePath, content } = parseToolInput(this.name, writeFileInputSchema, input);
-    
-    // Normalize and prefix with context.workDir to ensure strict sandbox/session isolation
-    const relativePath = filePath.startsWith("workspace/") || filePath.startsWith("workspace\\")
-      ? filePath.substring("workspace/".length)
-      : filePath;
-    const resolvedPath = path.join(context.workDir, relativePath);
-
-    const dir = path.dirname(resolvedPath);
+    const dir = path.dirname(filePath);
     if (dir !== "." && dir.length > 0) {
       await mkdir(dir, { recursive: true });
     }
-    await writeFile(resolvedPath, content, "utf-8");
-    return { success: true, path: resolvedPath };
+    await writeFile(filePath, content, "utf-8");
+    return { success: true, path: filePath };
   }
 }
