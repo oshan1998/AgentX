@@ -32,12 +32,11 @@ export const ORCHESTRATE_TASK_GRAPH_TOOL_NAME = "orchestrate_task_graph";
 
 export class OrchestrateTaskGraphTool implements Tool {
   readonly name = ORCHESTRATE_TASK_GRAPH_TOOL_NAME;
-  readonly description =
-    "Execute a DAG of tasks in parallel using isolated sub-agent workers. " +
-    "Tasks without dependencies run concurrently; tasks with dependsOn wait for their upstream tasks to complete. " +
-    "Use this instead of sequential delegate_sub_agent calls when you have multiple independent or semi-independent tasks. " +
-    "Workers cannot write memory or profiles — include facts in results for you to persist.";
-  readonly inputSchema = zodSchemaToJsonInputSchema(orchestrateInputSchema);
+readonly description =
+  "Execute planned tasks as a dependency-aware parallel workflow using isolated sub-agents. " +
+  "Independent tasks run concurrently while dependent tasks wait for prerequisites. " +
+  "Best for complex objectives that can be decomposed into parallelizable work streams.";
+   readonly inputSchema = zodSchemaToJsonInputSchema(orchestrateInputSchema);
 
   constructor(private readonly orchestrator: Orchestrator) {}
 

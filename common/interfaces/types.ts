@@ -60,6 +60,7 @@ export interface ToolContext {
   /** Host run id (tracing / delegation linkage). */
   runId?: string;
   abortSignal?: AbortSignal;
+  workDir: string;
 }
 
 /** Parameters for nested sub-agent runs (agentic skills and delegate tool). */
@@ -86,6 +87,7 @@ export type JsonInputSchema = Record<string, unknown>;
 export interface SkillContext {
   sessionId: string;
   abortSignal?: AbortSignal;
+  workDir: string;
   runTool: (name: string, input: Record<string, unknown>) => Promise<unknown>;
   searchMemory: (query: string) => Promise<LongTermMemoryEntry[]>;
   writeMemory: (entry: Omit<LongTermMemoryEntry, "id" | "createdAt">) => Promise<LongTermMemoryEntry>;

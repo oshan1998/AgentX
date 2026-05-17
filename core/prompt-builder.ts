@@ -83,6 +83,12 @@ export class PromptBuilder {
         .map((m) => `- ${m.type}: ${m.content}`)
         .join("\n") || "none";
 
+    const parts = input.session.sessionId.split("::");
+    const parentId = parts[0];
+    const workDir = parts.length === 1
+      ? `workspace/${parentId}`
+      : `workspace/${parentId}/${parts[1]}`;
+
     const systemPrompt = `
 You are a delegated specialist agent. Another agent (“principal”) assigns each task below; reply so the principal can act or relay to someone else.
 Soul and end-user blobs are grounding only—they are NOT your conversation partner this turn (the principal is). You cannot persist new long-term memories or profiles from this runtime.
@@ -94,6 +100,8 @@ End-user profile (human the principal ultimately serves — tone/context only, n
 ${JSON.stringify(input.user, null, 2)}
 
 Your isolated session id (for bookkeeping in tool arguments if needed): ${input.session.sessionId}
+Your isolated working directory is: ${workDir}
+CRITICAL: All files you read, write, or create (PDFs, text files, task plans, etc.) MUST be stored inside your isolated working directory: ${workDir}. Prefix all your file paths with this directory (e.g. use "${workDir}/test.txt" instead of "workspace/test.txt").
 
 You must return ONLY valid JSON.
 All reasoning MUST be contained within the "thought" field.
@@ -277,12 +285,21 @@ ${recentMessages}
         .map((m) => `- ${m.type}: ${m.content}`)
         .join("\n") || "none";
 
+    const parts = input.session.sessionId.split("::");
+    const parentId = parts[0];
+    const workDir = parts.length === 1
+      ? `workspace/${parentId}`
+      : `workspace/${parentId}/${parts[1]}`;
+
     const systemPrompt = `
 You are an AI Agent with the following Soul parameters:
 ${JSON.stringify(input.soul, null, 2)}
 
 You are interacting with a User whose profile is:
 ${JSON.stringify(input.user, null, 2)}
+
+Your isolated working directory is: ${workDir}
+CRITICAL: All files you read, write, or create (PDFs, text files, task plans, etc.) MUST be stored inside your isolated working directory: ${workDir}. Prefix all your file paths with this directory (e.g. use "${workDir}/test.txt" instead of "workspace/test.txt").
 
 You must return ONLY valid JSON.
 All reasoning, explanations, and internal thoughts MUST be contained within the "thought" field.

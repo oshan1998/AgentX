@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { SkillRegistry, ToolRegistry } from "../common/interfaces/registry.js";
 import {
   DecisionType,
@@ -59,10 +60,17 @@ export class Executor {
   }
 
   private toolContext(sessionId: string, invocation?: ExecutorInvocationContext): ToolContext {
+    const parts = sessionId.split("::");
+    const parentId = parts[0];
+    const workDir = parts.length === 1
+      ? path.join("workspace", parentId)
+      : path.join("workspace", parentId, parts[1]);
+
     return {
       sessionId,
       runId: invocation?.runId,
       abortSignal: invocation?.abortSignal,
+      workDir,
     };
   }
 
@@ -126,6 +134,7 @@ export class Executor {
       const result = await skill.run(decision.input ?? {}, {
         sessionId,
         abortSignal: tcx.abortSignal,
+        workDir: tcx.workDir,
         runTool: async (name, input) => {
           logger.debug(`Skill ${decision.skill} requested tool execution: ${name}`);
           trace?.tracer.skillTool(iter, skillName, name, AgentTracePhase.START);
