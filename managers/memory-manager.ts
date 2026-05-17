@@ -238,6 +238,7 @@ export class MemoryManager {
     const title = patch.title ?? existing?.title;
     const notes = patch.notes !== undefined ? (patch.notes.length > 0 ? patch.notes : undefined) : existing?.notes;
     const artifact_path = patch.artifact_path !== undefined ? (patch.artifact_path.length > 0 ? patch.artifact_path : undefined) : existing?.artifact_path;
+    const instruction = patch.instruction !== undefined ? (patch.instruction.length > 0 ? patch.instruction : undefined) : existing?.instruction;
     
     let blocked_reason: string | undefined;
     if (patch.blocked_reason !== undefined) {
@@ -255,6 +256,11 @@ export class MemoryManager {
     if (notes) item.notes = notes;
     if (artifact_path) item.artifact_path = artifact_path;
     if (blocked_reason) item.blocked_reason = blocked_reason;
+    if (instruction) item.instruction = instruction;
+
+    if (existing?.depends_on) item.depends_on = existing.depends_on;
+    if (existing?.tool_names) item.tool_names = existing.tool_names;
+    if (existing?.skill_names) item.skill_names = existing.skill_names;
 
     return item;
   }

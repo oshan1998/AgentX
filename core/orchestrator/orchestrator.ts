@@ -71,7 +71,7 @@ export interface OrchestrateResult {
  */
 export class Orchestrator {
   constructor(
-    private readonly deps: OrchestratorDeps,
+    readonly deps: OrchestratorDeps,
     private readonly config: OrchestratorConfig = {},
   ) {}
 

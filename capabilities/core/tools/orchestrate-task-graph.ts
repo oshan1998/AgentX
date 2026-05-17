@@ -11,36 +11,8 @@ import { parseToolInput, zodSchemaToJsonInputSchema } from "../../../common/serv
 import type { Orchestrator } from "../../../core/orchestrator/orchestrator.js";
 import { TaskNodeStatus, type TaskGraphConfig } from "../../../core/orchestrator/task-graph.js";
 
-// ─── Schema ──────────────────────────────────────────────────────────────────
-
-const taskNodeInputSchema = z.object({
-  id: z.string().min(1).describe("Stable snake_case id for this task (e.g. market_overview)."),
-  title: z.string().min(1).describe("Human-readable title."),
-  depends_on: z
-    .array(z.string())
-    .default([])
-    .describe("IDs of tasks that must complete before this one starts. Empty = no dependencies."),
-  instruction: z.string().min(1).describe("Clear task instructions for the sub-agent worker."),
-  tool_names: z
-    .array(z.string())
-    .default([])
-    .describe("Tool names the worker may use (subset of your catalog)."),
-  skill_names: z
-    .array(z.string())
-    .optional()
-    .describe("Skill names the worker may use (optional subset of your catalog)."),
-  artifactPath: z
-    .string()
-    .optional()
-    .describe("Path under workspace/ where the worker should write its full output."),
-});
-
 const orchestrateInputSchema = z.object({
   objective: z.string().min(1).describe("High-level objective that this task graph achieves."),
-  tasks: z
-    .array(taskNodeInputSchema)
-    .min(1)
-    .describe("Ordered list of task nodes forming a DAG. Use dependsOn to express dependencies."),
   failFast: z
     .boolean()
     .optional()
@@ -79,18 +51,31 @@ export class OrchestrateTaskGraphTool implements Tool {
       input,
     );
 
+    const ownerId = await this.orchestrator.deps.memoryManager.resolveTaskPlanSessionId(context.sessionId);
+    const doc = await this.orchestrator.deps.memoryManager.readTaskPlan(ownerId);
+
+    if (!doc || !doc.tasks || doc.tasks.length === 0) {
+      throw new Error("No task plan found for this session. Please use the 'plan_steps' skill to design a plan first.");
+    }
+
     const graphConfig: TaskGraphConfig = {
       objective: validated.objective,
-      nodes: validated.tasks.map((t) => ({
-        id: t.id,
-        title: t.title,
-        depends_on: t.depends_on,
-        instruction: t.instruction,
-        tool_names: t.tool_names,
-        skill_names: t.skill_names,
-        artifactPath: t.artifactPath,
-        status: TaskNodeStatus.Pending,
-      })),
+      nodes: doc.tasks.map((t) => {
+        let status = TaskNodeStatus.Pending;
+        if (t.status === "completed") {
+          status = TaskNodeStatus.Completed;
+        }
+        return {
+          id: t.id,
+          title: t.title ?? t.id,
+          depends_on: t.depends_on ?? [],
+          instruction: t.instruction ?? t.notes ?? "",
+          tool_names: t.tool_names ?? [],
+          skill_names: t.skill_names ?? [],
+          artifactPath: t.artifact_path,
+          status,
+        };
+      }),
     };
 
     const result = await this.orchestrator.run({

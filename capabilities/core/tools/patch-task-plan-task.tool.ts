@@ -54,6 +54,12 @@ function mergeTask(
         ? patch.artifact_path
         : undefined
       : existing?.artifact_path;
+  const instruction =
+    patch.instruction !== undefined
+      ? patch.instruction.length > 0
+        ? patch.instruction
+        : undefined
+      : existing?.instruction;
 
   let blocked_reason: string | undefined;
   if (patch.blocked_reason !== undefined) {
@@ -80,5 +86,19 @@ function mergeTask(
   if (blocked_reason !== undefined) {
     item.blocked_reason = blocked_reason;
   }
+  if (instruction !== undefined && instruction.length > 0) {
+    item.instruction = instruction;
+  }
+
+  if (existing?.depends_on) {
+    item.depends_on = existing.depends_on;
+  }
+  if (existing?.tool_names) {
+    item.tool_names = existing.tool_names;
+  }
+  if (existing?.skill_names) {
+    item.skill_names = existing.skill_names;
+  }
+
   return item;
 }

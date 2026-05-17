@@ -45,6 +45,12 @@ export const taskPlanItemSchema = z.object({
     .describe(
       "Skill names the worker sub-agent may use for this task. Used by orchestrate_task_graph.",
     ),
+  instruction: z
+    .string()
+    .optional()
+    .describe(
+      "Clear, detailed task instructions for the worker sub-agent. Used by orchestrate_task_graph.",
+    ),
 });
 
 export const taskPlanDocumentSchema = z.object({
@@ -70,6 +76,7 @@ export const patchTaskPlanTaskInputSchema = z.object({
     .optional()
     .describe("Set or change workspace file path; empty string clears. Leave unset to keep previous."),
   blocked_reason: z.string().optional(),
+  instruction: z.string().optional().describe("Update task instructions; leave unset to keep previous."),
 });
 
 export type TaskPlanStatus = z.infer<typeof taskPlanStatusSchema>;

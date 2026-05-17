@@ -16,7 +16,8 @@ The **skill input** in the delegated task is the source of truth. Read the JSON:
    - **`title`**: short label.
    - **`status`**: usually start as `pending` (or first step `in_progress` if appropriate).
    - **`artifact_path`** (recommended): where the principal should save **full** findings for this step, e.g. `workspace/tasks/market_overview.md`. Use one path per task id so `read_file` is deterministic later.
-   - **`notes`** (optional): one or two sentences on what belongs in that artifact—**not** a dump of research (that goes in the file).
+   - **`instruction`** (required): clear, highly specific instructions for the worker sub-agent detailing what must be done to complete this step.
+   - **`notes`** (optional): one or two sentences outlining key constraints, expectations, or planned outcomes.
    - **`depends_on`** (recommended): array of task IDs that must complete before this task starts. Leave empty `[]` or omit for tasks with no dependencies. Tasks without dependencies can run **in parallel**.
    - **`tool_names`** (recommended): array of tool names the worker sub-agent may use for this task (e.g. `["web_search", "write_file"]`).
    - **`skill_names`** (optional): array of skill names the worker sub-agent may use.
