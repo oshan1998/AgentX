@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { Tool, ToolContext } from "../../../common/interfaces/types.js";
 import { parseToolInput, zodSchemaToJsonInputSchema } from "../../../common/services/zod-tool-schema.js";
 import {
-  DEFAULT_MEMORY_BASE,
+  DEFAULT_WORKSPACE_BASE,
   resolveWorkspacePath,
 } from "../../../common/services/workspace-path.js";
 
@@ -25,7 +25,7 @@ export class ListDirectoryTool implements Tool {
 
   async run(input: Record<string, unknown>, context: ToolContext): Promise<unknown> {
     const { path: dirPath } = parseToolInput(this.name, listDirectoryInputSchema, input);
-    const absPath = resolveWorkspacePath(DEFAULT_MEMORY_BASE, context.sessionId, dirPath);
+    const absPath = resolveWorkspacePath(DEFAULT_WORKSPACE_BASE, context.sessionId, dirPath);
     const entries = await readdir(absPath, { withFileTypes: true });
     return entries.map((entry) => ({
       name: entry.name,

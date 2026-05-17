@@ -6,7 +6,7 @@ import type { Tool, ToolContext } from "../../../common/interfaces/types.js";
 import { logger } from "../../../common/services/logger.js";
 import { parseToolInput, zodSchemaToJsonInputSchema } from "../../../common/services/zod-tool-schema.js";
 import {
-  DEFAULT_MEMORY_BASE,
+  DEFAULT_WORKSPACE_BASE,
   resolveWorkspacePath,
 } from "../../../common/services/workspace-path.js";
 
@@ -41,7 +41,7 @@ export class GenerateDesignedPdfTool implements Tool {
       input,
     );
     const absOutputPath = resolveWorkspacePath(
-      DEFAULT_MEMORY_BASE,
+      DEFAULT_WORKSPACE_BASE,
       context.sessionId,
       outputPath,
     );

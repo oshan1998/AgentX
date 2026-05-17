@@ -34,7 +34,7 @@ export class OrchestrateTaskGraphTool implements Tool {
   readonly name = ORCHESTRATE_TASK_GRAPH_TOOL_NAME;
   readonly description =
     "Execute a DAG of tasks in parallel using isolated sub-agent workers. " +
-    "Tasks without dependencies run concurrently; tasks with dependsOn wait for their upstream tasks to complete. " +
+    "Tasks without dependencies run concurrently; tasks with depends_on wait for upstream tasks, then receive their artifact paths and summaries automatically. " +
     "Use this instead of sequential delegate_sub_agent calls when you have multiple independent or semi-independent tasks. " +
     "Workers cannot write memory or profiles — include facts in results for you to persist.";
   readonly inputSchema = zodSchemaToJsonInputSchema(orchestrateInputSchema);
@@ -69,11 +69,15 @@ export class OrchestrateTaskGraphTool implements Tool {
           id: t.id,
           title: t.title ?? t.id,
           depends_on: t.depends_on ?? [],
-          instruction: t.instruction ?? t.notes ?? "",
+          instruction: t.instruction ?? "",
           tool_names: t.tool_names ?? [],
           skill_names: t.skill_names ?? [],
           artifactPath: t.artifact_path,
           status,
+          result:
+            t.status === "completed" && t.notes?.trim()
+              ? t.notes.trim()
+              : undefined,
         };
       }),
     };

@@ -1,11 +1,18 @@
+import { access, stat } from "node:fs/promises";
+import { constants } from "node:fs";
 import path from "node:path";
 
 /** Matches `main.ts` memory root (`process.cwd()/memory`). */
-export const DEFAULT_MEMORY_BASE = path.join(process.cwd(), "memory");
+export const DEFAULT_WORKSPACE_BASE = path.join(process.cwd(), "workspace");
 
 /** Principal session id for delegated runs (`root::sub_*` → `root`). */
 export function resolveRootSessionId(sessionId: string): string {
   return sessionId.split("::")[0];
+}
+
+/** Model/plan-facing path without a leading `workspace/` prefix (e.g. `tasks/foo.md`). */
+export function normalizeWorkspaceRelativePath(userPath: string): string {
+  return userPath.replace(/^workspace\/?/i, "").replace(/^\/+/, "");
 }
 
 /** Absolute directory for session-scoped artifacts: `memory/sessions/<root>/workspace`. */
@@ -36,4 +43,20 @@ export function resolveWorkspacePath(
     throw new Error("Path escapes session workspace");
   }
   return abs;
+}
+
+/** True when the resolved path exists as a non-empty file in the session workspace. */
+export async function sessionArtifactExists(
+  memoryBase: string,
+  sessionId: string,
+  artifactPath: string,
+): Promise<boolean> {
+  try {
+    const abs = resolveWorkspacePath(memoryBase, sessionId, artifactPath);
+    await access(abs, constants.F_OK);
+    const info = await stat(abs);
+    return info.isFile() && info.size > 0;
+  } catch {
+    return false;
+  }
 }

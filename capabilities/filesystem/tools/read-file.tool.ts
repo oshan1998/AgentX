@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { Tool, ToolContext } from "../../../common/interfaces/types.js";
 import { parseToolInput, zodSchemaToJsonInputSchema } from "../../../common/services/zod-tool-schema.js";
 import {
-  DEFAULT_MEMORY_BASE,
+  DEFAULT_WORKSPACE_BASE,
   resolveWorkspacePath,
 } from "../../../common/services/workspace-path.js";
 
@@ -23,7 +23,7 @@ export class ReadFileTool implements Tool {
 
   async run(input: Record<string, unknown>, context: ToolContext): Promise<unknown> {
     const { path: filePath } = parseToolInput(this.name, readFileInputSchema, input);
-    const absPath = resolveWorkspacePath(DEFAULT_MEMORY_BASE, context.sessionId, filePath);
+    const absPath = resolveWorkspacePath(DEFAULT_WORKSPACE_BASE, context.sessionId, filePath);
     return readFile(absPath, "utf-8");
   }
 }

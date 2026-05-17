@@ -4,7 +4,7 @@ import { z } from "zod";
 import type { Tool, ToolContext } from "../../../common/interfaces/types.js";
 import { parseToolInput, zodSchemaToJsonInputSchema } from "../../../common/services/zod-tool-schema.js";
 import {
-  DEFAULT_MEMORY_BASE,
+  DEFAULT_WORKSPACE_BASE,
   resolveWorkspacePath,
 } from "../../../common/services/workspace-path.js";
 
@@ -26,7 +26,7 @@ export class WriteFileTool implements Tool {
 
   async run(input: Record<string, unknown>, context: ToolContext): Promise<unknown> {
     const { path: filePath, content } = parseToolInput(this.name, writeFileInputSchema, input);
-    const absPath = resolveWorkspacePath(DEFAULT_MEMORY_BASE, context.sessionId, filePath);
+    const absPath = resolveWorkspacePath(DEFAULT_WORKSPACE_BASE, context.sessionId, filePath);
     const dir = path.dirname(absPath);
     await mkdir(dir, { recursive: true });
     await writeFile(absPath, content, "utf-8");

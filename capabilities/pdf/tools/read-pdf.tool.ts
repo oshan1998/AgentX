@@ -5,7 +5,7 @@ import type { Tool, ToolContext } from "../../../common/interfaces/types.js";
 import { logger } from "../../../common/services/logger.js";
 import { parseToolInput, zodSchemaToJsonInputSchema } from "../../../common/services/zod-tool-schema.js";
 import {
-  DEFAULT_MEMORY_BASE,
+  DEFAULT_WORKSPACE_BASE,
   resolveWorkspacePath,
 } from "../../../common/services/workspace-path.js";
 
@@ -25,7 +25,7 @@ export class ReadPdfTool implements Tool {
 
   async run(input: Record<string, unknown>, context: ToolContext): Promise<unknown> {
     const { path: pdfPath } = parseToolInput(this.name, readPdfInputSchema, input);
-    const absPath = resolveWorkspacePath(DEFAULT_MEMORY_BASE, context.sessionId, pdfPath);
+    const absPath = resolveWorkspacePath(DEFAULT_WORKSPACE_BASE, context.sessionId, pdfPath);
 
     try {
       const dataBuffer = await readFile(absPath);

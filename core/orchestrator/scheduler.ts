@@ -133,7 +133,7 @@ export class Scheduler {
       }
 
       this.graph.markRunning(task.id);
-      this.pool.submit(task, parentSessionId, abortSignal);
+      this.pool.submit(task, parentSessionId, this.graph, abortSignal);
       logger.info(
         `[Scheduler] Dispatched task "${task.id}" (${task.title}).`,
       );

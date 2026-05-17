@@ -14,8 +14,17 @@ import {
   SUB_AGENT_HARD_MAX_WALL_CLOCK_MS,
 } from "../agent-runtime-constants.js";
 import { logger } from "../../common/services/logger.js";
+import {
+  DEFAULT_WORKSPACE_BASE,
+  normalizeWorkspaceRelativePath,
+  sessionArtifactExists,
+} from "../../common/services/workspace-path.js";
 import type { OrchestratorEventBus } from "./event-bus.js";
-import type { TaskNode } from "./task-graph.js";
+import { TaskGraph, type TaskNode } from "./task-graph.js";
+
+const UPSTREAM_SUMMARY_MAX_CHARS = 600;
+/** Extra sub-agent turns when a required artifact file is missing after respond. */
+const ARTIFACT_VERIFY_MAX_RETRIES = 2;
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -76,6 +85,7 @@ export class WorkerPool {
   submit(
     task: TaskNode,
     parentSessionId: string,
+    graph: TaskGraph,
     parentAbortSignal?: AbortSignal,
   ): void {
     if (this.workers.size >= this.maxConcurrency) {
@@ -102,6 +112,7 @@ export class WorkerPool {
       workerId,
       task,
       parentSessionId,
+      graph,
       ac,
     );
 
@@ -135,6 +146,7 @@ export class WorkerPool {
     workerId: number,
     task: TaskNode,
     parentSessionId: string,
+    graph: TaskGraph,
     ac: AbortController,
   ): Promise<void> {
     const ts = () => new Date().toISOString();
@@ -152,6 +164,7 @@ export class WorkerPool {
       result = await this.executeTask(
         task,
         parentSessionId,
+        graph,
         ac,
       );
     } catch (err) {
@@ -187,6 +200,7 @@ export class WorkerPool {
   private async executeTask(
     task: TaskNode,
     parentSessionId: string,
+    graph: TaskGraph,
     ac: AbortController,
   ): Promise<string> {
     // Create an isolated child session
@@ -214,7 +228,7 @@ export class WorkerPool {
       Math.min(SUB_AGENT_DEFAULT_WALL_CLOCK_MS, SUB_AGENT_HARD_MAX_WALL_CLOCK_MS);
 
     // Build contextual instruction
-    const instruction = this.buildInstruction(task);
+    const instruction = this.buildInstruction(task, graph);
 
     // Spin up an isolated sub-agent loop
     const subLoop = new AgentLoop({
@@ -230,32 +244,119 @@ export class WorkerPool {
       skillDelegateRunner: this.deps.skillDelegateRunner,
     });
 
-    const summary = await subLoop.completeAgentRun(subSessionId, instruction, {
+    const runOptions = {
       runId: subRunId,
       abortSignal: ac.signal,
       deadlineAt,
       maxIterations: maxIter,
-    });
+    };
+
+    let summary = await subLoop.completeAgentRun(subSessionId, instruction, runOptions);
+    let reply = summary.reply;
+
+    if (task.artifactPath) {
+      reply = await this.ensureArtifactWritten(
+        task,
+        parentSessionId,
+        subSessionId,
+        subLoop,
+        runOptions,
+        reply,
+      );
+    }
 
     logger.info(
       `[WorkerPool] Task "${task.id}" completed with outcome: ${summary.outcome}`,
     );
 
-    return summary.reply;
+    return reply;
   }
 
-  private buildInstruction(task: TaskNode): string {
-    const lines: string[] = [
-      `## Task: ${task.title}`,
+  /**
+   * Verifies the task artifact exists on disk. Nudges the same sub-agent to write_file if missing.
+   */
+  private async ensureArtifactWritten(
+    task: TaskNode,
+    parentSessionId: string,
+    subSessionId: string,
+    subLoop: AgentLoop,
+    runOptions: {
+      runId: string;
+      abortSignal: AbortSignal;
+      deadlineAt: number;
+      maxIterations: number;
+    },
+    lastReply: string,
+  ): Promise<string> {
+    const artifactPath = task.artifactPath!;
+    const rel = normalizeWorkspaceRelativePath(artifactPath);
+
+    if (
+      await sessionArtifactExists(
+        DEFAULT_WORKSPACE_BASE,
+        parentSessionId,
+        artifactPath,
+      )
+    ) {
+      return lastReply;
+    }
+
+    let reply = lastReply;
+    for (let attempt = 1; attempt <= ARTIFACT_VERIFY_MAX_RETRIES; attempt++) {
+      logger.warn(
+        `[WorkerPool] Task "${task.id}" missing artifact at ${rel}, retry ${attempt}/${ARTIFACT_VERIFY_MAX_RETRIES}`,
+      );
+
+      const retrySummary = await subLoop.completeAgentRun(
+        subSessionId,
+        this.buildArtifactRetryMessage(rel),
+        runOptions,
+      );
+      reply = retrySummary.reply;
+
+      if (
+        await sessionArtifactExists(
+          DEFAULT_WORKSPACE_BASE,
+          parentSessionId,
+          artifactPath,
+        )
+      ) {
+        return reply;
+      }
+    }
+
+    throw new Error(
+      `Required artifact not found at \`${rel}\` after ${ARTIFACT_VERIFY_MAX_RETRIES + 1} attempt(s). ` +
+        "The task must write the full output with write_file before completing.",
+    );
+  }
+
+  private buildArtifactRetryMessage(relPath: string): string {
+    return [
+      `Required artifact file is missing at: \`${relPath}\``,
       "",
-      task.instruction,
-    ];
+      "You must call write_file with the complete output at that exact path before finishing.",
+      "After the file exists, respond with a brief confirmation.",
+    ].join("\n");
+  }
+
+  private buildInstruction(task: TaskNode, graph: TaskGraph): string {
+    const lines: string[] = [];
+
+    const upstream = this.formatUpstreamDependencies(task, graph);
+    if (upstream.length > 0) {
+      lines.push(...upstream, "");
+    }
+
+    lines.push(`## Task: ${task.title}`, "", task.instruction);
 
     if (task.artifactPath) {
+      const outPath = normalizeWorkspaceRelativePath(task.artifactPath);
       lines.push(
         "",
-        `Write your complete findings to: ${task.artifactPath}`,
+        `Write your complete findings to: ${outPath}`,
         "Use write_file to persist the output there.",
+        "Do not finish until that file exists with the full content.",
       );
     }
 
@@ -265,5 +366,50 @@ export class WorkerPool {
     );
 
     return lines.join("\n");
+  }
+
+  /** Inject completed dependency artifact paths and summaries for downstream workers. */
+  private formatUpstreamDependencies(task: TaskNode, graph: TaskGraph): string[] {
+    if (task.depends_on.length === 0) {
+      return [];
+    }
+
+    const lines: string[] = [
+      "## Upstream dependencies (completed)",
+      "",
+      "These tasks finished before yours. Use read_file on each artifact path below before executing your task.",
+      "",
+    ];
+
+    for (const depId of task.depends_on) {
+      const dep = graph.getNode(depId);
+      if (!dep) {
+        lines.push(`### ${depId}`, "- (dependency not found in graph)", "");
+        continue;
+      }
+
+      const heading = dep.title ? `${dep.id} — ${dep.title}` : dep.id;
+      lines.push(`### ${heading}`);
+
+      if (dep.artifactPath) {
+        const rel = normalizeWorkspaceRelativePath(dep.artifactPath);
+        lines.push(`- **Artifact (read_file):** \`${rel}\``);
+      }
+
+      if (dep.result?.trim()) {
+        const text = dep.result.trim();
+        const preview =
+          text.length > UPSTREAM_SUMMARY_MAX_CHARS
+            ? `${text.slice(0, UPSTREAM_SUMMARY_MAX_CHARS)}…`
+            : text;
+        lines.push(`- **Upstream summary:** ${preview}`);
+      } else if (!dep.artifactPath) {
+        lines.push("- **Upstream summary:** (no artifact file or summary recorded)");
+      }
+
+      lines.push("");
+    }
+
+    return lines;
   }
 }
