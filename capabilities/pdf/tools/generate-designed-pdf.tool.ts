@@ -1,8 +1,8 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
-import puppeteer from "puppeteer";
 import { z } from "zod";
 import type { Tool, ToolContext } from "../../../common/interfaces/types.js";
+import { withBrowserPage } from "../../../common/services/puppeteer-browser.js";
 import { logger } from "../../../common/services/logger.js";
 import { parseToolInput, zodSchemaToJsonInputSchema } from "../../../common/services/zod-tool-schema.js";
 import {
@@ -53,36 +53,26 @@ export class GenerateDesignedPdfTool implements Tool {
 
       await mkdir(path.dirname(absOutputPath), { recursive: true });
 
-      const executablePath = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+      await withBrowserPage(async (page) => {
+        await page.setContent(html, {
+          waitUntil: "networkidle0",
+          timeout: 30000,
+        });
 
-      const browser = await puppeteer.launch({
-        headless: true,
-        executablePath,
-        args: ["--no-sandbox", "--disable-setuid-sandbox"],
+        await page.pdf({
+          path: absOutputPath,
+          // Puppeteer PaperFormat is a fixed union; model-supplied labels are passed through like before.
+          format: format as "A4" | "Letter",
+          landscape,
+          printBackground: true,
+          margin: {
+            top: "0px",
+            right: "0px",
+            bottom: "0px",
+            left: "0px",
+          },
+        });
       });
-
-      const page = await browser.newPage();
-
-      await page.setContent(html, {
-        waitUntil: "networkidle0",
-        timeout: 30000,
-      });
-
-      await page.pdf({
-        path: absOutputPath,
-        // Puppeteer PaperFormat is a fixed union; model-supplied labels are passed through like before.
-        format: format as "A4" | "Letter",
-        landscape,
-        printBackground: true,
-        margin: {
-          top: "0px",
-          right: "0px",
-          bottom: "0px",
-          left: "0px",
-        },
-      });
-
-      await browser.close();
 
       logger.info(`Designed PDF successfully generated at: ${outputPath}`);
       return {

@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "1",
+  "kind": "agentic",
+  "name": "create_social_graphic",
+  "description": "Design and render a social-media graphic (Instagram, X, LinkedIn, etc.) from supplied copy and an optional visual brief. Produces a PNG via HTML/CSS layout.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "content": {
+        "type": "string",
+        "description": "Exact text and facts to show (headline, body, CTA, handles). Do not invent copy."
+      },
+      "designBrief": {
+        "type": "string",
+        "description": "Optional visual direction (mood, colors, style). Does not add new factual content."
+      },
+      "platform": {
+        "type": "string",
+        "description": "Target preset: instagram_post, instagram_story, twitter_post, linkedin_post, facebook_cover, youtube_thumbnail, open_graph. Default instagram_post."
+      },
+      "outputPath": {
+        "type": "string",
+        "description": "Where to save the PNG under workspace/ (e.g. designs/launch-post.png)."
+      }
+    },
+    "required": ["content", "outputPath"]
+  },
+  "toolNames": ["render_html_to_png"],
+  "maxIterations": 16,
+  "deadlineMs": 180000
+}

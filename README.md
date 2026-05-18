@@ -32,6 +32,10 @@ Minimal but scalable single-agent framework in Node.js + TypeScript.
   - `plan_steps` [agentic]: builds ordered steps and persists them via task-plan tools (`read_task_plan`, `write_task_plan`, `patch_task_plan_task`)
 - Filesystem skills (multi-step): `summarize_document`, `extract_tasks`
 - PDF skill: `generate_designed_pdf`
+- Design capability:
+  - Tools: `render_html_to_png`, `write_svg`, `render_svg_to_png`, `read_image_metadata`, `crop_and_resize`, `export_multi_size`, `compose_layers`
+  - Skills [agentic]: `create_social_graphic`, `create_infographic`, `create_icon_set`
+  - Skill [workflow]: `resize_for_platforms`
 - OpenAI adapter plus mock adapter fallback
 - Interactive CLI (`main.ts`)
 
@@ -53,7 +57,13 @@ agentix/
 │   ├── filesystem/
 │       ├── tools/
 │       └── skills/
-│   └── scheduler/
+│   ├── scheduler/
+│   │   ├── tools/
+│   │   └── skills/
+│   ├── pdf/
+│   │   ├── tools/
+│   │   └── skills/
+│   └── design/
 │       ├── tools/
 │       └── skills/
 ├── integrations/
