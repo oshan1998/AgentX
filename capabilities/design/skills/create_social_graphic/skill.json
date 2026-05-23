@@ -21,11 +21,27 @@
       "outputPath": {
         "type": "string",
         "description": "Where to save the PNG under workspace/ (e.g. designs/launch-post.png)."
+      },
+      "imagePaths": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Optional workspace-relative image paths (logos, photos) to include in the layout."
+      },
+      "imageUrls": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Optional HTTPS URLs to download before layout."
       }
     },
     "required": ["content", "outputPath"]
   },
-  "toolNames": ["render_html_to_png"],
+  "toolNames": [
+    "download_image",
+    "read_image_metadata",
+    "crop_and_resize",
+    "render_html_to_png",
+    "inspect_image"
+  ],
   "maxIterations": 16,
   "deadlineMs": 180000
 }

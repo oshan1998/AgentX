@@ -10,6 +10,21 @@ import {
   resolveWorkspacePath,
 } from "../../../common/services/workspace-path.js";
 
+const blendModeSchema = z.enum([
+  "over",
+  "multiply",
+  "screen",
+  "overlay",
+  "darken",
+  "lighten",
+  "color-dodge",
+  "color-burn",
+  "hard-light",
+  "soft-light",
+  "difference",
+  "exclusion",
+]);
+
 const layerSchema = z.object({
   path: z.string().min(1).describe("Workspace-relative image path for this layer."),
   left: z.number().int().describe("X offset from canvas left (pixels)."),
@@ -17,6 +32,8 @@ const layerSchema = z.object({
   width: z.number().int().positive().optional(),
   height: z.number().int().positive().optional(),
   opacity: z.number().min(0).max(1).optional(),
+  rotate: z.number().optional().describe("Rotation in degrees before placement."),
+  blend: blendModeSchema.optional().describe('Composite blend mode. Default "over".'),
 });
 
 export const composeLayersInputSchema = z.object({
@@ -35,10 +52,26 @@ export const composeLayersInputSchema = z.object({
 
 export type ComposeLayersInput = z.infer<typeof composeLayersInputSchema>;
 
+async function applyLayerOpacity(buffer: Buffer, opacity: number): Promise<Buffer> {
+  if (opacity >= 1) return buffer;
+  return sharp(buffer)
+    .ensureAlpha()
+    .composite([
+      {
+        input: Buffer.from([0, 0, 0, Math.round(opacity * 255)]),
+        raw: { width: 1, height: 1, channels: 4 },
+        tile: true,
+        blend: "dest-in",
+      },
+    ])
+    .png()
+    .toBuffer();
+}
+
 export class ComposeLayersTool implements Tool {
   name = "compose_layers";
   description =
-    "Composite multiple workspace images onto a canvas and export a single PNG.";
+    "Composite multiple workspace images onto a canvas and export a single PNG (position, resize, opacity, rotation, blend modes).";
   inputSchema = zodSchemaToJsonInputSchema(composeLayersInputSchema);
 
   async run(input: Record<string, unknown>, context: ToolContext): Promise<unknown> {
@@ -62,15 +95,21 @@ export class ComposeLayersTool implements Tool {
           layer.path,
         );
         let img = sharp(absLayer);
+        if (layer.rotate !== undefined) {
+          img = img.rotate(layer.rotate);
+        }
         if (layer.width || layer.height) {
           img = img.resize(layer.width, layer.height, { fit: "fill" });
         }
-        const buffer = await img.toBuffer();
+        let buffer = await img.toBuffer();
+        if (layer.opacity !== undefined && layer.opacity < 1) {
+          buffer = await applyLayerOpacity(buffer, layer.opacity);
+        }
         composites.push({
           input: buffer,
           left: layer.left,
           top: layer.top,
-          ...(layer.opacity !== undefined ? { blend: "over" as const } : {}),
+          blend: layer.blend ?? "over",
         });
       }
 

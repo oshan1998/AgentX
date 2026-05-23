@@ -1,0 +1,55 @@
+{
+  "schemaVersion": "1",
+  "kind": "agentic",
+  "name": "create_photo_social_graphic",
+  "description": "Design a social graphic that uses photos (hero image, overlays, stock or supplied assets) with typography. Produces a PNG via HTML/CSS and/or raster compositing.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "content": {
+        "type": "string",
+        "description": "Exact text and facts to show. Do not invent copy."
+      },
+      "designBrief": {
+        "type": "string",
+        "description": "Visual direction: mood, colors, layout (full-bleed photo, split layout, etc.)."
+      },
+      "platform": {
+        "type": "string",
+        "description": "Target preset: instagram_post, instagram_story, twitter_post, linkedin_post, facebook_cover, youtube_thumbnail, open_graph. Default instagram_post."
+      },
+      "outputPath": {
+        "type": "string",
+        "description": "Final PNG path under workspace/."
+      },
+      "imagePaths": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Workspace-relative paths to images already in the session (logos, photos)."
+      },
+      "imageUrls": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "HTTPS URLs to download into workspace before layout."
+      },
+      "stockQuery": {
+        "type": "string",
+        "description": "Optional Unsplash search query when no imagePaths/imageUrls are provided."
+      }
+    },
+    "required": ["content", "outputPath"]
+  },
+  "toolNames": [
+    "download_image",
+    "search_stock_images",
+    "read_image_metadata",
+    "crop_and_resize",
+    "apply_image_transform",
+    "add_image_overlay",
+    "compose_layers",
+    "render_html_to_png",
+    "inspect_image"
+  ],
+  "maxIterations": 24,
+  "deadlineMs": 300000
+}

@@ -33,8 +33,9 @@ Minimal but scalable single-agent framework in Node.js + TypeScript.
 - Filesystem skills (multi-step): `summarize_document`, `extract_tasks`
 - PDF skill: `generate_designed_pdf`
 - Design capability:
-  - Tools: `render_html_to_png`, `write_svg`, `render_svg_to_png`, `read_image_metadata`, `crop_and_resize`, `export_multi_size`, `compose_layers`
-  - Skills [agentic]: `create_social_graphic`, `create_infographic`, `create_icon_set`
+  - Tools: `render_html_to_png`, `write_svg`, `render_svg_to_png`, `read_image_metadata`, `crop_and_resize`, `export_multi_size`, `compose_layers`, `download_image`, `apply_image_transform`, `add_image_overlay`, `inspect_image`
+  - Integration: `search_stock_images` (Unsplash; requires `UNSPLASH_ACCESS_KEY`)
+  - Skills [agentic]: `create_social_graphic`, `create_photo_social_graphic`, `create_infographic`, `create_icon_set`, `prepare_images_for_design`
   - Skill [workflow]: `resize_for_platforms`
 - OpenAI adapter plus mock adapter fallback
 - Interactive CLI (`main.ts`)
@@ -106,8 +107,12 @@ GMAIL_CLIENT_SECRET=your_gmail_client_secret_here
 GMAIL_REFRESH_TOKEN=your_gmail_refresh_token_here
 LLM_PROVIDER=openai or ollama(for local)
 OPENAI_API_KEY=your_openai_api_key_here
+UNSPLASH_ACCESS_KEY=your_unsplash_access_key_here
+VISION_PROVIDER=openai
 
 ```
+
+`inspect_image` uses `VISION_PROVIDER` (defaults to `LLM_PROVIDER`) with OpenAI or Gemini vision. `search_stock_images` needs [Unsplash API](https://unsplash.com/developers) access key.
 
 Then in the CLI, ask:
 
