@@ -24,7 +24,7 @@ export interface TaskNode {
   tool_names: string[];
   /** Skill allow-list for the worker sub-agent (optional). */
   skill_names?: string[];
-  /** Optional path where the worker should write its output. */
+  /** Optional workspace-relative path for the worker's primary output (any file type). */
   artifactPath?: string;
   /** Current execution status. */
   status: TaskNodeStatus;

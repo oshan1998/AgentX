@@ -11,7 +11,7 @@ export const readFileInputSchema = z.object({
   path: z
     .string()
     .min(1)
-    .describe("Relative path in this session workspace (e.g. tasks/foo.md or workspace/tasks/foo.md)."),
+    .describe("Relative path in this session workspace for a text file (e.g. tasks/notes.md, tasks/data.json)."),
 });
 
 export type ReadFileInput = z.infer<typeof readFileInputSchema>;

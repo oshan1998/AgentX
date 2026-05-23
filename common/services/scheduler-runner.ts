@@ -1,6 +1,6 @@
 import path from "node:path";
 import { logger } from "./logger.js";
-import { AgentLoop } from "../../core/agent-loop.js";
+import { AgentLoop } from "../../core/agent/agent-loop.js";
 import { readCronJobs, writeCronJobs } from "../../capabilities/scheduler/scheduler-utils.js";
 
 

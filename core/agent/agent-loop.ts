@@ -1,27 +1,27 @@
-import type { SkillRegistry, ToolRegistry } from "../common/interfaces/registry.js";
+import type { SkillRegistry, ToolRegistry } from "../../common/interfaces/registry.js";
 import {
   DecisionType,
   type AgentDecision,
   type LlmAdapter,
   type Message,
   type SkillDelegateRunner,
-} from "../common/interfaces/types.js";
-import type { SessionTraceHub } from "../common/realtime/session-trace-hub.js";
+} from "../../common/interfaces/types.js";
+import type { SessionTraceHub } from "../../common/realtime/session-trace-hub.js";
 import {
   AgentRunOutcome,
   AgentTracePhase,
   type AgentTraceRunOutcome,
-} from "../common/realtime/agent-trace-types.js";
+} from "../../common/realtime/agent-trace-types.js";
 import { Executor } from "./executor.js";
 import type { ExecutorInvocationContext, ExecutorTraceContext } from "./executor.js";
 import {
   PRIMARY_AGENT_EXECUTION_POLICY,
   type ExecutionPolicy,
 } from "./execution-policy.js";
-import { MemoryManager } from "../managers/memory-manager.js";
+import { MemoryManager } from "../../managers/memory-manager.js";
 import { PromptBuilder } from "./prompt-builder.js";
-import { ProfileManager } from "../managers/profile-manager.js";
-import { logger } from "../common/services/logger.js";
+import { ProfileManager } from "../../managers/profile-manager.js";
+import { logger } from "../../common/services/logger.js";
 
 // ─── Public types ────────────────────────────────────────────────────────────
 

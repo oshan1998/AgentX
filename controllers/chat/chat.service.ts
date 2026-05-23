@@ -1,4 +1,4 @@
-import { AgentLoop } from "../../core/agent-loop.js";
+import { AgentLoop } from "../../core/agent/agent-loop.js";
 import { MemoryManager } from "../../managers/memory-manager.js";
 import type { LlmAdapter } from "../../common/interfaces/types.js";
 

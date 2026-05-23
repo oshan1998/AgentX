@@ -1,6 +1,6 @@
 import path from "node:path";
 import { SkillRegistry } from "../common/interfaces/registry.js";
-import { loadSkillsFromDirectory } from "../core/skill-loader.js";
+import { loadSkillsFromDirectory } from "../core/skills/index.js";
 import type { LlmAdapter } from "../common/interfaces/types.js";
 
 export class SkillManager {

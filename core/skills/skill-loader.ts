@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { SkillType, type LlmAdapter, type Skill } from "../common/interfaces/types.js";
+import { SkillType, type LlmAdapter, type Skill } from "../../common/interfaces/types.js";
 import {
   type AgenticSkillConfig,
   AgenticSkill,
