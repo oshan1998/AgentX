@@ -15,7 +15,7 @@ The **skill input** in the delegated task is the source of truth. Read the JSON:
    - **`id`**: stable `snake_case` (e.g. `market_overview`, `swot_analysis`).
    - **`title`**: short label.
    - **`status`**: usually start as `pending` (or first step `in_progress` if appropriate).
-   - **`artifact_path`** (recommended): where the principal should save **full** output for this step—**any file type**, e.g. `workspace/tasks/market_overview.md`, `workspace/tasks/competitors.json`, `workspace/tasks/chart.png`, `workspace/tasks/report.pdf`. Pick an extension that matches the deliverable. One path per task id.
+   - **`artifact_path`** (recommended): where the principal should save **full** output for this step—**any file type**, e.g. `tasks/market_overview.md`, `tasks/competitors.json`, `tasks/chart.png`, `tasks/report.pdf`. Pick an extension that matches the deliverable. One path per task id.
    - **`instruction`** (required): clear, highly specific instructions for the worker sub-agent detailing what must be done to complete this step.
    - **`notes`** (optional): one or two sentences outlining key constraints, expectations, or planned outcomes.
    - **`depends_on`** (recommended): array of task IDs that must complete before this task starts. Leave empty `[]` or omit for tasks with no dependencies. Tasks without dependencies can run **in parallel**.
@@ -28,6 +28,7 @@ The **skill input** in the delegated task is the source of truth. Read the JSON:
 ## Parallelism guidelines
 
 When designing the plan, think about which tasks are **independent** and can run at the same time:
+
 - Tasks that research **different topics** (e.g. market analysis + competitor analysis) → no dependency, run in parallel.
 - Tasks that **synthesize or compare** results from prior tasks → set `depends_on` to those upstream task IDs.
 - A final **summary/report** task should `depends_on` all content-producing tasks.
@@ -43,4 +44,4 @@ The principal agent can use `orchestrate_task_graph` to execute all parallelizab
 - Do not invent a different objective than the skill input.
 - Task-plan tools attach to the **principal session** when delegated.
 - Prefer **one** `write_task_plan` after you finalize this planning pass unless you only patch.
-- **Convention**: `workspace/tasks/<task_id>.<ext>` keeps artifacts aligned with plan ids; choose `<ext>` for the deliverable (.md, .json, .pdf, .png, …), not only markdown.
+- **Convention**: `tasks/<task_id>.<ext>` keeps artifacts aligned with plan ids; choose `<ext>` for the deliverable (.md, .json, .pdf, .png, …), not only markdown.
