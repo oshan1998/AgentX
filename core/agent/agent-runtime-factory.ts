@@ -6,6 +6,7 @@ import { MemoryManager } from "../../managers/memory-manager.js";
 import { ProfileManager } from "../../managers/profile-manager.js";
 import { DelegateSubAgentTool } from "../../capabilities/core/tools/delegate-sub-agent.js";
 import { OrchestrateTaskGraphTool } from "../../capabilities/core/tools/orchestrate-task-graph.js";
+import { createLlmAdapter } from "../../llm-adapters/factory.js";
 import { Orchestrator } from "../orchestrator/orchestrator.js";
 import { AgentLoop, AgentType } from "./agent-loop.js";
 import {
@@ -40,6 +41,38 @@ function normalizeNameList(v: unknown): string[] {
   return v
     .map((x) => (typeof x === "string" ? x.trim() : ""))
     .filter(Boolean);
+}
+
+/** Design capability tools — when a sub-agent uses any of these, `GEMINI_DESIGN_MODEL` applies. */
+const DESIGN_SUB_AGENT_TOOLS = new Set([
+  "render_html_to_png",
+  "inspect_image",
+  "compose_layers",
+  "write_svg",
+  "render_svg_to_png",
+  "export_multi_size",
+  "apply_image_transform",
+  "add_image_overlay",
+  "search_stock_images",
+]);
+
+function resolveSubAgentModel(
+  input: Record<string, unknown>,
+  toolNames: string[],
+): string | undefined {
+  const explicit =
+    typeof input.model === "string" && input.model.trim().length > 0
+      ? input.model.trim()
+      : undefined;
+  if (explicit) return explicit;
+
+  const designModel = process.env.GEMINI_DESIGN_MODEL?.trim();
+  if (designModel && toolNames.some((t) => DESIGN_SUB_AGENT_TOOLS.has(t))) {
+    return designModel;
+  }
+
+  const subAgentModel = process.env.GEMINI_SUB_AGENT_MODEL?.trim();
+  return subAgentModel || undefined;
 }
 
 export class AgentRuntimeFactory {
@@ -170,8 +203,11 @@ export class AgentRuntimeFactory {
       });
     }
 
+    const subAgentModel = resolveSubAgentModel(input, toolNames);
+    const subLlm = subAgentModel ? createLlmAdapter({ model: subAgentModel }) : this.deps.llm;
+
     const subLoop = new AgentLoop({
-      llm: this.deps.llm,
+      llm: subLlm,
       memoryManager: this.deps.memoryManager,
       profileManager: this.deps.profileManager,
       toolRegistry: subTools,

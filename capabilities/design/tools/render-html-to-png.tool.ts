@@ -45,13 +45,13 @@ export const renderHtmlToPngInputSchema = z.object({
     .boolean()
     .optional()
     .describe(
-      "When true, rewrite workspace-relative img/src and css url() paths to file:// so local assets load. Default true.",
+      "When true, rewrite workspace-relative img/src and css url() paths to file://. Default false; prefer embedWorkspaceAssets.",
     ),
   embedWorkspaceAssets: z
     .boolean()
     .optional()
     .describe(
-      "When true, inline workspace images as data: URIs (use if file:// loading fails). Default false.",
+      "When true, inline local workspace images as data: URIs so they render via setContent(). Default true.",
     ),
 });
 
@@ -74,8 +74,8 @@ export class RenderHtmlToPngTool implements Tool {
     const height = parsed.height ?? 1080;
     const fullPage = parsed.fullPage ?? false;
     const deviceScaleFactor = parsed.deviceScaleFactor ?? 1;
-    const resolveWorkspaceAssets = parsed.resolveWorkspaceAssets ?? true;
-    const embedWorkspaceAssets = parsed.embedWorkspaceAssets ?? false;
+    const embedWorkspaceAssets = parsed.embedWorkspaceAssets ?? true;
+    const resolveWorkspaceAssets = parsed.resolveWorkspaceAssets ?? false;
 
     try {
       logger.info(`Rendering HTML to PNG: ${parsed.outputPath}`);

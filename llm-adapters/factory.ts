@@ -4,8 +4,9 @@ import { OllamaAdapter } from "./ollama-adapter.js";
 import { MockLlmAdapter } from "./mock-llm-adapter.js";
 import { GeminiVertexAdapter } from "./gemini-vertex-adapter.js";
 
-export function createLlmAdapter(): LlmAdapter {
+export function createLlmAdapter(overrides?: { model?: string }): LlmAdapter {
   const provider = process.env.LLM_PROVIDER || "mock";
+  const modelOverride = overrides?.model?.trim() || undefined;
 
   switch (provider.toLowerCase()) {
     case "openai":
@@ -14,11 +15,11 @@ export function createLlmAdapter(): LlmAdapter {
       }
       return new OpenAIAdapter({
         apiKey: process.env.OPENAI_API_KEY,
-        model: process.env.OPENAI_MODEL,
+        model: modelOverride ?? process.env.OPENAI_MODEL,
       });
     case "ollama":
       return new OllamaAdapter({
-        model: process.env.OLLAMA_MODEL || "qwen3:1.7b",
+        model: modelOverride ?? process.env.OLLAMA_MODEL ?? "qwen3:1.7b",
         baseUrl: process.env.OLLAMA_API_BASE,
       });
     case "gemini":
@@ -28,7 +29,7 @@ export function createLlmAdapter(): LlmAdapter {
       return new GeminiVertexAdapter({
         projectId: process.env.GOOGLE_CLOUD_PROJECT,
         location: process.env.GOOGLE_CLOUD_LOCATION,
-        model: process.env.GEMINI_MODEL,
+        model: modelOverride ?? process.env.GEMINI_MODEL,
       });
     case "mock":
     default:

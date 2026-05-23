@@ -1,5 +1,5 @@
 import path from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   DEFAULT_WORKSPACE_BASE,
   normalizeWorkspaceRelativePath,
@@ -10,11 +10,61 @@ import {
 const ASSET_PATH_PATTERN =
   /((?:src|href)\s*=\s*["']|url\(\s*["']?)(?!https?:\/\/|data:|file:|#)([^"')]+)(["']?\)?)/gi;
 
+/** Like ASSET_PATH_PATTERN but also matches file:// refs for inlining. */
+const LOCAL_ASSET_PATTERN =
+  /((?:src|href)\s*=\s*["']|url\(\s*["']?)(?!https?:\/\/|data:|#)([^"')]+)(["']?\)?)/gi;
+
 function isWorkspaceRelativeAsset(ref: string): boolean {
   const trimmed = ref.trim();
   if (!trimmed.length) return false;
   if (trimmed.startsWith("//")) return false;
   return !trimmed.includes("://");
+}
+
+function mimeForPath(absPath: string): string {
+  const ext = path.extname(absPath).toLowerCase();
+  switch (ext) {
+    case ".png":
+      return "image/png";
+    case ".webp":
+      return "image/webp";
+    case ".gif":
+      return "image/gif";
+    case ".avif":
+      return "image/avif";
+    case ".svg":
+      return "image/svg+xml";
+    case ".jpg":
+    case ".jpeg":
+      return "image/jpeg";
+    default:
+      return "application/octet-stream";
+  }
+}
+
+function resolveLocalAssetToAbsolute(
+  ref: string,
+  sessionId: string,
+  memoryBase: string,
+): string | null {
+  const trimmed = ref.trim();
+  if (!trimmed.length || trimmed.startsWith("//")) return null;
+  if (/^https?:\/\//i.test(trimmed) || trimmed.startsWith("data:") || trimmed.startsWith("#")) {
+    return null;
+  }
+
+  if (trimmed.startsWith("file://")) {
+    try {
+      return fileURLToPath(trimmed);
+    } catch {
+      return null;
+    }
+  }
+
+  if (trimmed.includes("://")) return null;
+
+  const normalized = normalizeWorkspaceRelativePath(trimmed);
+  return resolveWorkspacePath(memoryBase, sessionId, normalized);
 }
 
 function toFileUrl(memoryBase: string, sessionId: string, relativePath: string): string {
@@ -42,7 +92,8 @@ export function resolveWorkspaceAssetsInHtml(
 }
 
 /**
- * Embeds workspace-relative raster images as data: URIs (for environments where file:// is blocked).
+ * Inlines local workspace assets (workspace-relative or file:// paths) as data: URIs.
+ * Required for Puppeteer setContent(), which blocks file:// subresources from about:blank.
  */
 export async function embedWorkspaceImagesInHtml(
   html: string,
@@ -51,43 +102,33 @@ export async function embedWorkspaceImagesInHtml(
 ): Promise<string> {
   const { readFile } = await import("node:fs/promises");
 
-  const imgSrcPattern = /src\s*=\s*["'](?!https?:\/\/|data:|file:)([^"']+)["']/gi;
   let result = html;
   const seen = new Map<string, string>();
 
-  for (const match of html.matchAll(imgSrcPattern)) {
-    const assetPath = match[1]?.trim();
-    if (!assetPath || !isWorkspaceRelativeAsset(assetPath)) continue;
-    if (seen.has(assetPath)) continue;
+  for (const match of html.matchAll(LOCAL_ASSET_PATTERN)) {
+    const assetRef = match[2]?.trim();
+    if (!assetRef || seen.has(assetRef)) continue;
 
-    const normalized = normalizeWorkspaceRelativePath(assetPath);
-    const abs = resolveWorkspacePath(memoryBase, sessionId, normalized);
-    const ext = path.extname(abs).toLowerCase();
-    const mime =
-      ext === ".png"
-        ? "image/png"
-        : ext === ".webp"
-          ? "image/webp"
-          : ext === ".gif"
-            ? "image/gif"
-            : ext === ".avif"
-              ? "image/avif"
-              : "image/jpeg";
+    const abs = resolveLocalAssetToAbsolute(assetRef, sessionId, memoryBase);
+    if (!abs) continue;
 
     try {
       const buffer = await readFile(abs);
-      const dataUri = `data:${mime};base64,${buffer.toString("base64")}`;
-      seen.set(assetPath, dataUri);
+      const dataUri = `data:${mimeForPath(abs)};base64,${buffer.toString("base64")}`;
+      seen.set(assetRef, dataUri);
     } catch {
       // leave original path if file missing
     }
   }
 
-  for (const [assetPath, dataUri] of seen) {
-    const escaped = assetPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  for (const [assetRef, dataUri] of seen) {
+    const escaped = assetRef.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     result = result.replace(
-      new RegExp(`src\\s*=\\s*["']${escaped}["']`, "gi"),
-      `src="${dataUri}"`,
+      new RegExp(
+        `((?:src|href)\\s*=\\s*["']|url\\(\\s*["']?)${escaped}(["']?\\)?)`,
+        "gi",
+      ),
+      `$1${dataUri}$2`,
     );
   }
 

@@ -94,16 +94,22 @@ export class ApplyImageTransformTool implements Tool {
       } else if (parsed.flip === "vertical") {
         pipeline = pipeline.flip();
       }
-      if (
-        parsed.brightness !== undefined ||
-        parsed.saturation !== undefined ||
-        parsed.hue !== undefined
-      ) {
-        pipeline = pipeline.modulate({
-          brightness: parsed.brightness,
-          saturation: parsed.saturation,
-          hue: parsed.hue,
-        });
+      const modulateOptions: Record<string, number> = {};
+
+      if (parsed.brightness !== undefined) {
+        modulateOptions.brightness = parsed.brightness;
+      }
+
+      if (parsed.saturation !== undefined) {
+        modulateOptions.saturation = parsed.saturation;
+      }
+
+      if (parsed.hue !== undefined) {
+        modulateOptions.hue = parsed.hue;
+      }
+
+      if (Object.keys(modulateOptions).length > 0) {
+        pipeline = pipeline.modulate(modulateOptions);
       }
       if (parsed.grayscale) {
         pipeline = pipeline.grayscale();
