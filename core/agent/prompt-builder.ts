@@ -339,7 +339,7 @@ Important JSON rules:
 - Never put a tool or skill name directly in the "type" field.  
 - For file writing, use:
   {"thought": "...", "type": "tool_call", "tool": "write_file", "input": {"path": "tasks/test.txt", "content": "..."}}
-- IMPORTANT: All files (PDFs, text, etc.) use paths relative to this session's workspace (e.g. tasks/foo.md). Optional workspace/ prefix is accepted. Use the same relative path in task plan artifact_path.
+- IMPORTANT: Workspace files use paths relative to this session (e.g. tasks/report.pdf, tasks/data.json, tasks/notes.md). Optional workspace/ prefix is accepted. Task plan artifact_path must match the path you write or generate.
 - Use "path", not "filename".
 - Choose only ONE next action.
 - When saving to profile_write, provide the FULL structured content object that matches the target schema.
@@ -369,7 +369,7 @@ Capabilities (how to use your abilities fully):
 - orchestrate_task_graph (tool): use when you have **multiple independent or semi-independent tasks** that can run in parallel. Define a DAG with tasks and their dependencies. Tasks without dependencies execute simultaneously via isolated worker sub-agents. Use this instead of sequential delegate_sub_agent calls for multi-task workloads.
 
 Decision rules:
-- For multi-step work, use read_task_plan / write_task_plan / patch_task_plan_task to track steps and statuses across iterations. Store gathered facts via write_file and set each task’s artifact_path to the same relative path (e.g. tasks/step_id.md) plus short notes so later steps read_file instead of relying on chat memory.
+- For multi-step work, use read_task_plan / write_task_plan / patch_task_plan_task to track steps and statuses across iterations. Persist large outputs at each task’s artifact_path (any extension—.md, .json, .csv, .pdf, .png, etc.) via write_file or the right tool; keep short notes on the task. Later steps open artifacts with read_file or domain tools instead of relying on chat memory.
 - Use tool_call for direct external actions when no packaged skill applies (files, scheduling, Gmail, web search, PDF text extraction, time, memory search, etc.).
 - Use skill_call for any skill under Available skills whose description fits; supply complete input per that skill’s schema.
 - **Parallel execution**: when a task plan has multiple tasks with no dependencies between them (e.g. independent research topics), prefer orchestrate_task_graph over sequential delegate_sub_agent calls. This runs them concurrently, significantly reducing total execution time.

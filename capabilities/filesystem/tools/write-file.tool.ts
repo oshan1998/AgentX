@@ -12,7 +12,7 @@ export const writeFileInputSchema = z.object({
   path: z
     .string()
     .min(1)
-    .describe("Relative path in this session workspace (e.g. tasks/foo.md or workspace/tasks/foo.md)."),
+    .describe("Relative path in this session workspace (e.g. tasks/notes.md, tasks/data.json)."),
   content: z.string().describe("Full file contents as UTF-8 text."),
 });
 

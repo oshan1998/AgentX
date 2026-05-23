@@ -10,7 +10,11 @@ export function resolveRootSessionId(sessionId: string): string {
   return sessionId.split("::")[0];
 }
 
-/** Model/plan-facing path without a leading `workspace/` prefix (e.g. `tasks/foo.md`). */
+/** Zod / tool copy: task-plan `artifact_path` is any workspace file, not markdown-only. */
+export const ARTIFACT_PATH_FIELD_DESCRIPTION =
+  "Relative path in this session workspace for this step's primary output file (any extension: .md, .json, .csv, .txt, .pdf, .png, .svg, etc.). Use the same path when reading or writing in later steps.";
+
+/** Model/plan-facing path without a leading `workspace/` prefix (e.g. `tasks/report.pdf`). */
 export function normalizeWorkspaceRelativePath(userPath: string): string {
   return userPath.replace(/^workspace\/?/i, "").replace(/^\/+/, "");
 }
@@ -25,7 +29,7 @@ export function getSessionWorkspaceRoot(
 }
 
 /**
- * Map a model-facing path (`tasks/foo.md` or `workspace/tasks/foo.md`) to an absolute
+ * Map a model-facing path (`tasks/foo.json` or `workspace/tasks/foo.json`) to an absolute
  * path under the session workspace. Rejects path traversal outside that root.
  */
 export function resolveWorkspacePath(
@@ -45,7 +49,7 @@ export function resolveWorkspacePath(
   return abs;
 }
 
-/** True when the resolved path exists as a non-empty file in the session workspace. */
+/** True when the resolved path exists as a non-empty file in the session workspace (any type). */
 export async function sessionArtifactExists(
   memoryBase: string,
   sessionId: string,

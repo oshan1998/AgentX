@@ -273,7 +273,7 @@ export class WorkerPool {
   }
 
   /**
-   * Verifies the task artifact exists on disk. Nudges the same sub-agent to write_file if missing.
+   * Verifies the task artifact exists on disk. Nudges the same sub-agent to create it if missing.
    */
   private async ensureArtifactWritten(
     task: TaskNode,
@@ -327,16 +327,17 @@ export class WorkerPool {
 
     throw new Error(
       `Required artifact not found at \`${rel}\` after ${ARTIFACT_VERIFY_MAX_RETRIES + 1} attempt(s). ` +
-        "The task must write the full output with write_file before completing.",
+        "The task must persist the full output at that path (any file type) before completing.",
     );
   }
 
   private buildArtifactRetryMessage(relPath: string): string {
     return [
-      `Required artifact file is missing at: \`${relPath}\``,
+      `Required artifact is missing at: \`${relPath}\``,
       "",
-      "You must call write_file with the complete output at that exact path before finishing.",
-      "After the file exists, respond with a brief confirmation.",
+      "Persist the complete output at that exact path before finishing.",
+      "Use an appropriate tool for the file type (e.g. write_file for text/JSON/CSV; PDF/image/design tools for binary outputs).",
+      "After the file exists on disk, respond with a brief confirmation.",
     ].join("\n");
   }
 
@@ -354,9 +355,10 @@ export class WorkerPool {
       const outPath = normalizeWorkspaceRelativePath(task.artifactPath);
       lines.push(
         "",
-        `Write your complete findings to: ${outPath}`,
-        "Use write_file to persist the output there.",
-        "Do not finish until that file exists with the full content.",
+        `Primary artifact path: ${outPath}`,
+        "Persist your complete output there (any file extension).",
+        "Use write_file for text/JSON/CSV, or another allowed tool when the output is PDF, image, etc.",
+        "Do not finish until that path exists as a non-empty file.",
       );
     }
 
@@ -377,7 +379,7 @@ export class WorkerPool {
     const lines: string[] = [
       "## Upstream dependencies (completed)",
       "",
-      "These tasks finished before yours. Use read_file on each artifact path below before executing your task.",
+      "These tasks finished before yours. Open each artifact below with the right tool (read_file for text; read_pdf, inspect_image, etc. when needed) before executing your task.",
       "",
     ];
 
@@ -393,7 +395,7 @@ export class WorkerPool {
 
       if (dep.artifactPath) {
         const rel = normalizeWorkspaceRelativePath(dep.artifactPath);
-        lines.push(`- **Artifact (read_file):** \`${rel}\``);
+        lines.push(`- **Artifact path:** \`${rel}\``);
       }
 
       if (dep.result?.trim()) {

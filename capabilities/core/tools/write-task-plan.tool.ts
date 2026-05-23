@@ -6,7 +6,7 @@ import { writeTaskPlanInputSchema, type TaskPlanDocument } from "../../../common
 export class WriteTaskPlanTool implements Tool {
   name = "write_task_plan";
   description =
-    "Replace the entire task plan (full overwrite). Each task may include notes (short findings) and artifact_path (relative session workspace path, e.g. tasks/foo.md). Persists under memory/sessions/<principal-session>.task-plan.json.";
+    "Replace the entire task plan (full overwrite). Each task may include notes (short findings) and artifact_path (relative session workspace path for any output file, e.g. tasks/foo.json or tasks/report.pdf). Persists under memory/sessions/<principal-session>.task-plan.json.";
   inputSchema = zodSchemaToJsonInputSchema(writeTaskPlanInputSchema);
 
   constructor(private readonly memoryManager: MemoryManager) {}

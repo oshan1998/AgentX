@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ARTIFACT_PATH_FIELD_DESCRIPTION } from "./workspace-path.js";
 
 export const taskPlanStatusSchema = z.enum([
   "pending",
@@ -15,14 +16,9 @@ export const taskPlanItemSchema = z.object({
     .string()
     .optional()
     .describe(
-      "Compact findings / facts for this step so later turns need not rely on chat memory. Prefer storing large material via artifact_path + write_file.",
+      "Compact findings / facts for this step so later turns need not rely on chat memory. Prefer storing large material at artifact_path (any file type).",
     ),
-  artifact_path: z
-    .string()
-    .optional()
-    .describe(
-      "Relative path in this session workspace for full step output (e.g. tasks/market_overview.md). Use the same path with read_file/write_file in later steps.",
-    ),
+  artifact_path: z.string().optional().describe(ARTIFACT_PATH_FIELD_DESCRIPTION),
   blocked_reason: z
     .string()
     .optional()
@@ -74,7 +70,9 @@ export const patchTaskPlanTaskInputSchema = z.object({
   artifact_path: z
     .string()
     .optional()
-    .describe("Set or change session workspace path (relative, e.g. tasks/foo.md); empty string clears. Leave unset to keep previous."),
+    .describe(
+      `${ARTIFACT_PATH_FIELD_DESCRIPTION} Empty string clears. Leave unset to keep previous.`,
+    ),
   blocked_reason: z.string().optional(),
   instruction: z.string().optional().describe("Update task instructions; leave unset to keep previous."),
 });
