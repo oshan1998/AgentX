@@ -4,15 +4,15 @@ import type { LlmAdapter, SkillDelegateRunner } from "../../common/interfaces/ty
 import type { SessionTraceHub } from "../../common/realtime/session-trace-hub.js";
 import { MemoryManager } from "../../managers/memory-manager.js";
 import { ProfileManager } from "../../managers/profile-manager.js";
-import { AgentLoop, AgentType } from "../agent-loop.js";
-import { SUB_AGENT_EXECUTION_POLICY } from "../execution-policy.js";
-import { cloneSkillWhitelist, cloneToolWhitelist } from "../sub-agent-registry.js";
+import { AgentLoop, AgentType } from "../agent/agent-loop.js";
+import { SUB_AGENT_EXECUTION_POLICY } from "../agent/execution-policy.js";
+import { cloneSkillWhitelist, cloneToolWhitelist } from "../agent/sub-agent-registry.js";
 import {
   SUB_AGENT_DEFAULT_MAX_ITERATIONS,
   SUB_AGENT_DEFAULT_WALL_CLOCK_MS,
   SUB_AGENT_HARD_MAX_ITERATIONS,
   SUB_AGENT_HARD_MAX_WALL_CLOCK_MS,
-} from "../agent-runtime-constants.js";
+} from "../agent/agent-runtime-constants.js";
 import { logger } from "../../common/services/logger.js";
 import {
   DEFAULT_WORKSPACE_BASE,

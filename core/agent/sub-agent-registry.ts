@@ -1,5 +1,5 @@
-import { SkillRegistry, ToolRegistry } from "../common/interfaces/registry.js";
-import type { Tool } from "../common/interfaces/types.js";
+import { SkillRegistry, ToolRegistry } from "../../common/interfaces/registry.js";
+import type { Tool } from "../../common/interfaces/types.js";
 import { DELEGATE_SUB_AGENT_TOOL_NAME } from "./agent-runtime-constants.js";
 
 export function cloneToolWhitelist(

@@ -40,12 +40,10 @@ Minimal but scalable single-agent framework in Node.js + TypeScript.
 ```text
 agentix/
 ├── core/
-│   ├── agent-loop.ts
-│   ├── executor.ts
-│   ├── llm-adapter.ts
-│   ├── memory-manager.ts
-│   ├── mock-llm-adapter.ts
-│   └── prompt-builder.ts
+│   ├── agent/           # agent loop, runtime factory, executor, prompts
+│   ├── skills/          # skill loader + workflow/agentic runners
+│   ├── orchestrator/    # DAG task graph execution
+│   └── index.ts
 ├── capabilities/
 │   ├── core/
 │   │   ├── tools/

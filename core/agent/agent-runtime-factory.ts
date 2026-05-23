@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
-import type { SkillRegistry, ToolRegistry } from "../common/interfaces/registry.js";
-import type { LlmAdapter, SkillDelegateRunner, Tool, ToolContext } from "../common/interfaces/types.js";
-import type { SessionTraceHub } from "../common/realtime/session-trace-hub.js";
-import { MemoryManager } from "../managers/memory-manager.js";
-import { ProfileManager } from "../managers/profile-manager.js";
-import { DelegateSubAgentTool } from "../capabilities/core/tools/delegate-sub-agent.js";
-import { OrchestrateTaskGraphTool } from "../capabilities/core/tools/orchestrate-task-graph.js";
-import { Orchestrator } from "./orchestrator/orchestrator.js";
+import type { SkillRegistry, ToolRegistry } from "../../common/interfaces/registry.js";
+import type { LlmAdapter, SkillDelegateRunner, Tool, ToolContext } from "../../common/interfaces/types.js";
+import type { SessionTraceHub } from "../../common/realtime/session-trace-hub.js";
+import { MemoryManager } from "../../managers/memory-manager.js";
+import { ProfileManager } from "../../managers/profile-manager.js";
+import { DelegateSubAgentTool } from "../../capabilities/core/tools/delegate-sub-agent.js";
+import { OrchestrateTaskGraphTool } from "../../capabilities/core/tools/orchestrate-task-graph.js";
+import { Orchestrator } from "../orchestrator/orchestrator.js";
 import { AgentLoop, AgentType } from "./agent-loop.js";
 import {
   SUB_AGENT_DEFAULT_MAX_ITERATIONS,
@@ -16,7 +16,7 @@ import {
 } from "./agent-runtime-constants.js";
 import { SUB_AGENT_EXECUTION_POLICY } from "./execution-policy.js";
 import { cloneSkillWhitelist, cloneToolWhitelist } from "./sub-agent-registry.js";
-import { AgentTracePhase } from "../common/realtime/agent-trace-types.js";
+import { AgentTracePhase } from "../../common/realtime/agent-trace-types.js";
 
 export interface AgentRuntimeFactoryDeps {
   llm: LlmAdapter;

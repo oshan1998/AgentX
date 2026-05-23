@@ -3,8 +3,8 @@ import type {
   Skill,
   SkillContext,
 
-} from "../common/interfaces/types.js";
-import { SkillType } from "../common/interfaces/types.js";
+} from "../../common/interfaces/types.js";
+import { SkillType } from "../../common/interfaces/types.js";
 export interface AgenticSkillConfig {
   schemaVersion: "1";
   kind: SkillType.Agentic;

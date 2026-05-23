@@ -12,7 +12,7 @@ import {
   SUB_AGENT_DEFAULT_WALL_CLOCK_MS,
   SUB_AGENT_HARD_MAX_ITERATIONS,
   SUB_AGENT_HARD_MAX_WALL_CLOCK_MS,
-} from "../../../core/agent-runtime-constants.js";
+} from "../../../core/agent/agent-runtime-constants.js";
 import { parseToolInput, zodSchemaToJsonInputSchema } from "../../../common/services/zod-tool-schema.js";
 
 export interface DelegateSubAgentRunner {

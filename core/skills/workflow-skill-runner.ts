@@ -6,8 +6,8 @@ import {
   type Skill,
   type SkillContext,
   type SkillStep,
-} from "../common/interfaces/types.js";
-import { SkillType } from "../common/interfaces/types.js";
+} from "../../common/interfaces/types.js";
+import { SkillType } from "../../common/interfaces/types.js";
 export interface WorkflowSkillConfig {
   schemaVersion: "1";
   kind?: SkillType.Workflow;

@@ -1,12 +1,12 @@
-import type { SkillRegistry, ToolRegistry } from "../common/interfaces/registry.js";
+import type { SkillRegistry, ToolRegistry } from "../../common/interfaces/registry.js";
 import type {
   LongTermMemoryEntry,
   SessionMemory,
   Skill,
-} from "../common/interfaces/types.js";
-import { formatInputSchemaForPrompt } from "../common/services/format-input-schema.js";
-import type { Soul, User } from "../managers/profile-manager.js";
-import { DecisionType, SkillType } from "../common/interfaces/types.js";
+} from "../../common/interfaces/types.js";
+import { formatInputSchemaForPrompt } from "../../common/services/format-input-schema.js";
+import type { Soul, User } from "../../managers/profile-manager.js";
+import { DecisionType, SkillType } from "../../common/interfaces/types.js";
 const SESSION_MESSAGE_LIMIT = 20;
 
 interface PromptBuilderInput {
