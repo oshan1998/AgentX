@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Request, Response } from "express";
+import { formatUserMessageWithAttachments } from "../../common/services/workspace-files.js";
 import { ChatService } from "./chat.service.js";
 
 function safeJson(res: Response, body: unknown): void {
@@ -20,12 +21,17 @@ export class ChatController {
 
   /** POST /api/chat */
   handleChat = async (req: Request, res: Response): Promise<void> => {
-    const { message, sessionId, runId: bodyRunId } = req.body;
+    const { message, sessionId, runId: bodyRunId, attachmentPaths } = req.body;
 
     if (!message || typeof message !== "string") {
       res.status(400).json({ error: "Missing message" });
       return;
     }
+
+    const paths = Array.isArray(attachmentPaths)
+      ? attachmentPaths.filter((p): p is string => typeof p === "string")
+      : undefined;
+    const fullMessage = formatUserMessageWithAttachments(message, paths);
 
     // Accept sessionId from client, fallback to web-session
     const sid =
@@ -43,7 +49,12 @@ export class ChatController {
     });
 
     try {
-      const result = await this.chatService.handleMessage(sid, message, runId, ac.signal);
+      const result = await this.chatService.handleMessage(
+        sid,
+        fullMessage,
+        runId,
+        ac.signal,
+      );
       safeJson(res, result);
     } catch (e) {
       if (!res.writableEnded && !res.headersSent) {

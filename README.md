@@ -10,6 +10,10 @@ Minimal but scalable single-agent framework in Node.js + TypeScript.
   - Session memory per JSON file in `memory/sessions/`
   - Long-term memory in `memory/long-term.json`
 - Tool/skill executor with pluggable registries
+- Session workspace file uploads (HTTP):
+  - `POST /api/session/:id/files` — multipart `file` → `workspace/sessions/<id>/workspace/uploads/...`
+  - `GET /api/session/:id/files` — list files in `uploads/`
+  - Chat accepts `attachmentPaths` to tell the agent which workspace files to use
 - File system capability:
   - Tools: `read_file`, `write_file`, `list_directory`
 - Scheduler capability:

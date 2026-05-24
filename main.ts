@@ -1,6 +1,7 @@
 import express from "express";
 import http from "node:http";
 import path from "node:path";
+import multer from "multer";
 import { attachWebSocketGateway } from "./common/realtime/ws-gateway.js";
 import { SessionTraceHub } from "./common/realtime/session-trace-hub.js";
 import { AgentLoop, AgentType, AgentRuntimeFactory, registerDelegateToolOnce } from "./core/index.js";
@@ -22,6 +23,8 @@ import { IntegrationService } from "./controllers/integration/integration.servic
 import { ChatController } from "./controllers/chat/chat.controller.js";
 import { SessionController } from "./controllers/session/session.controller.js";
 import { IntegrationController } from "./controllers/integration/integration.controller.js";
+import { WorkspaceService } from "./controllers/workspace/workspace.service.js";
+import { WorkspaceController } from "./controllers/workspace/workspace.controller.js";
 
 async function main() {
   const app = express();
@@ -81,11 +84,18 @@ async function main() {
   const chatService = new ChatService(agentLoop, memoryManager, llm);
   const sessionService = new SessionService(memoryManager);
   const integrationService = new IntegrationService(secretsManager);
+  const workspaceService = new WorkspaceService();
+
+  const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 25 * 1024 * 1024 },
+  });
 
   // ── Controller layer ───────────────────────────────────
   const chatController = new ChatController(chatService);
   const sessionController = new SessionController(sessionService);
   const integrationController = new IntegrationController(integrationService);
+  const workspaceController = new WorkspaceController(workspaceService);
 
   // ── Routes ─────────────────────────────────────────────
   // Chat
@@ -97,6 +107,14 @@ async function main() {
   app.post("/api/sessions", sessionController.createSession);
   app.get("/api/session/:id", sessionController.getSessionHistory);
   app.get("/api/session/:id/plan", sessionController.getSessionPlan);
+
+  // Session workspace files
+  app.post(
+    "/api/session/:id/files",
+    upload.single("file"),
+    workspaceController.uploadFile,
+  );
+  app.get("/api/session/:id/files", workspaceController.listFiles);
 
   // Integrations — Gmail
   app.get("/api/auth/gmail", integrationController.getGmailAuthUrl);
