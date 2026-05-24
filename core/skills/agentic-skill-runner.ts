@@ -15,6 +15,7 @@ export interface AgenticSkillConfig {
   skillNames?: string[];
   maxIterations?: number;
   deadlineMs?: number;
+  model?: string;
 }
 
 /**
@@ -26,7 +27,7 @@ export class AgenticSkill implements Skill {
   readonly description: string;
   readonly inputSchema?: JsonInputSchema;
   readonly kind: SkillType.Agentic = SkillType.Agentic as const;
-
+  readonly model?: string;
   constructor(
     private readonly config: AgenticSkillConfig,
     private readonly promptMarkdown: string,
@@ -34,6 +35,7 @@ export class AgenticSkill implements Skill {
     this.name = config.name;
     this.description = config.description;
     this.inputSchema = config.inputSchema;
+    this.model = config.model;
   }
 
   async run(input: Record<string, unknown>, context: SkillContext): Promise<unknown> {
@@ -52,6 +54,7 @@ export class AgenticSkill implements Skill {
       systemPromptAppend: append.length > 0 ? append : undefined,
       maxIterations: this.config.maxIterations,
       deadlineMs: this.config.deadlineMs,
+      model: this.model,
     });
   }
 
@@ -131,5 +134,6 @@ export function parseAgenticSkillJson(
     skillNames: obj.skillNames as string[] | undefined,
     maxIterations: obj.maxIterations as number | undefined,
     deadlineMs: obj.deadlineMs as number | undefined,
+    model: obj.model as string | undefined,
   };
 }

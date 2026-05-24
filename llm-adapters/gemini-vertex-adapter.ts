@@ -1,5 +1,5 @@
 import { VertexAI, GenerativeModel, GenerateContentRequest } from "@google-cloud/vertexai";
-import type { AgentDecision, LlmAdapter } from "../common/interfaces/types.js";
+import type { AgentDecision, LlmAdapter, LlmImageInput } from "../common/interfaces/types.js";
 
 interface GeminiAdapterOptions {
   projectId: string;
@@ -10,14 +10,16 @@ interface GeminiAdapterOptions {
 export class GeminiVertexAdapter implements LlmAdapter {
   private vertexAI: VertexAI;
   private model: GenerativeModel;
+  private readonly modelName: string;
 
   constructor(private readonly options: GeminiAdapterOptions) {
+    this.modelName = options.model ?? "gemini-1.5-flash";
     this.vertexAI = new VertexAI({
       project: options.projectId,
       location: options.location ?? "us-central1",
     });
     this.model = this.vertexAI.getGenerativeModel({
-      model: options.model ?? "gemini-1.5-flash",
+      model: this.modelName,
       generationConfig: {
         responseMimeType: "application/json",
       },
@@ -60,5 +62,28 @@ export class GeminiVertexAdapter implements LlmAdapter {
     }
 
     return text;
+  }
+
+  async completeWithImage(prompt: string, image: LlmImageInput): Promise<string> {
+    const visionModel = this.vertexAI.getGenerativeModel({ model: this.modelName });
+    const result = await visionModel.generateContent({
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { text: prompt },
+            { inlineData: { mimeType: image.mimeType, data: image.dataBase64 } },
+          ],
+        },
+      ],
+    });
+
+    const response = await result.response;
+    const text = response.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text?.trim()) {
+      throw new Error("Gemini vision returned empty text.");
+    }
+
+    return text.trim();
   }
 }

@@ -71,6 +71,7 @@ export interface DelegateSubAgentParams {
   systemPromptAppend?: string;
   maxIterations?: number;
   deadlineMs?: number;
+  model?: string;
 }
 
 /** Injected into Executor so agentic skills can spawn a sub-agent with allow-listed tools. */
@@ -115,9 +116,15 @@ export interface Skill {
   run(input: Record<string, unknown>, context: SkillContext): Promise<unknown>;
 }
 
+export interface LlmImageInput {
+  mimeType: string;
+  dataBase64: string;
+}
+
 export interface LlmAdapter {
   decide(prompt: string, systemPrompt?: string): Promise<AgentDecision>;
   complete(prompt: string, systemPrompt?: string): Promise<string>;
+  completeWithImage(prompt: string, image: LlmImageInput): Promise<string>;
 }
 
 export enum SkillStepType {

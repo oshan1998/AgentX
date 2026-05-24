@@ -1,4 +1,4 @@
-import type { AgentDecision, LlmAdapter } from "../common/interfaces/types.js";
+import type { AgentDecision, LlmAdapter, LlmImageInput } from "../common/interfaces/types.js";
 
 export interface OllamaAdapterOptions {
   model?: string;
@@ -62,6 +62,10 @@ export class OllamaAdapter implements LlmAdapter {
       throw new Error("Ollama response did not include readable text output.");
     }
     return raw;
+  }
+
+  async completeWithImage(_prompt: string, _image: LlmImageInput): Promise<string> {
+    throw new Error("Ollama adapter does not support vision.");
   }
 
   private extractJsonBlock(text: string): string {

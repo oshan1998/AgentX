@@ -34,6 +34,7 @@ export interface DelegateSubAgentToolInput {
   skillNames?: string[];
   maxIterations?: number;
   deadlineMs?: number;
+  model?: string;
 }
 
 function normalizeNameList(v: unknown): string[] {
@@ -43,37 +44,6 @@ function normalizeNameList(v: unknown): string[] {
     .filter(Boolean);
 }
 
-/** Design capability tools — when a sub-agent uses any of these, `GEMINI_DESIGN_MODEL` applies. */
-const DESIGN_SUB_AGENT_TOOLS = new Set([
-  "render_html_to_png",
-  "inspect_image",
-  "compose_layers",
-  "write_svg",
-  "render_svg_to_png",
-  "export_multi_size",
-  "apply_image_transform",
-  "add_image_overlay",
-  "search_stock_images",
-]);
-
-function resolveSubAgentModel(
-  input: Record<string, unknown>,
-  toolNames: string[],
-): string | undefined {
-  const explicit =
-    typeof input.model === "string" && input.model.trim().length > 0
-      ? input.model.trim()
-      : undefined;
-  if (explicit) return explicit;
-
-  const designModel = process.env.GEMINI_DESIGN_MODEL?.trim();
-  if (designModel && toolNames.some((t) => DESIGN_SUB_AGENT_TOOLS.has(t))) {
-    return designModel;
-  }
-
-  const subAgentModel = process.env.GEMINI_SUB_AGENT_MODEL?.trim();
-  return subAgentModel || undefined;
-}
 
 export class AgentRuntimeFactory {
   private delegateMemo?: Tool;
@@ -92,6 +62,7 @@ export class AgentRuntimeFactory {
           maxIterations: params.maxIterations,
           deadlineMs: params.deadlineMs,
           systemPromptAppend: params.systemPromptAppend,
+          model: params.model,
         },
         tcx,
       );
@@ -203,7 +174,7 @@ export class AgentRuntimeFactory {
       });
     }
 
-    const subAgentModel = resolveSubAgentModel(input, toolNames);
+    const subAgentModel = input.model as string | undefined;
     const subLlm = subAgentModel ? createLlmAdapter({ model: subAgentModel }) : this.deps.llm;
 
     const subLoop = new AgentLoop({

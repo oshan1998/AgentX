@@ -1,4 +1,4 @@
-import type { AgentDecision, LlmAdapter } from "../common/interfaces/types.js";
+import type { AgentDecision, LlmAdapter, LlmImageInput } from "../common/interfaces/types.js";
 
 interface OpenAIAdapterOptions {
   apiKey: string;
@@ -39,17 +39,44 @@ export class OpenAIAdapter implements LlmAdapter {
       content: [{ type: "input_text", text: prompt }]
     });
 
+    const raw = await this.postResponses({ model: this.model, input: messages, temperature: 0 });
+    if (!raw) {
+      throw new Error("OpenAI response did not include readable text output.");
+    }
+    return raw;
+  }
+
+  async completeWithImage(prompt: string, image: LlmImageInput): Promise<string> {
+    const raw = await this.postResponses({
+      model: this.model,
+      input: [
+        {
+          role: "user",
+          content: [
+            { type: "input_text", text: prompt },
+            {
+              type: "input_image",
+              image_url: `data:${image.mimeType};base64,${image.dataBase64}`,
+            },
+          ],
+        },
+      ],
+      temperature: 0,
+    });
+    if (!raw) {
+      throw new Error("OpenAI vision returned empty text.");
+    }
+    return raw;
+  }
+
+  private async postResponses(body: Record<string, unknown>): Promise<string> {
     const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${this.options.apiKey}`
+        Authorization: `Bearer ${this.options.apiKey}`,
       },
-      body: JSON.stringify({
-        model: this.model,
-        input: messages,
-        temperature: 0
-      })
+      body: JSON.stringify(body),
     });
 
     if (!response.ok) {
@@ -67,11 +94,7 @@ export class OpenAIAdapter implements LlmAdapter {
         }>;
       }>;
     };
-    const raw = this.extractTextFromResponse(payload).trim();
-    if (!raw) {
-      throw new Error("OpenAI response did not include readable text output.");
-    }
-    return raw;
+    return this.extractTextFromResponse(payload).trim();
   }
 
   private extractJsonBlock(text: string): string {

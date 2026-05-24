@@ -1,6 +1,7 @@
 {
   "schemaVersion": "1",
   "kind": "agentic",
+  "model": "gemini-2.5-pro",
   "name": "create_photo_social_graphic",
   "description": "Design a social graphic that uses photos (hero image, overlays, stock or supplied assets) with typography. Produces a PNG via HTML/CSS and/or raster compositing.",
   "inputSchema": {

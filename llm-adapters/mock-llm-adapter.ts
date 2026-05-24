@@ -1,4 +1,4 @@
-import type { AgentDecision, LlmAdapter } from "../common/interfaces/types.js";
+import type { AgentDecision, LlmAdapter, LlmImageInput } from "../common/interfaces/types.js";
 
 export class MockLlmAdapter implements LlmAdapter {
   async decide(prompt: string, _systemPrompt?: string): Promise<AgentDecision> {
@@ -32,5 +32,9 @@ export class MockLlmAdapter implements LlmAdapter {
       console.warn(`[WARNING] Prompt is very large: ${prompt.length} characters.`);
     }
     return `Mock completion for prompt: ${prompt.slice(0, 120)}`;
+  }
+
+  async completeWithImage(prompt: string, _image: LlmImageInput): Promise<string> {
+    return `Mock vision analysis for prompt: ${prompt.slice(0, 120)}`;
   }
 }
