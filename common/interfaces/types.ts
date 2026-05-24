@@ -127,10 +127,41 @@ export interface LlmAdapter {
   completeWithImage(prompt: string, image: LlmImageInput): Promise<string>;
 }
 
+export type PersonGenerationSetting = "allow_all" | "allow_adult" | "dont_allow";
+
 export interface ImageGenInput {
   prompt: string;
   aspectRatio?: string;
   numberOfImages?: number;
+  /** Person-generation safety setting. Defaults from IMAGEN_PERSON_GENERATION env (allow_all). */
+  personGeneration?: PersonGenerationSetting;
+}
+
+export type ImageEditMode =
+  | "default"
+  | "inpaint_insert"
+  | "inpaint_remove"
+  | "outpaint"
+  | "background_swap"
+  | "style"
+  | "upscale";
+
+export interface ImageEditInput {
+  /** Text instruction for the edit. Required for all modes except upscale. */
+  prompt?: string;
+  /** Edit strategy. Default: general enhancement/edit (`default`). Use `upscale` for resolution upscaling. */
+  mode?: ImageEditMode;
+  sourceImage: Buffer;
+  sourceMimeType: string;
+  /** Optional mask image for inpaint/outpaint modes (white = edit region). */
+  maskImage?: Buffer;
+  maskMimeType?: string;
+  aspectRatio?: string;
+  negativePrompt?: string;
+  /** Upscale factor when mode is upscale. Default x2. */
+  upscaleFactor?: "x2" | "x4";
+  /** Person-generation safety setting. Defaults from IMAGEN_PERSON_GENERATION env (allow_all). */
+  personGeneration?: PersonGenerationSetting;
 }
 
 export interface ImageGenResult {
@@ -145,6 +176,7 @@ export interface ImageGenAdapter {
   readonly provider: string;
   readonly model: string;
   generateImage(input: ImageGenInput): Promise<ImageGenResult>;
+  editImage(input: ImageEditInput): Promise<ImageGenResult>;
 }
 
 export enum SkillStepType {
