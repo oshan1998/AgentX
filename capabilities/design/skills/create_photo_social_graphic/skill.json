@@ -51,5 +51,5 @@
     "inspect_image"
   ],
   "maxIterations": 24,
-  "deadlineMs": 300000
+  "deadlineMs": 600000
 }

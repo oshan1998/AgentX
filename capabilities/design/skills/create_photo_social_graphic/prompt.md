@@ -322,11 +322,32 @@ rebuild once.
 
 Call **`inspect_image`** on the final PNG.
 
-Prompt:
+Include the skill input in the `prompt` (summarize long `designBrief` if needed):
 
-Critique this design as a strict Creative Director.
+Client brief:
 
-Reject if:
+- Platform: {platform}
+- Content to show: {content}
+- Visual direction: {designBrief, or "none specified"}
+
+Critique this social graphic as a strict Creative Director.
+
+Judge in two layers:
+
+1. **Brief compliance** — Does it deliver what the client asked for (message, mood, layout intent, platform fit)?
+2. **Agency craft** — Does it meet premium design standards below?
+
+Mandatory design system rules still apply even when the brief is silent or ambiguous.
+
+Reject if ANY of:
+
+Brief failures:
+
+- wrong or missing copy vs `content`
+- contradicts stated mood, colors, or layout in `designBrief`
+- wrong feel for `platform` (density, safe zones, aspect usage)
+
+Craft failures:
 
 - image barely visible
 - looks like template
@@ -337,12 +358,35 @@ Reject if:
 - awkward spacing
 - insufficient contrast
 
+Respond exactly with either:
+
+- `APPROVED` — brief and craft pass; optional one-line note
+- `REJECTED` — numbered fixes, brief issues first, then craft
+
 If rejected:
 
-adjust, re-render, and call **`inspect_image`** again.
+adjust, re-render, and call **`inspect_image`** again with the same brief block.
 
-Maximum:
-3 attempts (initial render plus up to two revision cycles after critique).
+## Attempt limit (HARD — do not exceed)
+
+You may call **`inspect_image`** at most **3 times total** for this skill run.
+
+Count every `inspect_image` call toward the limit, including the first review.
+
+Allowed loop (max 2 revisions after the first inspect):
+
+1. `render_html_to_png` → `inspect_image` (review #1)
+2. If `REJECTED`: fix → `render_html_to_png` → `inspect_image` (review #2)
+3. If `REJECTED`: fix → `render_html_to_png` → `inspect_image` (review #3)
+
+After review #3:
+
+- **STOP.** Do not call `inspect_image` again.
+- Do not start another render–critique loop.
+- Ship the **best PNG you have** at `outputPath` even if still `REJECTED`.
+- In completion, note remaining issues under `improvements applied after critique`.
+
+Violating this limit is a skill failure.
 
 ---
 
@@ -382,6 +426,8 @@ Return:
 - image sources
 - stock attribution
 - improvements applied after critique
+- critique_cycles_used (1–3)
+- final_critique_status (`APPROVED` or `REJECTED`)
 
 Do not explain your reasoning.
 
