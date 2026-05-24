@@ -21,6 +21,7 @@ Read:
 - imagePaths
 - imageUrls
 - stockQuery
+- imagePrompt
 
 ---
 
@@ -54,7 +55,14 @@ Acquire images in this order:
 
 1. Existing imagePaths
 2. Download each imageUrl into assets/
-3. Search stock images
+3. Generate a custom image with `generate_image` when `imagePrompt` is provided (or derive a prompt from designBrief + content)
+4. Search stock images
+
+If generating:
+
+- use `imagePrompt` when provided, otherwise craft a detailed prompt from designBrief + content
+- pick aspect ratio from platform preset (e.g. 1:1 for instagram_post, 9:16 for instagram_story)
+- save to assets/hero.png
 
 If searching stock:
 
@@ -384,7 +392,11 @@ After review #3:
 - **STOP.** Do not call `inspect_image` again.
 - Do not start another render–critique loop.
 - Ship the **best PNG you have** at `outputPath` even if still `REJECTED`.
-- In completion, note remaining issues under `improvements applied after critique`.
+- In your completion summary:
+  - If `final_critique_status` is `APPROVED`: set `status: "completed"`.
+  - If still `REJECTED` or known fixes remain: set `status: "completed_with_caveats"` and list them under `remaining_issues` (numbered, brief-first).
+  - Do **not** ask the parent to re-run this skill or continue the render–critique loop — this run is finished; `outputPath` is the final deliverable for this invocation.
+  - The parent must **deliver the PNG at `outputPath` to the user** and may mention caveats; only start a **new** design if the user explicitly requests revisions.
 
 Violating this limit is a skill failure.
 
@@ -417,18 +429,23 @@ open_graph
 
 # Completion
 
-Return:
+Return a concise execution summary only (no reasoning). Include:
 
-- outputPath
+- status — `completed` or `completed_with_caveats`
+- outputPath — final PNG path (always present; this is the deliverable)
 - dimensions
 - selected layout
 - assets used
 - image sources
 - stock attribution
 - improvements applied after critique
+- remaining_issues — numbered list when status is `completed_with_caveats`; omit or `[]` when completed cleanly
 - critique_cycles_used (1–3)
 - final_critique_status (`APPROVED` or `REJECTED`)
 
-Do not explain your reasoning.
+Handoff rule for the parent agent:
 
-Return concise execution summary only.
+- Treat this skill invocation as **done**. Do **not** call `create_photo_social_graphic` again for the same request.
+- Present the file at `outputPath` to the user as the result.
+- If `status` is `completed_with_caveats`, briefly note remaining issues without blocking delivery.
+- Only invoke this skill again if the user explicitly asks for a new version or different direction.

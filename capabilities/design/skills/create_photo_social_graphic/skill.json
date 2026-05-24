@@ -3,7 +3,7 @@
   "kind": "agentic",
   "model": "gemini-2.5-pro",
   "name": "create_photo_social_graphic",
-  "description": "Design a social graphic that uses photos (hero image, overlays, stock or supplied assets) with typography. Produces a PNG via HTML/CSS and/or raster compositing.",
+  "description": "Design a social graphic that uses photos (hero image, overlays, stock or supplied assets) with typography. Produces a PNG via HTML/CSS and/or raster compositing. Returns outputPath as the final deliverable — do not re-invoke for the same request; present the PNG to the user even when critique caveats remain.",
   "inputSchema": {
     "type": "object",
     "properties": {
@@ -36,12 +36,17 @@
       "stockQuery": {
         "type": "string",
         "description": "Optional Unsplash search query when no imagePaths/imageUrls are provided."
+      },
+      "imagePrompt": {
+        "type": "string",
+        "description": "Optional AI image prompt to generate a custom hero/background via generate_image when no imagePaths/imageUrls/stockQuery are provided."
       }
     },
     "required": ["content", "outputPath"]
   },
   "toolNames": [
     "download_image",
+    "generate_image",
     "search_stock_images",
     "read_image_metadata",
     "crop_and_resize",

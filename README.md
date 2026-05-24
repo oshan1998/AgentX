@@ -33,7 +33,7 @@ Minimal but scalable single-agent framework in Node.js + TypeScript.
 - Filesystem skills (multi-step): `summarize_document`, `extract_tasks`
 - PDF skill: `generate_designed_pdf`
 - Design capability:
-  - Tools: `render_html_to_png`, `write_svg`, `render_svg_to_png`, `read_image_metadata`, `crop_and_resize`, `export_multi_size`, `compose_layers`, `download_image`, `apply_image_transform`, `add_image_overlay`, `inspect_image`
+  - Tools: `render_html_to_png`, `write_svg`, `render_svg_to_png`, `read_image_metadata`, `crop_and_resize`, `export_multi_size`, `compose_layers`, `download_image`, `generate_image`, `apply_image_transform`, `add_image_overlay`, `inspect_image`
   - Integration: `search_stock_images` (Unsplash; requires `UNSPLASH_ACCESS_KEY`)
   - Skills [agentic]: `create_social_graphic`, `create_photo_social_graphic`, `create_infographic`, `create_icon_set`, `prepare_images_for_design`
   - Skill [workflow]: `resize_for_platforms`
@@ -107,10 +107,12 @@ LLM_PROVIDER=openai or ollama(for local)
 OPENAI_API_KEY=your_openai_api_key_here
 UNSPLASH_ACCESS_KEY=your_unsplash_access_key_here
 VISION_PROVIDER=openai
+IMAGE_GEN_PROVIDER=vertex
+IMAGEN_MODEL=imagen-4.0-generate-001
 
 ```
 
-`inspect_image` uses `VISION_PROVIDER` (defaults to `LLM_PROVIDER`) with OpenAI or Gemini vision. `search_stock_images` needs [Unsplash API](https://unsplash.com/developers) access key.
+`inspect_image` uses `VISION_PROVIDER` (defaults to `LLM_PROVIDER`) with OpenAI or Gemini vision. `generate_image` uses Vertex Imagen (`IMAGE_GEN_PROVIDER=vertex`, reuses `GOOGLE_CLOUD_PROJECT` / `GOOGLE_CLOUD_LOCATION`). `search_stock_images` needs [Unsplash API](https://unsplash.com/developers) access key.
 
 Then in the CLI, ask:
 

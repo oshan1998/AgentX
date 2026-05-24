@@ -1,5 +1,6 @@
 import { VertexAI, GenerativeModel, GenerateContentRequest } from "@google-cloud/vertexai";
 import type { AgentDecision, LlmAdapter, LlmImageInput } from "../common/interfaces/types.js";
+import { resolveVertexLocation } from "./vertex-config.js";
 
 interface GeminiAdapterOptions {
   projectId: string;
@@ -16,7 +17,7 @@ export class GeminiVertexAdapter implements LlmAdapter {
     this.modelName = options.model ?? "gemini-1.5-flash";
     this.vertexAI = new VertexAI({
       project: options.projectId,
-      location: options.location ?? "us-central1",
+      location: options.location ?? resolveVertexLocation(),
     });
     this.model = this.vertexAI.getGenerativeModel({
       model: this.modelName,

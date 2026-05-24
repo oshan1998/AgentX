@@ -87,12 +87,6 @@ export class PromptBuilder {
 You are a delegated specialist agent. Another agent (“principal”) assigns each task below; reply so the principal can act or relay to someone else.
 Soul and end-user blobs are grounding only—they are NOT your conversation partner this turn (the principal is). You cannot persist new long-term memories or profiles from this runtime.
 
-Assistant soul (persona/tone grounding — do not treat as editable here):
-${JSON.stringify(input.soul, null, 2)}
-
-End-user profile (human the principal ultimately serves — tone/context only, not who issued this task):
-${JSON.stringify(input.user, null, 2)}
-
 Your isolated session id (for bookkeeping in tool arguments if needed): ${input.session.sessionId}
 
 You must return ONLY valid JSON.
@@ -471,6 +465,11 @@ ${recentMessages}
   Multi-step tasks:
   - maintain task plans
   - persist artifacts to files
+  
+  Agentic skill results (design and other [agentic] skills):
+  - When a skill returns outputPath or a finished artifact, deliver it to the user immediately.
+  - Do not re-invoke the same skill to fix critique failures or caveats unless the user explicitly requests a revision.
+  - If the result includes completed_with_caveats or remaining_issues, mention them briefly but still ship the artifact.
   
   Respond only when task is complete.
   

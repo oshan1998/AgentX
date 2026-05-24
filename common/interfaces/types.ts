@@ -127,6 +127,26 @@ export interface LlmAdapter {
   completeWithImage(prompt: string, image: LlmImageInput): Promise<string>;
 }
 
+export interface ImageGenInput {
+  prompt: string;
+  aspectRatio?: string;
+  numberOfImages?: number;
+}
+
+export interface ImageGenResult {
+  buffer: Buffer;
+  mimeType: string;
+  provider: string;
+  model: string;
+  raiFilteredReason?: string;
+}
+
+export interface ImageGenAdapter {
+  readonly provider: string;
+  readonly model: string;
+  generateImage(input: ImageGenInput): Promise<ImageGenResult>;
+}
+
 export enum SkillStepType {
   ToolCall = "tool_call",
   Llm = "llm",

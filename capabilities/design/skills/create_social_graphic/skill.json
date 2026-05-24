@@ -38,6 +38,7 @@
   },
   "toolNames": [
     "download_image",
+    "generate_image",
     "read_image_metadata",
     "crop_and_resize",
     "render_html_to_png",

@@ -26,7 +26,7 @@
     },
     "required": ["imageUrls"]
   },
-  "toolNames": ["download_image", "read_image_metadata", "crop_and_resize"],
+  "toolNames": ["download_image", "generate_image", "read_image_metadata", "crop_and_resize"],
   "maxIterations": 16,
   "deadlineMs": 180000
 }
