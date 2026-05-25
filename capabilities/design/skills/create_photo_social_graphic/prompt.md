@@ -330,50 +330,33 @@ rebuild once.
 
 Call **`inspect_image`** on the final PNG.
 
-Include the skill input in the `prompt` (summarize long `designBrief` if needed):
+Construct a detailed `prompt` for the `inspect_image` tool that asks it to act as an Art Director who can see the rendered image and provide concrete suggestions. Include the skill input:
+
+"Critique this social graphic as a strict Creative Director.
 
 Client brief:
-
 - Platform: {platform}
 - Content to show: {content}
-- Visual direction: {designBrief, or "none specified"}
-
-Critique this social graphic as a strict Creative Director.
+- Visual direction: {designBrief, or 'none specified'}
 
 Judge in two layers:
+1. **Brief compliance** — Does it deliver what the client asked for?
+2. **Agency craft** — Does it meet premium design standards?
 
-1. **Brief compliance** — Does it deliver what the client asked for (message, mood, layout intent, platform fit)?
-2. **Agency craft** — Does it meet premium design standards below?
+Since you can see the rendered image, visually inspect it and identify any failures (weak hierarchy, unreadable text, awkward spacing, template-like look, insufficient contrast, image barely visible).
 
-Mandatory design system rules still apply even when the brief is silent or ambiguous.
+Point out exactly what looks wrong in the layout and provide specific, actionable suggestions to fix them (e.g., CSS adjustments, layout shifts, typography tweaks).
 
-Reject if ANY of:
+Respond at the end with exactly either:
+- `APPROVED`
+- `REJECTED`"
 
-Brief failures:
+If the critique is `REJECTED` or contains suggestions for improvement:
 
-- wrong or missing copy vs `content`
-- contradicts stated mood, colors, or layout in `designBrief`
-- wrong feel for `platform` (density, safe zones, aspect usage)
-
-Craft failures:
-
-- image barely visible
-- looks like template
-- weak hierarchy
-- text hard to read
-- poor cropping
-- low premium feel
-- awkward spacing
-- insufficient contrast
-
-Respond exactly with either:
-
-- `APPROVED` — brief and craft pass; optional one-line note
-- `REJECTED` — numbered fixes, brief issues first, then craft
-
-If rejected:
-
-adjust, re-render, and call **`inspect_image`** again with the same brief block.
+1. Read the Art Director's visual feedback carefully to understand what is wrong with the current rendered image.
+2. Adjust your HTML/CSS code to apply the specific suggestions (e.g. increase padding, change font size, move elements).
+3. Re-render the image using `render_html_to_png`.
+4. Call **`inspect_image`** again with the same prompt to verify the fixes.
 
 ## Attempt limit (HARD — do not exceed)
 

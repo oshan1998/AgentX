@@ -2,6 +2,10 @@ import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import type { Tool, ToolContext } from "../../../common/interfaces/types.js";
+import {
+  embedWorkspaceImagesInHtml,
+  resolveWorkspaceAssetsInHtml,
+} from "../../../common/services/html-workspace-assets.js";
 import { withBrowserPage } from "../../../common/services/puppeteer-browser.js";
 import { logger } from "../../../common/services/logger.js";
 import { parseToolInput, zodSchemaToJsonInputSchema } from "../../../common/services/zod-tool-schema.js";
@@ -24,6 +28,18 @@ export const generateDesignedPdfInputSchema = z.object({
     .union([z.boolean(), z.literal("true")])
     .optional()
     .describe("Optional; portrait if omitted/false."),
+  resolveWorkspaceAssets: z
+    .boolean()
+    .optional()
+    .describe(
+      "When true, rewrite workspace-relative img/src and css url() paths to file://. Default false; prefer embedWorkspaceAssets.",
+    ),
+  embedWorkspaceAssets: z
+    .boolean()
+    .optional()
+    .describe(
+      "When true, inline local workspace images as data: URIs so they render via setContent(). Default true.",
+    ),
 });
 
 export type GenerateDesignedPdfInput = z.infer<typeof generateDesignedPdfInputSchema>;
@@ -35,23 +51,36 @@ export class GenerateDesignedPdfTool implements Tool {
   inputSchema = zodSchemaToJsonInputSchema(generateDesignedPdfInputSchema);
 
   async run(input: Record<string, unknown>, context: ToolContext): Promise<unknown> {
-    const { outputPath, html, format: formatRaw, landscape: landscapeRaw } = parseToolInput(
-      this.name,
-      generateDesignedPdfInputSchema,
-      input,
-    );
+    const parsed = parseToolInput(this.name, generateDesignedPdfInputSchema, input);
     const absOutputPath = resolveWorkspacePath(
       DEFAULT_WORKSPACE_BASE,
       context.sessionId,
-      outputPath,
+      parsed.outputPath,
     );
-    const format = formatRaw ?? "A4";
-    const landscape = landscapeRaw === "true" || landscapeRaw === true;
+    const format = parsed.format ?? "A4";
+    const landscape = parsed.landscape === "true" || parsed.landscape === true;
+    const embedWorkspaceAssets = parsed.embedWorkspaceAssets ?? true;
+    const resolveWorkspaceAssets = parsed.resolveWorkspaceAssets ?? false;
 
     try {
-      logger.info(`Starting designed PDF generation for: ${outputPath}`);
+      logger.info(`Starting designed PDF generation for: ${parsed.outputPath}`);
 
       await mkdir(path.dirname(absOutputPath), { recursive: true });
+
+      let html = parsed.html;
+      if (embedWorkspaceAssets) {
+        html = await embedWorkspaceImagesInHtml(
+          html,
+          context.sessionId,
+          DEFAULT_WORKSPACE_BASE,
+        );
+      } else if (resolveWorkspaceAssets) {
+        html = resolveWorkspaceAssetsInHtml(
+          html,
+          context.sessionId,
+          DEFAULT_WORKSPACE_BASE,
+        );
+      }
 
       await withBrowserPage(async (page) => {
         await page.setContent(html, {
@@ -74,10 +103,10 @@ export class GenerateDesignedPdfTool implements Tool {
         });
       });
 
-      logger.info(`Designed PDF successfully generated at: ${outputPath}`);
+      logger.info(`Designed PDF successfully generated at: ${parsed.outputPath}`);
       return {
         success: true,
-        outputPath,
+        outputPath: parsed.outputPath,
         message: "PDF generated successfully with custom design.",
       };
     } catch (error) {
