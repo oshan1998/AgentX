@@ -12,6 +12,7 @@ interface TavilySearchResult {
 interface TavilySearchResponse {
   query?: string;
   results?: TavilySearchResult[];
+  images?: string[];
 }
 
 export const webSearchInputSchema = z.object({
@@ -21,6 +22,10 @@ export const webSearchInputSchema = z.object({
     .finite()
     .optional()
     .describe("1–10; default 5."),
+  includeImages: z
+    .boolean()
+    .optional()
+    .describe("Whether to include a list of relevant image URLs in the response."),
 });
 
 export type WebSearchInput = z.infer<typeof webSearchInputSchema>;
@@ -31,7 +36,7 @@ export class WebSearchTool implements Tool {
   inputSchema = zodSchemaToJsonInputSchema(webSearchInputSchema);
 
   async run(input: Record<string, unknown>, _context: ToolContext): Promise<unknown> {
-    const { query, maxResults: maxResultsRaw } = parseToolInput(this.name, webSearchInputSchema, input);
+    const { query, maxResults: maxResultsRaw, includeImages } = parseToolInput(this.name, webSearchInputSchema, input);
 
     const maxResults =
       typeof maxResultsRaw === "number" && Number.isFinite(maxResultsRaw)
@@ -53,6 +58,7 @@ export class WebSearchTool implements Tool {
         query,
         max_results: maxResults,
         search_depth: "basic",
+        include_images: includeImages ?? false,
       }),
     });
 
@@ -64,11 +70,20 @@ export class WebSearchTool implements Tool {
     const data = (await response.json()) as TavilySearchResponse;
     const results = (data.results ?? []).slice(0, maxResults);
 
-    return results.map((result) => ({
+    const mappedResults = results.map((result) => ({
       title: result.title ?? "",
       url: result.url ?? "",
       snippet: result.content ?? "",
       score: result.score ?? 0,
     }));
+
+    if (includeImages) {
+      return {
+        results: mappedResults,
+        images: data.images ?? [],
+      };
+    }
+
+    return mappedResults;
   }
 }

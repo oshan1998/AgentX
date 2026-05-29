@@ -1,61 +1,138 @@
-# plan_steps (task plan + external memory)
+# plan_steps — Task Planner
 
-The **skill input** in the delegated task is the source of truth. Read the JSON: you need `objective` (string).
+You receive a skill input JSON with an `objective` field. Your job is to break it into a concrete task plan and write it to the task store.
 
-## Goals
+---
 
-1. Produce an ordered plan with **stable ids** and statuses.
-2. Design the plan so the **principal agent** can keep **facts out of the chat** by writing **workspace files** and recording **`artifact_path`** + short **`notes`** on each task—later steps **open those files** instead of "remembering" the transcript.
-3. Identify tasks that can run **in parallel** and express their dependencies as a **DAG** (Directed Acyclic Graph).
+## Step 1 — Read before writing
 
-## What you do
+Call `read_task_plan({})` first. If a plan exists, decide whether to extend or replace it based on the objective.
 
-1. **read_task_plan** (`{}` or `{ "create_if_missing": true }`) if you need the current file before deciding merge vs replace.
-2. From the objective, define **4–8 concrete steps** unless the goal is tiny. For each step set:
-   - **`id`**: stable `snake_case` (e.g. `market_overview`, `swot_analysis`).
-   - **`title`**: short label.
-   - **`status`**: usually start as `pending` (or first step `in_progress` if appropriate).
-   - **`artifact_path`** (recommended): where the principal should save **full** output for this step—**any file type**, e.g. `tasks/market_overview.md`, `tasks/competitors.json`, `tasks/chart.png`, `tasks/report.pdf`. Pick an extension that matches the deliverable. One path per task id.
-   - **`instruction`** (required): clear, highly specific instructions for the worker sub-agent detailing what must be done to complete this step.
-   - **`notes`** (optional): one or two sentences outlining key constraints, expectations, or planned outcomes.
-   - **`depends_on`** (recommended): array of task IDs that must complete before this task starts. Leave empty `[]` or omit for tasks with no dependencies. Tasks without dependencies can run **in parallel**.
-   - **`tool_names`** (recommended): array of tool names the worker sub-agent may use for this task (e.g. `["web_search", "write_file"]`, or include `read_pdf`, design tools, etc. when artifacts are non-text).
-   - **`skill_names`** (optional): array of skill names the worker sub-agent may use.
-3. **write_task_plan** with `{ "tasks": [ ... ] }` — **full replace** unless the objective says to extend an existing plan.
-4. **patch_task_plan_task** for single-task updates (status, `notes`, `artifact_path`, `blocked_reason`) without rewriting the list.
-5. **respond** to the principal: numbered steps, mention that **bulk evidence must be written to `artifact_path` files** during execution, and that **`read_task_plan`** plus the right read/open tools should drive later steps.
+---
 
-## Parallelism guidelines
+## Step 2 — Define tasks
 
-When designing the plan, think about which tasks are **independent** and can run at the same time:
+Create **4–8 tasks** (fewer if the goal is simple). Each task must have:
 
-- Tasks that research **different topics** (e.g. market analysis + competitor analysis) → no dependency, run in parallel.
-- Tasks that **synthesize or compare** results from prior tasks → set `depends_on` to those upstream task IDs.
-- A final **summary/report** task should `depends_on` all content-producing tasks.
+| Field | Required | Description |
+|---|---|---|
+| `id` | ✅ | `snake_case`, stable, unique. E.g. `market_overview` |
+| `title` | ✅ | Short label, 3–6 words |
+| `status` | ✅ | `pending` for most; `in_progress` only for the first task if starting now |
+| `instruction` | ✅ | **Specific, executable steps** — what the worker must do, nothing left ambiguous |
+| `artifact_path` | ✅ | Where output is saved. Use `tasks/<id>.<ext>`. Pick the right extension: `.md`, `.json`, `.csv`, `.pdf`, `.png` |
+| `depends_on` | ✅ | Array of `id`s that must complete first. Use `[]` if none |
+| `tool_names` | ✅ | Tools the worker may use. See rules below |
+| `notes` | optional | 1–2 sentences on constraints or expected output shape |
 
-The principal agent can use `orchestrate_task_graph` to execute all parallelizable tasks simultaneously using worker sub-agents instead of running them one at a time.
+---
 
-## Status values
+## Step 3 — Tool selection (critical — task failure cause #1)
 
-`pending` | `in_progress` | `completed` | `blocked` — use `blocked_reason` when `blocked`.
+**For every task, mentally simulate the worker executing it step by step. Every action the worker takes needs a tool. If the tool is missing, the task will fail.**
 
-## Tool & skill selection
+### Simulation method
 
-`tool_names` / `skill_names` are **allow-lists** for workers (`orchestrate_task_graph`). Pick names **only** from the injected tool/skill registry (exact `snake_case`).
+Read the `instruction` and ask: what does the worker need to *do* at each step?
 
-For **each** task, derive tools from `instruction`, `artifact_path`, and `depends_on`:
+> Example instruction: "Search for top EV manufacturers, read the competitor list from tasks/competitors.json, build a comparison table, and save as markdown."
+>
+> Simulated steps:
+> 1. Search the web → needs `web_search`
+> 2. Read upstream file → needs `read_file`
+> 3. Save output → needs `write_file`
+>
+> → `tool_names: ["web_search", "read_file", "write_file"]`
 
-- **`artifact_path` set** → include a tool that can **write** that file (usually `write_file` for text/json/md; use registry tools matching the extension for pdf/png/svg).
-- **`depends_on` non-empty** → include tools to **read** upstream artifacts (usually `read_file`; add `read_pdf` / image tools if extensions require it).
-- **`instruction` verbs** → add gather tools (`web_search`, Gmail tools, etc.) **in addition to** write/read above — not instead of them.
-- **Packaged workflow fits** → prefer the matching **skill** from the registry; still add `write_file` if the skill does not persist to `artifact_path`.
-- **Exclude** from workers: `delegate_sub_agent`, `orchestrate_task_graph`, `read_task_plan`, `write_task_plan`, `patch_task_plan_task`.
 
-Before `write_task_plan`: every task with an artifact has a write tool; every task with dependencies has a read tool; no empty `tool_names` unless the step truly has no file I/O.
+### Hard checks — do all of these before writing the plan
+
+- [ ] Every task with an `artifact_path` has `write_file` in `tool_names`
+- [ ] Every task with a non-empty `depends_on` has `read_file` in `tool_names`
+- [ ] No task has an empty `tool_names: []` unless it genuinely does zero I/O (rare)
+- [ ] No task is missing a tool just because the step "seems simple"
+
+### Never include
+
+`delegate_sub_agent`, `orchestrate_task_graph`, `read_task_plan`, `write_task_plan`, `patch_task_plan_task`
+
+### When in doubt — include the tool
+
+A tool that isn't needed wastes nothing. A tool that is needed but missing causes the task to fail. **Always err on the side of inclusion.**
+
+---
+
+## Step 4 — Parallelism rules
+
+Tasks with no shared dependencies can run at the same time.
+
+- **Independent research tasks** (different topics) → `depends_on: []` on both
+- **Tasks that need another task's output** → list that task's `id` in `depends_on`
+- **Final report/summary** → `depends_on` every content-producing task
+
+---
+
+## Step 5 — Write the plan
+
+Call `write_task_plan({ "tasks": [...] })` with the full list. This replaces the existing plan.
+
+Use `patch_task_plan_task` only for single-field updates (status, notes, blocked_reason) without rewriting everything.
+
+---
+
+## Step 6 — Reply to the principal
+
+List the tasks by number with their titles and a one-sentence summary. Mention:
+- Which tasks can run in parallel
+- That outputs are written to `artifact_path` files — not kept in memory
+- That later tasks should use `read_task_plan` + `read_file` to access prior results
+
+---
+
+## Example
+
+**Objective:** "Research the EV market and write a competitive analysis report."
+
+```json
+[
+  {
+    "id": "market_overview",
+    "title": "EV market size and trends",
+    "status": "pending",
+    "instruction": "Search for current EV market size, growth rate (2023–2025), top regions, and key adoption drivers. Write a structured summary covering: (1) global market size in USD, (2) YoY growth %, (3) top 3 regions by adoption, (4) top 3 demand drivers. Save as markdown.",
+    "artifact_path": "tasks/market_overview.md",
+    "depends_on": [],
+    "tool_names": ["web_search", "web_fetch", "write_file"]
+  },
+  {
+    "id": "competitor_profiles",
+    "title": "Top EV manufacturer profiles",
+    "status": "pending",
+    "instruction": "Search for the top 5 EV manufacturers by 2024 sales volume. For each: name, HQ country, best-selling model, estimated market share %, and one strategic differentiator. Save as a JSON array.",
+    "artifact_path": "tasks/competitor_profiles.json",
+    "depends_on": [],
+    "tool_names": ["web_search", "web_fetch", "write_file"]
+  },
+  {
+    "id": "competitive_analysis",
+    "title": "Write competitive analysis report",
+    "status": "pending",
+    "instruction": "Read tasks/market_overview.md and tasks/competitor_profiles.json. Synthesize into a competitive analysis report with sections: Executive Summary, Market Landscape, Competitor Comparison Table, Key Takeaways. Save as markdown.",
+    "artifact_path": "tasks/competitive_analysis.md",
+    "depends_on": ["market_overview", "competitor_profiles"],
+    "tool_names": ["read_file", "write_file"]
+  }
+]
+```
+
+In this example, `market_overview` and `competitor_profiles` have no dependencies — they run **in parallel**. `competitive_analysis` waits for both.
+
+---
 
 ## Rules
 
-- Do not invent a different objective than the skill input.
-- Task-plan tools attach to the **principal session** when delegated.
-- Prefer **one** `write_task_plan` after you finalize this planning pass unless you only patch.
-- **Convention**: `tasks/<task_id>.<ext>` keeps artifacts aligned with plan ids; choose `<ext>` for the deliverable (.md, .json, .pdf, .png, …), not only markdown.
+- Do not change or expand the objective — plan only what was asked
+- `instruction` must be specific enough that a worker can execute it without asking clarifying questions
+- `artifact_path` is the only handoff between tasks — workers must not rely on conversation memory
+- Status values: `pending` | `in_progress` | `completed` | `blocked`
+- Use `blocked_reason` when status is `blocked`

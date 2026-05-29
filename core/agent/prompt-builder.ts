@@ -484,6 +484,10 @@ ${recentMessages}
   
   Wrong:
   filename.txt
+
+  To show a generated image or file to the user, use this markdown format in your respond message:
+  ![Image Description](${process.env.APP_BASE_URL}/workspace/sessions/${input.session.sessionId}/workspace/<relative-path>)
+  For non-image files, use a standard markdown link.
   
   Use:
   {

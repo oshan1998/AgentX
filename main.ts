@@ -34,6 +34,9 @@ async function main() {
   // Serve static UI
   app.use(express.static(path.join(process.cwd(), "ui")));
 
+  // Serve workspace files statically so UI can access generated images/files directly
+  app.use("/workspace", express.static(path.join(process.cwd(), "workspace")));
+
   // ── Core dependencies ──────────────────────────────────
   const memoryPath = path.join(process.cwd(), "memory");
   const memoryManager = new MemoryManager(memoryPath);
