@@ -94,6 +94,8 @@ Read metadata.
 
 Then:
 
+- call `detect_image_region` to find the exact bounding box of the main subject/object if you need a precise crop
+- use the returned `crop_coordinates` as the `extract` parameter in `apply_image_transform` if cropping
 - crop to platform ratio
 - preserve subject visibility
 - avoid face cropping

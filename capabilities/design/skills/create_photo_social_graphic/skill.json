@@ -54,7 +54,8 @@
     "add_image_overlay",
     "compose_layers",
     "render_html_to_png",
-    "inspect_image"
+    "inspect_image",
+    "detect_image_region"
   ],
   "maxIterations": 24,
   "deadlineMs": 600000
