@@ -137,12 +137,12 @@ Available skills (tag: [workflow] = step runner, [agentic] = specialist sub-agen
 ${skills}
 
 ${input.subAgentSystemPromptAppend?.trim() ? `---\n\n## Domain instructions\n\n${input.subAgentSystemPromptAppend.trim()}` : ""}
+
+## Current Goal (delegated task from principal)
+${input.latestUserMessage}
 `.trim();
 
     const userPrompt = `
-Delegated task (from principal agent):
-${input.latestUserMessage}
-
 Iteration:
 ${input.iteration}/${input.maxIterations}
 
@@ -510,12 +510,15 @@ ${recentMessages}
   ==================================================
   
   ${skills}
+
+  ==================================================
+  CURRENT GOAL
+  ==================================================
+
+  ${input.latestUserMessage}
   `.trim();
   
     const userPrompt = `
-  Current task:
-  ${input.latestUserMessage}
-  
   Iteration:
   ${input.iteration}/${input.maxIterations}
   

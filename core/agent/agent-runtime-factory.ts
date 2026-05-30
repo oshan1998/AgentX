@@ -223,6 +223,8 @@ export class AgentRuntimeFactory {
       });
     }
 
+    const executionLog = await this.buildSubAgentExecutionLog(subSessionId);
+
     return JSON.stringify({
       ok: true,
       parentSessionId,
@@ -230,7 +232,63 @@ export class AgentRuntimeFactory {
       subRunId,
       outcome: summary.outcome,
       response: summary.reply,
+      executionLog,
     });
+  }
+
+  /**
+   * Reads the completed sub-session's message history and synthesises a concise
+   * chronological execution log so the parent agent understands what happened
+   * inside the sub-agent loop — not just what the final reply said.
+   *
+   * Format:
+   *   Step 1 [assistant]: <thought / decision>
+   *   Step 2 [tool]:      <tool result / observation>
+   *   ...
+   *   Final reply:        <respond message>
+   */
+  private async buildSubAgentExecutionLog(subSessionId: string): Promise<string> {
+    try {
+      const session = await this.deps.memoryManager.getSession(subSessionId);
+      // Skip the first message — that is the task injected as a "user" turn.
+      const messages = session.messages.slice(1);
+
+      if (messages.length === 0) {
+        return "(No steps were recorded for this sub-agent run.)";
+      }
+
+      const lines: string[] = [];
+      let stepIndex = 0;
+
+      for (const msg of messages) {
+        stepIndex++;
+        const roleLabel = msg.role === "assistant" ? "thought/decision" : msg.role;
+
+        // Attempt to surface the `thought` field if the content is JSON (LLM decision objects).
+        let body = msg.content;
+        if (msg.role === "assistant") {
+          try {
+            const parsed = JSON.parse(msg.content) as Record<string, unknown>;
+            if (typeof parsed.thought === "string" && parsed.thought.trim()) {
+              body = parsed.thought.trim();
+            }
+          } catch {
+            // Plain text — use as-is.
+          }
+        }
+
+        // Truncate very long tool results to keep the log readable.
+        const MAX_BODY = 600;
+        const truncated =
+          body.length > MAX_BODY ? `${body.slice(0, MAX_BODY)}… [truncated]` : body;
+
+        lines.push(`Step ${stepIndex} [${roleLabel}]: ${truncated}`);
+      }
+
+      return lines.join("\n");
+    } catch {
+      return "(Could not retrieve sub-agent execution history.)";
+    }
   }
 }
 
