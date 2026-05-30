@@ -45,54 +45,75 @@ export async function invertMaskPng(mask: Buffer): Promise<Buffer> {
   return sharp(mask).negate().png().toBuffer();
 }
 
-export interface GeminiSegmentMaskEntry {
-  box_2d: number[];
-  mask: string;
+/** A polygon as ordered [x, y] vertices, normalized to a 0-1000 coordinate space. */
+export type NormalizedPolygon = Array<[number, number]>;
+
+/** A foreground subject as one or more silhouette polygons plus a fallback bounding box. */
+export interface ForegroundShape {
+  /** Silhouette polygons (each a list of [x, y] points, normalized 0-1000). */
+  polygons: NormalizedPolygon[];
+  /** Optional [y0, x0, y1, x1] bounding box (normalized 0-1000) used as a fallback. */
+  box?: [number, number, number, number];
 }
 
-/** Builds a full-size grayscale foreground mask from a Gemini bbox-relative segmentation entry. */
-export async function buildFullMaskFromGeminiSegment(
-  entry: GeminiSegmentMaskEntry,
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function polygonToSvgPoints(polygon: NormalizedPolygon, width: number, height: number): string {
+  return polygon
+    .map(([x, y]) => {
+      const px = clamp((x / 1000) * width, 0, width);
+      const py = clamp((y / 1000) * height, 0, height);
+      return `${px.toFixed(2)},${py.toFixed(2)}`;
+    })
+    .join(" ");
+}
+
+function boxToSvgRect(
+  box: [number, number, number, number],
+  width: number,
+  height: number,
+): string {
+  const [y0, x0, y1, x1] = box;
+  const left = clamp((Math.min(x0, x1) / 1000) * width, 0, width);
+  const top = clamp((Math.min(y0, y1) / 1000) * height, 0, height);
+  const right = clamp((Math.max(x0, x1) / 1000) * width, 0, width);
+  const bottom = clamp((Math.max(y0, y1) / 1000) * height, 0, height);
+  const rectWidth = Math.max(0, right - left);
+  const rectHeight = Math.max(0, bottom - top);
+  return `<rect x="${left.toFixed(2)}" y="${top.toFixed(2)}" width="${rectWidth.toFixed(2)}" height="${rectHeight.toFixed(2)}" fill="white"/>`;
+}
+
+/**
+ * Rasterizes a foreground shape (silhouette polygons, or a bounding box as fallback)
+ * into a full-size grayscale mask PNG (white = foreground, black = background).
+ *
+ * Unlike asking a vision model to emit a base64-encoded PNG mask — which models cannot
+ * produce as byte-valid binary — polygon vertices are plain numbers the model emits reliably.
+ */
+export async function buildMaskFromForegroundShape(
+  shape: ForegroundShape,
   width: number,
   height: number,
 ): Promise<Buffer> {
-  if (entry.box_2d.length !== 4) {
-    throw new Error("Gemini segmentation entry has an invalid box_2d.");
+  const usablePolygons = (shape.polygons ?? []).filter((polygon) => polygon.length >= 3);
+
+  let shapesSvg: string;
+  if (usablePolygons.length > 0) {
+    shapesSvg = usablePolygons
+      .map(
+        (polygon) =>
+          `<polygon points="${polygonToSvgPoints(polygon, width, height)}" fill="white"/>`,
+      )
+      .join("");
+  } else if (shape.box && shape.box.length === 4) {
+    shapesSvg = boxToSvgRect(shape.box, width, height);
+  } else {
+    throw new Error("Foreground segmentation returned no usable polygon or bounding box.");
   }
 
-  const [y0n, x0n, y1n, x1n] = entry.box_2d;
-  const absY0 = Math.max(0, Math.round((y0n / 1000) * height));
-  const absX0 = Math.max(0, Math.round((x0n / 1000) * width));
-  const absY1 = Math.min(height, Math.round((y1n / 1000) * height));
-  const absX1 = Math.min(width, Math.round((x1n / 1000) * width));
-  const bboxWidth = absX1 - absX0;
-  const bboxHeight = absY1 - absY0;
+  const maskSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><rect width="100%" height="100%" fill="black"/>${shapesSvg}</svg>`;
 
-  if (bboxWidth < 1 || bboxHeight < 1) {
-    throw new Error("Gemini segmentation returned an invalid bounding box.");
-  }
-
-  let maskBase64 = entry.mask.trim();
-  if (maskBase64.includes("base64,")) {
-    maskBase64 = maskBase64.split("base64,").pop() ?? maskBase64;
-  }
-
-  const bboxMask = await sharp(Buffer.from(maskBase64, "base64"))
-    .resize(bboxWidth, bboxHeight, { fit: "fill" })
-    .greyscale()
-    .png()
-    .toBuffer();
-
-  return sharp({
-    create: {
-      width,
-      height,
-      channels: 3,
-      background: { r: 0, g: 0, b: 0 },
-    },
-  })
-    .composite([{ input: bboxMask, left: absX0, top: absY0 }])
-    .greyscale()
-    .png()
-    .toBuffer();
+  return sharp(Buffer.from(maskSvg)).greyscale().png().toBuffer();
 }
