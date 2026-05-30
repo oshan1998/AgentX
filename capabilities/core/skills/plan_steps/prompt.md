@@ -4,9 +4,11 @@ You receive a skill input JSON with an `objective` field. Your job is to break i
 
 ---
 
-## Step 1 — Read before writing
+## Step 1 — Discover capabilities and read existing plan
 
-Call `read_task_plan({})` first. If a plan exists, decide whether to extend or replace it based on the objective.
+Call `list_capabilities({})` first to get the exact registered tool and skill names. Use only names from that response when assigning `tool_names` and `skill_names` — do not guess or invent names.
+
+Then call `read_task_plan({})`. If a plan exists, decide whether to extend or replace it based on the objective.
 
 ---
 
@@ -29,36 +31,35 @@ Create **4–8 tasks** (fewer if the goal is simple). Each task must have:
 
 ## Step 3 — Tool selection (critical — task failure cause #1)
 
-**For every task, mentally simulate the worker executing it step by step. Every action the worker takes needs a tool. If the tool is missing, the task will fail.**
+**The `list_capabilities` response from Step 1 is the ONLY source of valid tool and skill names. Never type a name from memory — every name you write must be copied from that response.** A task that references a name not in the registry gets an empty tool set and fails.
 
-### Simulation method
+### Capability-matching method
 
-Read the `instruction` and ask: what does the worker need to *do* at each step?
+For every task, mentally simulate the worker executing it step by step. For each action the worker takes:
 
-> Example instruction: "Search for top EV manufacturers, read the competitor list from tasks/competitors.json, build a comparison table, and save as markdown."
->
-> Simulated steps:
-> 1. Search the web → needs `web_search`
-> 2. Read upstream file → needs `read_file`
-> 3. Save output → needs `write_file`
->
-> → `tool_names: ["web_search", "read_file", "write_file"]`
+1. Describe the action in plain language (e.g. "search the web", "read an upstream file", "save output", "generate an image").
+2. Scan the `list_capabilities` tools list and pick the tool whose `name` + `description` matches that action.
+3. Copy that exact `name` into `tool_names`.
 
+If no registered tool matches an action, the worker cannot perform it — rewrite the `instruction` to only use what is available, or drop the step.
 
 ### Hard checks — do all of these before writing the plan
 
-- [ ] Every task with an `artifact_path` has `write_file` in `tool_names`
-- [ ] Every task with a non-empty `depends_on` has `read_file` in `tool_names`
+- [ ] Every `tool_names` entry was copied verbatim from the `list_capabilities` tools list
+- [ ] Every `skill_names` entry (if any) was copied verbatim from the `list_capabilities` skills list
+- [ ] Every task that saves an `artifact_path` includes the registry's file-writing tool
+- [ ] Every task with a non-empty `depends_on` includes the registry's file-reading tool (to load upstream artifacts)
 - [ ] No task has an empty `tool_names: []` unless it genuinely does zero I/O (rare)
 - [ ] No task is missing a tool just because the step "seems simple"
 
 ### Never include
 
-`delegate_sub_agent`, `orchestrate_task_graph`, `read_task_plan`, `write_task_plan`, `patch_task_plan_task`
+The meta/planning tools, even though they appear in the registry:
+`delegate_sub_agent`, `orchestrate_task_graph`, `list_capabilities`, `read_task_plan`, `write_task_plan`, `patch_task_plan_task`
 
 ### When in doubt — include the tool
 
-A tool that isn't needed wastes nothing. A tool that is needed but missing causes the task to fail. **Always err on the side of inclusion.**
+A registered tool that isn't needed wastes nothing. A tool that is needed but missing causes the task to fail. **Always err on the side of inclusion.**
 
 ---
 
@@ -85,11 +86,13 @@ Use `patch_task_plan_task` only for single-field updates (status, notes, blocked
 List the tasks by number with their titles and a one-sentence summary. Mention:
 - Which tasks can run in parallel
 - That outputs are written to `artifact_path` files — not kept in memory
-- That later tasks should use `read_task_plan` + `read_file` to access prior results
+- That later tasks read prior results from their upstream `artifact_path` files (via `read_task_plan` and the registry's file-reading tool)
 
 ---
 
-## Example
+## Example (structure only)
+
+This example shows the **shape** of a plan and how dependencies create parallelism. The `tool_names` below are placeholders — in a real plan, replace every name with one copied from your `list_capabilities` response.
 
 **Objective:** "Research the EV market and write a competitive analysis report."
 
@@ -102,7 +105,7 @@ List the tasks by number with their titles and a one-sentence summary. Mention:
     "instruction": "Search for current EV market size, growth rate (2023–2025), top regions, and key adoption drivers. Write a structured summary covering: (1) global market size in USD, (2) YoY growth %, (3) top 3 regions by adoption, (4) top 3 demand drivers. Save as markdown.",
     "artifact_path": "tasks/market_overview.md",
     "depends_on": [],
-    "tool_names": ["web_search", "web_fetch", "write_file"]
+    "tool_names": ["<web-search tool>", "<file-write tool>"]
   },
   {
     "id": "competitor_profiles",
@@ -111,7 +114,7 @@ List the tasks by number with their titles and a one-sentence summary. Mention:
     "instruction": "Search for the top 5 EV manufacturers by 2024 sales volume. For each: name, HQ country, best-selling model, estimated market share %, and one strategic differentiator. Save as a JSON array.",
     "artifact_path": "tasks/competitor_profiles.json",
     "depends_on": [],
-    "tool_names": ["web_search", "web_fetch", "write_file"]
+    "tool_names": ["<web-search tool>", "<file-write tool>"]
   },
   {
     "id": "competitive_analysis",
@@ -120,7 +123,7 @@ List the tasks by number with their titles and a one-sentence summary. Mention:
     "instruction": "Read tasks/market_overview.md and tasks/competitor_profiles.json. Synthesize into a competitive analysis report with sections: Executive Summary, Market Landscape, Competitor Comparison Table, Key Takeaways. Save as markdown.",
     "artifact_path": "tasks/competitive_analysis.md",
     "depends_on": ["market_overview", "competitor_profiles"],
-    "tool_names": ["read_file", "write_file"]
+    "tool_names": ["<file-read tool>", "<file-write tool>"]
   }
 ]
 ```

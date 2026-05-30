@@ -5,6 +5,7 @@ import multer from "multer";
 import { attachWebSocketGateway } from "./common/realtime/ws-gateway.js";
 import { SessionTraceHub } from "./common/realtime/session-trace-hub.js";
 import { AgentLoop, AgentType, AgentRuntimeFactory, registerDelegateToolOnce } from "./core/index.js";
+import { ListCapabilitiesTool } from "./capabilities/core/tools/list-capabilities.js";
 import { createLlmAdapter } from "./llm-adapters/factory.js";
 import { MemoryManager } from "./managers/memory-manager.js";
 import { ProfileManager } from "./managers/profile-manager.js";
@@ -65,6 +66,10 @@ async function main() {
   });
   registerDelegateToolOnce(toolRegistry, agentRuntimeFactory.delegateTool);
   registerDelegateToolOnce(toolRegistry, agentRuntimeFactory.orchestrateTool);
+  registerDelegateToolOnce(
+    toolRegistry,
+    new ListCapabilitiesTool(toolRegistry, skillRegistry),
+  );
 
   const agentLoop = new AgentLoop({
     llm,

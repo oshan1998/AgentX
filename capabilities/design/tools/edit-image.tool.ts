@@ -45,7 +45,7 @@ export const editImageInputSchema = z.object({
     .string()
     .optional()
     .describe(
-      "Workspace-relative mask image for inpaint/outpaint modes. White pixels = region to edit; black = preserve.",
+      "Workspace-relative mask image for inpaint/outpaint modes (white = edit region). Optional for background_swap — Imagen auto-detects the background when omitted.",
     ),
   aspectRatio: z
     .enum(["1:1", "3:4", "4:3", "9:16", "16:9"])
@@ -144,6 +144,9 @@ export class EditImageTool implements Tool {
         maskMimeType = mask.mimeType;
       }
 
+      const maskAutoMode =
+        !parsed.maskPath && mode === "background_swap" ? ("background" as const) : undefined;
+
       const result = await editImage({
         prompt: parsed.prompt,
         mode,
@@ -151,6 +154,7 @@ export class EditImageTool implements Tool {
         sourceMimeType: source.mimeType,
         maskImage,
         maskMimeType,
+        maskAutoMode,
         aspectRatio: parsed.aspectRatio,
         negativePrompt: parsed.negativePrompt,
         upscaleFactor: parsed.upscaleFactor,

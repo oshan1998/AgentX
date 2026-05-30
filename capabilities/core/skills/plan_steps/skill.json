@@ -15,6 +15,7 @@
     "required": ["objective"]
   },
   "toolNames": [
+    "list_capabilities",
     "read_task_plan",
     "write_task_plan",
     "patch_task_plan_task"

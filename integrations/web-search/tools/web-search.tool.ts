@@ -24,8 +24,7 @@ export const webSearchInputSchema = z.object({
     .describe("1–10; default 5."),
   includeImages: z
     .boolean()
-    .optional()
-    .describe("Whether to include a list of relevant image URLs in the response."),
+    .describe("Whether to include a list of relevant image URLs in the response. This is useful for image retrievals."),
 });
 
 export type WebSearchInput = z.infer<typeof webSearchInputSchema>;

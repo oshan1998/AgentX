@@ -2,8 +2,8 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 import { z } from "zod";
-import { removeBackground } from "@imgly/background-removal-node";
 import type { Tool, ToolContext } from "../../../common/interfaces/types.js";
+import { removeBackground } from "../../../common/services/image-remove-background.js";
 import { logger } from "../../../common/services/logger.js";
 import { parseToolInput, zodSchemaToJsonInputSchema } from "../../../common/services/zod-tool-schema.js";
 import {
@@ -19,36 +19,50 @@ export const removeBackgroundInputSchema = z.object({
   outputPath: z
     .string()
     .optional()
-    .describe("Optional Workspace-relative output path for the transparent background image (e.g. assets/transparent.png)."),
+    .describe("Optional workspace-relative output path for the transparent background image (e.g. assets/transparent.png)."),
   maskOutputPath: z
     .string()
     .optional()
-    .describe("Optional Workspace-relative output path for the B/W mask image (e.g. assets/mask.png)."),
+    .describe(
+      "Optional workspace-relative output path for a B/W background mask (white = replace) for edit_image background_swap.",
+    ),
 }).refine(data => data.outputPath || data.maskOutputPath, {
   message: "Either outputPath or maskOutputPath must be provided",
 });
 
+function sharpFormatToMime(format: string | undefined): string {
+  switch (format) {
+    case "jpeg":
+      return "image/jpeg";
+    case "webp":
+      return "image/webp";
+    case "png":
+      return "image/png";
+    default:
+      return "image/png";
+  }
+}
+
 export class RemoveBackgroundTool implements Tool {
   name = "remove_background";
   description =
-    "Remove the background from an image, outputting a transparent PNG, a black-and-white mask, or both. The mask can be used directly with edit_image background_swap.";
+    "Remove the background from an image, outputting a transparent PNG, a background mask, or both. Uses Vertex AI segmentation when available, otherwise falls back to Gemini vision segmentation. The mask (white = background) can be used with edit_image background_swap, or omit maskPath and use background_swap with auto-detection.";
   inputSchema = zodSchemaToJsonInputSchema(removeBackgroundInputSchema);
 
   async run(input: Record<string, unknown>, context: ToolContext): Promise<unknown> {
     const parsed = parseToolInput(this.name, removeBackgroundInputSchema, input);
 
     try {
-      logger.info(`Removing background for image ${parsed.sourcePath}`);
+      logger.info(`Removing background for image ${parsed.sourcePath} via Vertex AI`);
 
       const absSource = resolveWorkspacePath(DEFAULT_WORKSPACE_BASE, context.sessionId, parsed.sourcePath);
-      
       const sourceBuffer = await readFile(absSource);
-      
-      const blob = new Blob([sourceBuffer]);
-      
-      const resultBlob = await removeBackground(blob);
-      const arrayBuffer = await resultBlob.arrayBuffer();
-      const transparentBuffer = Buffer.from(arrayBuffer);
+      const sourceMeta = await sharp(absSource).metadata();
+
+      const result = await removeBackground({
+        sourceImage: sourceBuffer,
+        sourceMimeType: sharpFormatToMime(sourceMeta.format),
+      });
 
       let savedTransparent = false;
       let savedMask = false;
@@ -56,21 +70,18 @@ export class RemoveBackgroundTool implements Tool {
       if (parsed.outputPath) {
         const absOutput = resolveWorkspacePath(DEFAULT_WORKSPACE_BASE, context.sessionId, parsed.outputPath);
         await mkdir(path.dirname(absOutput), { recursive: true });
-        await writeFile(absOutput, transparentBuffer);
+        await writeFile(absOutput, result.transparentBuffer);
         savedTransparent = true;
       }
 
       if (parsed.maskOutputPath) {
-        const absMaskOutput = resolveWorkspacePath(DEFAULT_WORKSPACE_BASE, context.sessionId, parsed.maskOutputPath);
+        const absMaskOutput = resolveWorkspacePath(
+          DEFAULT_WORKSPACE_BASE,
+          context.sessionId,
+          parsed.maskOutputPath,
+        );
         await mkdir(path.dirname(absMaskOutput), { recursive: true });
-        
-        const maskBuffer = await sharp(transparentBuffer)
-          .extractChannel('alpha')
-          .toColorspace('b-w')
-          .png()
-          .toBuffer();
-          
-        await writeFile(absMaskOutput, maskBuffer);
+        await writeFile(absMaskOutput, result.backgroundMaskBuffer);
         savedMask = true;
       }
 
@@ -81,6 +92,8 @@ export class RemoveBackgroundTool implements Tool {
         maskOutputPath: parsed.maskOutputPath ?? null,
         savedTransparent,
         savedMask,
+        provider: result.provider,
+        model: result.model,
         message: "Background removed successfully.",
       };
     } catch (error) {

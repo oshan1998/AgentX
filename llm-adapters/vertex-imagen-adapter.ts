@@ -5,6 +5,7 @@ import {
   MaskReferenceMode,
   PersonGeneration,
   RawReferenceImage,
+  SegmentMode,
 } from "@google/genai";
 import type {
   ImageEditInput,
@@ -12,7 +13,10 @@ import type {
   ImageGenAdapter,
   ImageGenInput,
   ImageGenResult,
+  ImageMaskAutoMode,
   PersonGenerationSetting,
+  RemoveBackgroundInput,
+  ForegroundMaskResult,
 } from "../common/interfaces/types.js";
 import { resolveVertexLocation, resolveVertexProject } from "./vertex-config.js";
 
@@ -22,6 +26,7 @@ export interface VertexImagenAdapterOptions {
   model?: string;
   editModel?: string;
   upscaleModel?: string;
+  segmentationModel?: string;
 }
 
 const EDIT_MODE_MAP: Record<Exclude<ImageEditMode, "upscale">, EditMode> = {
@@ -31,6 +36,11 @@ const EDIT_MODE_MAP: Record<Exclude<ImageEditMode, "upscale">, EditMode> = {
   outpaint: EditMode.EDIT_MODE_OUTPAINT,
   background_swap: EditMode.EDIT_MODE_BGSWAP,
   style: EditMode.EDIT_MODE_STYLE,
+};
+
+const MASK_AUTO_MODE_MAP: Record<ImageMaskAutoMode, MaskReferenceMode> = {
+  background: MaskReferenceMode.MASK_MODE_BACKGROUND,
+  foreground: MaskReferenceMode.MASK_MODE_FOREGROUND,
 };
 
 function resolvePersonGeneration(override?: PersonGenerationSetting): PersonGeneration {
@@ -85,6 +95,7 @@ export class VertexImagenAdapter implements ImageGenAdapter {
   readonly model: string;
   private readonly editModel: string;
   private readonly upscaleModel: string;
+  private readonly segmentationModel: string;
   private readonly client: GoogleGenAI;
 
   constructor(options: VertexImagenAdapterOptions = {}) {
@@ -97,6 +108,10 @@ export class VertexImagenAdapter implements ImageGenAdapter {
       options.upscaleModel?.trim() ||
       process.env.IMAGEN_UPSCALE_MODEL?.trim() ||
       "imagen-4.0-upscale-preview";
+    this.segmentationModel =
+      options.segmentationModel?.trim() ||
+      process.env.IMAGEN_SEGMENTATION_MODEL?.trim() ||
+      "image-segmentation-001";
     this.client = new GoogleGenAI({
       vertexai: true,
       project: options.projectId ?? resolveVertexProject(),
@@ -149,6 +164,15 @@ export class VertexImagenAdapter implements ImageGenAdapter {
       };
       maskReference.config = {
         maskMode: MaskReferenceMode.MASK_MODE_USER_PROVIDED,
+        ...(input.maskDilation !== undefined ? { maskDilation: input.maskDilation } : {}),
+      };
+      referenceImages.push(maskReference);
+    } else if (input.maskAutoMode) {
+      const maskReference = new MaskReferenceImage();
+      maskReference.referenceId = 2;
+      maskReference.config = {
+        maskMode: MASK_AUTO_MODE_MAP[input.maskAutoMode],
+        maskDilation: input.maskDilation ?? 0,
       };
       referenceImages.push(maskReference);
     }
@@ -195,5 +219,33 @@ export class VertexImagenAdapter implements ImageGenAdapter {
       this.upscaleModel,
       response.generatedImages?.[0]?.image?.mimeType,
     );
+  }
+
+  async removeBackground(input: RemoveBackgroundInput): Promise<ForegroundMaskResult> {
+    const response = await this.client.models.segmentImage({
+      model: this.segmentationModel,
+      source: {
+        image: {
+          imageBytes: input.sourceImage.toString("base64"),
+          mimeType: input.sourceMimeType,
+        },
+      },
+      config: {
+        mode: SegmentMode.FOREGROUND,
+        maskDilation: 0,
+        binaryColorThreshold: -1,
+      },
+    });
+
+    const maskBytes = response.generatedMasks?.[0]?.mask?.imageBytes;
+    if (!maskBytes) {
+      throw new Error("Background removal returned no foreground mask.");
+    }
+
+    return {
+      foregroundMaskBuffer: Buffer.from(maskBytes, "base64"),
+      provider: this.provider,
+      model: this.segmentationModel,
+    };
   }
 }

@@ -146,6 +146,8 @@ export type ImageEditMode =
   | "style"
   | "upscale";
 
+export type ImageMaskAutoMode = "background" | "foreground";
+
 export interface ImageEditInput {
   /** Text instruction for the edit. Required for all modes except upscale. */
   prompt?: string;
@@ -156,12 +158,38 @@ export interface ImageEditInput {
   /** Optional mask image for inpaint/outpaint modes (white = edit region). */
   maskImage?: Buffer;
   maskMimeType?: string;
+  /** When set without maskImage, Imagen auto-generates the mask (e.g. background for background_swap). */
+  maskAutoMode?: ImageMaskAutoMode;
+  /** Mask dilation for auto-generated masks. Float 0–1. Default 0 for product shots. */
+  maskDilation?: number;
   aspectRatio?: string;
   negativePrompt?: string;
   /** Upscale factor when mode is upscale. Default x2. */
   upscaleFactor?: "x2" | "x4";
   /** Person-generation safety setting. Defaults from IMAGEN_PERSON_GENERATION env (allow_all). */
   personGeneration?: PersonGenerationSetting;
+}
+
+export interface RemoveBackgroundInput {
+  sourceImage: Buffer;
+  sourceMimeType: string;
+}
+
+export interface RemoveBackgroundResult {
+  /** PNG with the original foreground and transparent background. */
+  transparentBuffer: Buffer;
+  /** Grayscale PNG mask (white = foreground, black = background). */
+  foregroundMaskBuffer: Buffer;
+  /** Grayscale PNG mask (white = background) for edit_image background_swap. */
+  backgroundMaskBuffer: Buffer;
+  provider: string;
+  model: string;
+}
+
+export interface ForegroundMaskResult {
+  foregroundMaskBuffer: Buffer;
+  provider: string;
+  model: string;
 }
 
 export interface ImageGenResult {
@@ -177,6 +205,7 @@ export interface ImageGenAdapter {
   readonly model: string;
   generateImage(input: ImageGenInput): Promise<ImageGenResult>;
   editImage(input: ImageEditInput): Promise<ImageGenResult>;
+  removeBackground(input: RemoveBackgroundInput): Promise<ForegroundMaskResult>;
 }
 
 export enum SkillStepType {
