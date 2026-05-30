@@ -85,7 +85,7 @@ function inferFormat(
 export class ExportMultiSizeTool implements Tool {
   name = "export_multi_size";
   description =
-    "Export a source image to multiple platform sizes using named presets and/or explicit variants.";
+    "Batch-export a source image to multiple platform sizes at once, using named presets (e.g. instagram_post) and/or explicit width/height variants.";
   inputSchema = zodSchemaToJsonInputSchema(exportMultiSizeInputSchema);
 
   async run(input: Record<string, unknown>, context: ToolContext): Promise<unknown> {

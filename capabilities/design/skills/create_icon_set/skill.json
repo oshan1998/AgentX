@@ -2,7 +2,7 @@
   "schemaVersion": "1",
   "kind": "agentic",
   "name": "create_icon_set",
-  "description": "Create a consistent set of simple icons as SVG files and optional PNG exports from a style brief and icon names list.",
+  "description": "Generate a matching set of SVG icons (and optional PNG exports) from a list of icon names and a visual style brief.",
   "inputSchema": {
     "type": "object",
     "properties": {

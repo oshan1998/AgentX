@@ -2,7 +2,7 @@
   "schemaVersion": "1",
   "kind": "agentic",
   "name": "prepare_images_for_design",
-  "description": "Download image URLs into the workspace, read metadata, and normalize dimensions for use in design skills.",
+  "description": "Download images from URLs into the workspace, read their metadata, and normalise dimensions — ready for use in other design skills.",
   "inputSchema": {
     "type": "object",
     "properties": {

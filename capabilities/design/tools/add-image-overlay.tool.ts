@@ -105,7 +105,7 @@ function inferFormat(
 export class AddImageOverlayTool implements Tool {
   name = "add_image_overlay";
   description =
-    "Overlay text and/or additional images on a base workspace image (social captions, logos, badges).";
+    "Stamp text labels and/or image overlays (logos, badges) onto a base workspace image and save the result.";
   inputSchema = zodSchemaToJsonInputSchema(addImageOverlayInputSchema);
 
   async run(input: Record<string, unknown>, context: ToolContext): Promise<unknown> {

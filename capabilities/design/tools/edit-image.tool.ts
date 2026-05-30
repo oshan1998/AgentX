@@ -116,7 +116,7 @@ async function loadWorkspaceImage(
 export class EditImageTool implements Tool {
   name = "edit_image";
   description =
-    "AI-edit or upscale an existing workspace image using Vertex Imagen. Supports general enhancement, inpainting, background swap, style transfer, and x2/x4 upscaling.";
+    "AI-edit an existing workspace image using Vertex Imagen. Supports general enhancement, inpainting (insert/remove), outpainting, background swap, style transfer, and x2/x4 upscaling.";
   inputSchema = zodSchemaToJsonInputSchema(editImageInputSchema);
 
   async run(input: Record<string, unknown>, context: ToolContext): Promise<unknown> {

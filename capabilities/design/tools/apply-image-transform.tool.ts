@@ -54,7 +54,7 @@ function inferFormat(
 export class ApplyImageTransformTool implements Tool {
   name = "apply_image_transform";
   description =
-    "Edit a workspace image: rotate, flip, crop region, adjust brightness/saturation/hue, blur, sharpen, or grayscale.";
+    "Apply non-destructive transforms to a workspace image: rotate, flip, crop region, adjust brightness, saturation, hue, blur, sharpen, or convert to grayscale.";
   inputSchema = zodSchemaToJsonInputSchema(applyImageTransformInputSchema);
 
   async run(input: Record<string, unknown>, context: ToolContext): Promise<unknown> {

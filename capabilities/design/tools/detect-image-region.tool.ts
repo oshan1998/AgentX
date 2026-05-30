@@ -24,7 +24,7 @@ export type DetectImageRegionInput = z.infer<typeof detectImageRegionInputSchema
 export class DetectImageRegionTool implements Tool {
   name = "detect_image_region";
   description =
-    "Find the exact pixel coordinates (left, top, width, height) of a specific object or region in an image. Returns coordinates ready to be used in crop operations.";
+    "Use vision AI to locate a specific object or region in an image and return its exact pixel bounding box (left, top, width, height). Useful before cropping.";
   inputSchema = zodSchemaToJsonInputSchema(detectImageRegionInputSchema);
 
   async run(input: Record<string, unknown>, context: ToolContext): Promise<unknown> {

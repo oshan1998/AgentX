@@ -44,6 +44,6 @@
     "render_html_to_png",
     "inspect_image"
   ],
-  "maxIterations": 16,
+  "maxIterations": 20,
   "deadlineMs": 180000
 }

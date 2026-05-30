@@ -39,7 +39,7 @@ function ensurePngExtension(outputPath: string): string {
 export class GenerateImageTool implements Tool {
   name = "generate_image";
   description =
-    "Generate an image from a text prompt using Google Imagen on Vertex AI. Saves PNG to the session workspace for use in designs.";
+    "Generate an image from a text prompt using AI (Google Imagen) and save the PNG to the session workspace.";
   inputSchema = zodSchemaToJsonInputSchema(generateImageInputSchema);
 
   async run(input: Record<string, unknown>, context: ToolContext): Promise<unknown> {

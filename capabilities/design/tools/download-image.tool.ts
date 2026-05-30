@@ -34,7 +34,7 @@ function ensureExtension(outputPath: string, ext: string): string {
 export class DownloadImageTool implements Tool {
   name = "download_image";
   description =
-    "Download an image from an HTTPS URL into the session workspace for use in designs.";
+    "Download an image from an HTTPS URL and save it to the session workspace for use in designs.";
   inputSchema = zodSchemaToJsonInputSchema(downloadImageInputSchema);
 
   async run(input: Record<string, unknown>, context: ToolContext): Promise<unknown> {

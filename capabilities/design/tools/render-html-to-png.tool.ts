@@ -60,7 +60,7 @@ export type RenderHtmlToPngInput = z.infer<typeof renderHtmlToPngInputSchema>;
 export class RenderHtmlToPngTool implements Tool {
   name = "render_html_to_png";
   description =
-    "Render a complete HTML document to a PNG image using headless Chrome. Use for social graphics, banners, and layout-first designs.";
+    "Render a full HTML document to a PNG screenshot using headless Chrome. Ideal for pixel-perfect social graphics, banners, and layout-driven designs.";
   inputSchema = zodSchemaToJsonInputSchema(renderHtmlToPngInputSchema);
 
   async run(input: Record<string, unknown>, context: ToolContext): Promise<unknown> {

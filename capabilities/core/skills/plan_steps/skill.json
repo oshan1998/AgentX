@@ -3,7 +3,7 @@
   "kind": "agentic",
   "model": "gemini-2.5-pro",
   "name": "plan_steps",
-  "description": "Break an objective into ordered steps with dependency relationships (DAG) and persist them to the session task plan (ids, statuses, depends_on, tool_names, optional notes and artifact_path pointers). Independent tasks can be executed in parallel via orchestrate_task_graph.",
+  "description": "Break an objective into an ordered task plan (DAG) with dependencies, statuses, and tool assignments. Independent tasks can later be run in parallel via orchestrate_task_graph.",
   "inputSchema": {
     "type": "object",
     "properties": {

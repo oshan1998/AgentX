@@ -2,7 +2,7 @@
   "schemaVersion": "1",
   "kind": "agentic",
   "name": "create_infographic",
-  "description": "Turn structured facts or data into a visual infographic PNG using HTML/CSS layout (charts, sections, icons as CSS/SVG).",
+  "description": "Transform structured facts or data into a visual infographic PNG using HTML/CSS layout. Does not invent data — only visualises what is supplied.",
   "inputSchema": {
     "type": "object",
     "properties": {

@@ -71,7 +71,7 @@ async function applyLayerOpacity(buffer: Buffer, opacity: number): Promise<Buffe
 export class ComposeLayersTool implements Tool {
   name = "compose_layers";
   description =
-    "Composite multiple workspace images onto a canvas and export a single PNG (position, resize, opacity, rotation, blend modes).";
+    "Stack multiple workspace images onto a canvas and export a single PNG. Supports per-layer position, size, opacity, rotation, and blend mode.";
   inputSchema = zodSchemaToJsonInputSchema(composeLayersInputSchema);
 
   async run(input: Record<string, unknown>, context: ToolContext): Promise<unknown> {

@@ -33,7 +33,7 @@ export const ORCHESTRATE_TASK_GRAPH_TOOL_NAME = "orchestrate_task_graph";
 export class OrchestrateTaskGraphTool implements Tool {
   readonly name = ORCHESTRATE_TASK_GRAPH_TOOL_NAME;
   readonly description =
-    "Execute the session task plan as a DAG: independent tasks run in parallel, dependent tasks wait on upstream completion. Use after plan_steps.";
+    "Run the session task plan as a DAG: independent tasks execute in parallel, dependent tasks wait for their upstream to complete. Use after plan_steps.";
   readonly inputSchema = zodSchemaToJsonInputSchema(orchestrateInputSchema);
 
   constructor(private readonly orchestrator: Orchestrator) {}

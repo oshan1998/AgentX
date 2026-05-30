@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1",
   "name": "summarize_document",
-  "description": "Summarize a document using read_file + LLM.",
+  "description": "Read a document from the workspace and return a concise bullet-point summary using an LLM.",
   "inputSchema": {
     "type": "object",
     "properties": {

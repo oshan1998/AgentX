@@ -31,7 +31,7 @@ export const removeBackgroundInputSchema = z.object({
 export class RemoveBackgroundTool implements Tool {
   name = "remove_background";
   description =
-    "Removes the background from an image. Can output the isolated transparent image, a black-and-white mask, or both. Useful for creating masks for background_swap in edit_image.";
+    "Remove the background from an image, outputting a transparent PNG, a black-and-white mask, or both. The mask can be used directly with edit_image background_swap.";
   inputSchema = zodSchemaToJsonInputSchema(removeBackgroundInputSchema);
 
   async run(input: Record<string, unknown>, context: ToolContext): Promise<unknown> {

@@ -11,7 +11,7 @@ export type AskUserInput = z.infer<typeof askUserInputSchema>;
 
 export class AskUserTool implements Tool {
   name = "ask_user";
-  description = "Create a follow-up question for the user.";
+  description = "Pause execution and ask the user a clarifying question when the request is ambiguous or missing critical details.";
   inputSchema = zodSchemaToJsonInputSchema(askUserInputSchema);
 
   async run(input: Record<string, unknown>, _context: ToolContext): Promise<unknown> {

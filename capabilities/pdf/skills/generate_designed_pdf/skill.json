@@ -2,7 +2,7 @@
   "schemaVersion": "1",
   "kind": "agentic",
   "name": "generate_designed_pdf",
-  "description": "Design and generate a professional PDF layout using the provided content, data, and file paths. This skill is responsible for transforming sufficient user-supplied content into a visually polished HTML/CSS design and then generating the final PDF through a focused sub-agent that handles presentation and formatting.",
+  "description": "Design and render a professional, visually styled PDF from supplied content using HTML/CSS layout and headless Chrome.",
   "inputSchema": {
     "type": "object",
     "properties": {

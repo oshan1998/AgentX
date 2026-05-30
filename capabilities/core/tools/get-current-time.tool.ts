@@ -33,7 +33,7 @@ export type GetCurrentTimeInput = z.infer<typeof getCurrentTimeInputSchema>;
 
 export class GetCurrentTimeTool implements Tool {
   name = "get_current_time";
-  description = "Get current date/time for a specific IANA timezone.";
+  description = "Return the current date and time for a given IANA timezone (e.g. Asia/Colombo, America/New_York).";
   inputSchema = zodSchemaToJsonInputSchema(getCurrentTimeInputSchema);
 
   async run(input: Record<string, unknown>, _context: ToolContext): Promise<unknown> {

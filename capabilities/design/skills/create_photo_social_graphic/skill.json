@@ -3,7 +3,7 @@
   "kind": "agentic",
   "model": "gemini-2.5-pro",
   "name": "create_photo_social_graphic",
-  "description": "Design a social graphic that uses photos (hero image, overlays, stock or supplied assets) with typography. Produces a PNG via HTML/CSS and/or raster compositing. Returns outputPath as the final deliverable — do not re-invoke for the same request; present the PNG to the user even when critique caveats remain.",
+  "description": "Design a photo-driven social graphic (hero image, overlays, typography) and render it to a PNG. Supports platform presets, supplied photos, stock search, or AI-generated imagery.",
   "inputSchema": {
     "type": "object",
     "properties": {
@@ -58,5 +58,5 @@
     "detect_image_region"
   ],
   "maxIterations": 24,
-  "deadlineMs": 600000
+  "deadlineMs": 180000
 }

@@ -53,7 +53,7 @@ function inferFormat(
 export class CropAndResizeTool implements Tool {
   name = "crop_and_resize";
   description =
-    "Crop and/or resize a workspace image to exact dimensions for platform-specific exports.";
+    "Resize a workspace image to exact pixel dimensions with configurable fit strategy (cover, contain, fill). Outputs PNG, JPEG, or WebP.";
   inputSchema = zodSchemaToJsonInputSchema(cropAndResizeInputSchema);
 
   async run(input: Record<string, unknown>, context: ToolContext): Promise<unknown> {

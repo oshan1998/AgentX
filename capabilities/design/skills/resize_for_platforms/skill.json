@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1",
   "name": "resize_for_platforms",
-  "description": "Export a source image to multiple social platform sizes using named presets.",
+  "description": "Resize and export a source image to multiple social-platform sizes using named presets (e.g. instagram_post, youtube_thumbnail).",
   "inputSchema": {
     "type": "object",
     "properties": {

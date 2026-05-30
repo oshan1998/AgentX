@@ -11,7 +11,7 @@ export type SearchMemoryInput = z.infer<typeof searchMemoryInputSchema>;
 
 export class SearchMemoryTool implements Tool {
   name = "search_memory";
-  description = "Search long-term memory entries by text.";
+  description = "Search long-term memory for stored facts, user preferences, and behavior rules by keyword or phrase.";
   inputSchema = zodSchemaToJsonInputSchema(searchMemoryInputSchema);
 
   constructor(private readonly memoryManager: MemoryManager) {}

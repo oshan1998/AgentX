@@ -67,9 +67,7 @@ export type DelegateSubAgentInput = z.infer<typeof delegateSubAgentInputSchema>;
 export class DelegateSubAgentTool implements Tool {
   readonly name = DELEGATE_SUB_AGENT_TOOL_NAME;
   readonly description =
-    "Delegate a focused sub-task to an isolated agent with its own session, allow-listed tools/skills, and budgets. " +
-    "Sub-agents cannot write long-term memory or profiles; they return results for you to persist. " +
-    "Do not include `delegate_sub_agent` in toolNames (recursion is blocked).";
+    "Delegate a self-contained task to an isolated sub-agent with its own tool/skill allowlist and iteration budget. Sub-agents cannot write long-term memory; they return results for you to persist. Do not include delegate_sub_agent in toolNames.";
   readonly inputSchema = zodSchemaToJsonInputSchema(delegateSubAgentInputSchema);
 
   constructor(private readonly runner: DelegateSubAgentRunner) {}

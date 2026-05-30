@@ -13,8 +13,7 @@ const readTaskPlanInputSchema = z.object({
 
 export class ReadTaskPlanTool implements Tool {
   name = "read_task_plan";
-  description =
-    "Read the task plan JSON: id, status, optional title, notes (short facts), artifact_path (relative workspace path to any output file). Resolves to the principal session when delegated.";
+  description = "Read the current session task plan, including task IDs, statuses, titles, notes, and output file paths.";
   inputSchema = zodSchemaToJsonInputSchema(readTaskPlanInputSchema);
 
   constructor(private readonly memoryManager: MemoryManager) {}

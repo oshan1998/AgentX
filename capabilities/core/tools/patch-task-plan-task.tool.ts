@@ -11,8 +11,7 @@ import {
 
 export class PatchTaskPlanTaskTool implements Tool {
   name = "patch_task_plan_task";
-  description =
-    "Update or append one task by id (status, title, notes, artifact_path, blocked_reason). Writes to the principal session plan when running delegated.";
+  description = "Update a single task in the plan by ID, or append it if not found. Fields: status, title, notes, artifact_path, blocked_reason.";
   inputSchema = zodSchemaToJsonInputSchema(patchTaskPlanTaskInputSchema);
 
   constructor(private readonly memoryManager: MemoryManager) {}

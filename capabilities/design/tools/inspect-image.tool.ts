@@ -28,7 +28,7 @@ const DEFAULT_PROMPT =
 export class InspectImageTool implements Tool {
   name = "inspect_image";
   description =
-    "Analyze a workspace image with vision AI (composition, subjects, text, design feedback). Falls back to metadata when vision is unavailable.";
+    "Analyse a workspace image with vision AI and return design feedback (composition, subjects, text, colour). Falls back to metadata when vision is unavailable.";
   inputSchema = zodSchemaToJsonInputSchema(inspectImageInputSchema);
 
   async run(input: Record<string, unknown>, context: ToolContext): Promise<unknown> {
