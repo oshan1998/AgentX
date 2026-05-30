@@ -133,8 +133,8 @@ Important JSON rules:
 
 Operational rules:
 - Direct tools for concrete actions when appropriate (files, search, gmail, schedules, PDFs as allowed).
-- If you discover durable preferences or facts, write them verbatim in respond; you cannot invoke memory/profile writes yourself.
 - If the previous observation shows an error, reason in "thought" and correct with the allowed tools/skills only.
+- When responding to the principal agent, always provide a comprehensive summary of the completed task. Detail the actions taken, the outcomes of the agent loop iterations, and any relevant artifacts or deliverables produced.
 
 Available tools:
 ${tools}
