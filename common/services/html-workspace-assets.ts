@@ -1,25 +1,26 @@
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import {
   DEFAULT_WORKSPACE_BASE,
   normalizeWorkspaceRelativePath,
   resolveWorkspacePath,
 } from "./workspace-path.js";
+import { logger } from "./logger.js";
 
-/** Matches src/href or url() values that look like workspace-relative asset paths. */
-const ASSET_PATH_PATTERN =
-  /((?:src|href)\s*=\s*["']|url\(\s*["']?)(?!https?:\/\/|data:|file:|#)([^"')]+)(["']?\)?)/gi;
-
-/** Like ASSET_PATH_PATTERN but also matches file:// refs for inlining. */
+/** Matches src/href or url() values that look like local asset paths. */
 const LOCAL_ASSET_PATTERN =
   /((?:src|href)\s*=\s*["']|url\(\s*["']?)(?!https?:\/\/|data:|#)([^"')]+)(["']?\)?)/gi;
 
-function isWorkspaceRelativeAsset(ref: string): boolean {
-  const trimmed = ref.trim();
-  if (!trimmed.length) return false;
-  if (trimmed.startsWith("//")) return false;
-  return !trimmed.includes("://");
-}
+const SRCSET_PATTERN = /srcset\s*=\s*["']([^"']+)["']/gi;
+
+/** HTTP URLs pointing at a session workspace file → workspace-relative path. */
+const SESSION_WORKSPACE_URL_PATTERN =
+  /https?:\/\/[^/"'\s)]+\/workspace\/sessions\/[^/"'\s)]+\/workspace\/([^"'\s)]+)/gi;
+
+export type EmbedWorkspaceAssetsResult = {
+  html: string;
+  warnings: string[];
+};
 
 function mimeForPath(absPath: string): string {
   const ext = path.extname(absPath).toLowerCase();
@@ -42,95 +43,138 @@ function mimeForPath(absPath: string): string {
   }
 }
 
+/** Normalize refs agents may emit (localhost workspace URLs, ./ prefixes, workspace/ prefix). */
+export function normalizeAssetRef(ref: string): string {
+  const trimmed = ref.trim();
+  const sessionMatch = trimmed.match(/\/workspace\/sessions\/[^/]+\/workspace\/(.+)$/i);
+  if (sessionMatch?.[1]) {
+    return normalizeWorkspaceRelativePath(sessionMatch[1]);
+  }
+  return normalizeWorkspaceRelativePath(trimmed.replace(/^\.\//, ""));
+}
+
 function resolveLocalAssetToAbsolute(
   ref: string,
   sessionId: string,
   memoryBase: string,
 ): string | null {
-  const trimmed = ref.trim();
-  if (!trimmed.length || trimmed.startsWith("//")) return null;
-  if (/^https?:\/\//i.test(trimmed) || trimmed.startsWith("data:") || trimmed.startsWith("#")) {
+  const normalized = normalizeAssetRef(ref);
+  if (!normalized.length || normalized.startsWith("//")) return null;
+  if (/^https?:\/\//i.test(normalized) || normalized.startsWith("data:") || normalized.startsWith("#")) {
     return null;
   }
 
-  if (trimmed.startsWith("file://")) {
+  if (ref.trim().startsWith("file://")) {
     try {
-      return fileURLToPath(trimmed);
+      return fileURLToPath(ref.trim());
     } catch {
       return null;
     }
   }
 
-  if (trimmed.includes("://")) return null;
+  if (normalized.includes("://")) return null;
 
-  const normalized = normalizeWorkspaceRelativePath(trimmed);
   return resolveWorkspacePath(memoryBase, sessionId, normalized);
 }
 
-function toFileUrl(memoryBase: string, sessionId: string, relativePath: string): string {
-  const normalized = normalizeWorkspaceRelativePath(relativePath);
-  const abs = resolveWorkspacePath(memoryBase, sessionId, normalized);
-  return pathToFileURL(abs).href;
-}
-
-/**
- * Rewrites workspace-relative image URLs in HTML to file:// URLs
- * so headless Chrome can load session assets.
- */
-export function resolveWorkspaceAssetsInHtml(
-  html: string,
-  sessionId: string,
-  memoryBase: string = DEFAULT_WORKSPACE_BASE,
-): string {
-  return html.replace(ASSET_PATH_PATTERN, (match, prefix, assetPath, suffix) => {
-    if (!isWorkspaceRelativeAsset(assetPath)) {
-      return match;
+function collectSrcsetAssetRefs(html: string): string[] {
+  const refs: string[] = [];
+  for (const match of html.matchAll(SRCSET_PATTERN)) {
+    const srcsetValue = match[1];
+    if (!srcsetValue) continue;
+    for (const candidate of srcsetValue.split(",")) {
+      const url = candidate.trim().split(/\s+/)[0];
+      if (url && !/^https?:\/\//i.test(url) && !url.startsWith("data:")) {
+        refs.push(url);
+      }
     }
-    const fileUrl = toFileUrl(memoryBase, sessionId, assetPath);
-    return `${prefix}${fileUrl}${suffix}`;
+  }
+  return refs;
+}
+
+function rewriteSessionWorkspaceUrls(html: string): string {
+  return html.replace(SESSION_WORKSPACE_URL_PATTERN, (_, relPath: string) =>
+    normalizeWorkspaceRelativePath(relPath),
+  );
+}
+
+function replaceAssetRefInHtml(html: string, assetRef: string, replacement: string): string {
+  const escaped = assetRef.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  let result = html.replace(
+    new RegExp(
+      `((?:src|href)\\s*=\\s*["']|url\\(\\s*["']?)${escaped}(["']?\\)?)`,
+      "gi",
+    ),
+    `$1${replacement}$2`,
+  );
+
+  result = result.replace(SRCSET_PATTERN, (match, srcsetValue: string) => {
+    let updated = srcsetValue;
+    for (const part of srcsetValue.split(",")) {
+      const trimmedPart = part.trim();
+      const url = trimmedPart.split(/\s+/)[0];
+      if (url === assetRef) {
+        updated = updated.replace(url, replacement);
+      }
+    }
+    return match.replace(srcsetValue, updated);
   });
+
+  return result;
 }
 
 /**
- * Inlines local workspace assets (workspace-relative or file:// paths) as data: URIs.
- * Required for Puppeteer setContent(), which blocks file:// subresources from about:blank.
+ * Inlines local workspace assets (workspace-relative, file://, or session workspace HTTP URLs)
+ * as data: URIs. Required for Puppeteer setContent(), which blocks file:// subresources
+ * from about:blank.
  */
 export async function embedWorkspaceImagesInHtml(
   html: string,
   sessionId: string,
   memoryBase: string = DEFAULT_WORKSPACE_BASE,
-): Promise<string> {
+): Promise<EmbedWorkspaceAssetsResult> {
   const { readFile } = await import("node:fs/promises");
 
-  let result = html;
+  const warnings: string[] = [];
+  let result = rewriteSessionWorkspaceUrls(html);
   const seen = new Map<string, string>();
+  const assetRefs = new Set<string>();
 
-  for (const match of html.matchAll(LOCAL_ASSET_PATTERN)) {
+  for (const match of result.matchAll(LOCAL_ASSET_PATTERN)) {
     const assetRef = match[2]?.trim();
-    if (!assetRef || seen.has(assetRef)) continue;
+    if (assetRef) assetRefs.add(assetRef);
+  }
+  for (const ref of collectSrcsetAssetRefs(result)) {
+    assetRefs.add(ref);
+  }
+
+  for (const assetRef of assetRefs) {
+    if (seen.has(assetRef)) continue;
 
     const abs = resolveLocalAssetToAbsolute(assetRef, sessionId, memoryBase);
-    if (!abs) continue;
+    if (!abs) {
+      if (!/^https?:\/\//i.test(assetRef) && !assetRef.startsWith("data:")) {
+        const message = `Could not embed workspace asset "${assetRef}": not a resolvable workspace path`;
+        warnings.push(message);
+        logger.warn(message);
+      }
+      continue;
+    }
 
     try {
       const buffer = await readFile(abs);
       const dataUri = `data:${mimeForPath(abs)};base64,${buffer.toString("base64")}`;
       seen.set(assetRef, dataUri);
     } catch {
-      // leave original path if file missing
+      const message = `Could not embed workspace asset "${assetRef}": file not found or unreadable`;
+      warnings.push(message);
+      logger.warn(message);
     }
   }
 
   for (const [assetRef, dataUri] of seen) {
-    const escaped = assetRef.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    result = result.replace(
-      new RegExp(
-        `((?:src|href)\\s*=\\s*["']|url\\(\\s*["']?)${escaped}(["']?\\)?)`,
-        "gi",
-      ),
-      `$1${dataUri}$2`,
-    );
+    result = replaceAssetRefInHtml(result, assetRef, dataUri);
   }
 
-  return result;
+  return { html: result, warnings };
 }

@@ -2,10 +2,7 @@ import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import type { Tool, ToolContext } from "../../../common/interfaces/types.js";
-import {
-  embedWorkspaceImagesInHtml,
-  resolveWorkspaceAssetsInHtml,
-} from "../../../common/services/html-workspace-assets.js";
+import { embedWorkspaceImagesInHtml } from "../../../common/services/html-workspace-assets.js";
 import { withBrowserPage } from "../../../common/services/puppeteer-browser.js";
 import { logger } from "../../../common/services/logger.js";
 import { parseToolInput, zodSchemaToJsonInputSchema } from "../../../common/services/zod-tool-schema.js";
@@ -28,17 +25,11 @@ export const generateDesignedPdfInputSchema = z.object({
     .union([z.boolean(), z.literal("true")])
     .optional()
     .describe("Optional; portrait if omitted/false."),
-  resolveWorkspaceAssets: z
-    .boolean()
-    .optional()
-    .describe(
-      "When true, rewrite workspace-relative img/src and css url() paths to file://. Default false; prefer embedWorkspaceAssets.",
-    ),
   embedWorkspaceAssets: z
     .boolean()
     .optional()
     .describe(
-      "When true, inline local workspace images as data: URIs so they render via setContent(). Default true.",
+      "When true (default), inline local workspace images as data: URIs so they render via setContent(). Use workspace-relative paths in HTML (e.g. assets/photo.jpg).",
     ),
 });
 
@@ -60,7 +51,6 @@ export class GenerateDesignedPdfTool implements Tool {
     const format = parsed.format ?? "A4";
     const landscape = parsed.landscape === "true" || parsed.landscape === true;
     const embedWorkspaceAssets = parsed.embedWorkspaceAssets ?? true;
-    const resolveWorkspaceAssets = parsed.resolveWorkspaceAssets ?? false;
 
     try {
       logger.info(`Starting designed PDF generation for: ${parsed.outputPath}`);
@@ -68,18 +58,20 @@ export class GenerateDesignedPdfTool implements Tool {
       await mkdir(path.dirname(absOutputPath), { recursive: true });
 
       let html = parsed.html;
+      const assetWarnings: string[] = [];
       if (embedWorkspaceAssets) {
-        html = await embedWorkspaceImagesInHtml(
+        const embedded = await embedWorkspaceImagesInHtml(
           html,
           context.sessionId,
           DEFAULT_WORKSPACE_BASE,
         );
-      } else if (resolveWorkspaceAssets) {
-        html = resolveWorkspaceAssetsInHtml(
-          html,
-          context.sessionId,
-          DEFAULT_WORKSPACE_BASE,
+        html = embedded.html;
+        assetWarnings.push(...embedded.warnings);
+      } else {
+        assetWarnings.push(
+          "embedWorkspaceAssets is disabled; workspace-relative images may not appear in the PDF.",
         );
+        logger.warn(assetWarnings[0]!);
       }
 
       await withBrowserPage(async (page) => {
@@ -108,6 +100,7 @@ export class GenerateDesignedPdfTool implements Tool {
         success: true,
         outputPath: parsed.outputPath,
         message: "PDF generated successfully with custom design.",
+        ...(assetWarnings.length ? { warnings: assetWarnings } : {}),
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

@@ -2,10 +2,7 @@ import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import type { Tool, ToolContext } from "../../../common/interfaces/types.js";
-import {
-  embedWorkspaceImagesInHtml,
-  resolveWorkspaceAssetsInHtml,
-} from "../../../common/services/html-workspace-assets.js";
+import { embedWorkspaceImagesInHtml } from "../../../common/services/html-workspace-assets.js";
 import { withBrowserPage } from "../../../common/services/puppeteer-browser.js";
 import { logger } from "../../../common/services/logger.js";
 import { parseToolInput, zodSchemaToJsonInputSchema } from "../../../common/services/zod-tool-schema.js";
@@ -41,17 +38,11 @@ export const renderHtmlToPngInputSchema = z.object({
     .positive()
     .optional()
     .describe("Pixel density multiplier (e.g. 2 for retina). Default 1."),
-  resolveWorkspaceAssets: z
-    .boolean()
-    .optional()
-    .describe(
-      "When true, rewrite workspace-relative img/src and css url() paths to file://. Default false; prefer embedWorkspaceAssets.",
-    ),
   embedWorkspaceAssets: z
     .boolean()
     .optional()
     .describe(
-      "When true, inline local workspace images as data: URIs so they render via setContent(). Default true.",
+      "When true (default), inline local workspace images as data: URIs so they render via setContent(). Use workspace-relative paths in HTML (e.g. assets/photo.jpg).",
     ),
 });
 
@@ -75,25 +66,26 @@ export class RenderHtmlToPngTool implements Tool {
     const fullPage = parsed.fullPage ?? false;
     const deviceScaleFactor = parsed.deviceScaleFactor ?? 1;
     const embedWorkspaceAssets = parsed.embedWorkspaceAssets ?? true;
-    const resolveWorkspaceAssets = parsed.resolveWorkspaceAssets ?? false;
 
     try {
       logger.info(`Rendering HTML to PNG: ${parsed.outputPath}`);
       await mkdir(path.dirname(absOutputPath), { recursive: true });
 
       let html = parsed.html;
+      const assetWarnings: string[] = [];
       if (embedWorkspaceAssets) {
-        html = await embedWorkspaceImagesInHtml(
+        const embedded = await embedWorkspaceImagesInHtml(
           html,
           context.sessionId,
           DEFAULT_WORKSPACE_BASE,
         );
-      } else if (resolveWorkspaceAssets) {
-        html = resolveWorkspaceAssetsInHtml(
-          html,
-          context.sessionId,
-          DEFAULT_WORKSPACE_BASE,
+        html = embedded.html;
+        assetWarnings.push(...embedded.warnings);
+      } else {
+        assetWarnings.push(
+          "embedWorkspaceAssets is disabled; workspace-relative images may not appear in the PNG.",
         );
+        logger.warn(assetWarnings[0]!);
       }
 
       await withBrowserPage(async (page) => {
@@ -117,6 +109,7 @@ export class RenderHtmlToPngTool implements Tool {
         height,
         fullPage,
         message: "PNG generated from HTML.",
+        ...(assetWarnings.length ? { warnings: assetWarnings } : {}),
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

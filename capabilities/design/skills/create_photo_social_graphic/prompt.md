@@ -282,7 +282,7 @@ Requirements:
 - premium visual quality
 - responsive scaling
 - layered composition
-- proper asset references
+- workspace-relative asset paths in `src` and CSS `url()` (e.g. `assets/hero.jpg`, `uploads/photo.jpeg`) — not `http://localhost/...` URLs
 
 Prefer semantic structure.
 

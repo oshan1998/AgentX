@@ -10,22 +10,22 @@ The input JSON provided to this task is the **single source of truth**.
 
 Read:
 
-* `content` (required)
-* `outputPath` (required)
-* `designBrief` (optional)
-* `format` (optional)
-* `landscape` (optional)
+- `content` (required)
+- `outputPath` (required)
+- `designBrief` (optional)
+- `format` (optional)
+- `landscape` (optional)
 
 Optional future fields:
 
-* `title`
-* `subtitle`
-* `author`
-* `theme`
-* `brand`
-* `pageNumbers`
-* `header`
-* `footer`
+- `title`
+- `subtitle`
+- `author`
+- `theme`
+- `brand`
+- `pageNumbers`
+- `header`
+- `footer`
 
 Ignore unknown fields safely.
 
@@ -49,28 +49,27 @@ This is a **document renderer**, not a content writer.
 
 Never:
 
-* invent facts
-* rewrite meaning
-* summarize
-* remove information
-* add examples
-* create fictional values
-* generate placeholder text
-* infer missing business details
+- invent facts
+- rewrite meaning
+- summarize
+- remove information
+- add examples
+- create fictional values
+- generate placeholder text
+- infer missing business details
 
 Allowed:
 
-* reorganize layout
-* split into sections
-* add headings
-* convert text into:
-
-  * lists
-  * tables
-  * cards
-  * columns
-  * timelines
-  * comparison blocks
+- reorganize layout
+- split into sections
+- add headings
+- convert text into:
+  - lists
+  - tables
+  - cards
+  - columns
+  - timelines
+  - comparison blocks
 
 Preserve all supplied information.
 
@@ -80,12 +79,12 @@ Preserve all supplied information.
 
 Generate:
 
-* Complete HTML document
-* `<!DOCTYPE html>`
-* `<html>`
-* `<head>`
-* `<style>`
-* `<body>`
+- Complete HTML document
+- `<!DOCTYPE html>`
+- `<html>`
+- `<head>`
+- `<style>`
+- `<body>`
 
 Then call:
 
@@ -98,14 +97,14 @@ landscape
 
 Pass:
 
-* `outputPath` exactly
-* preserve provided format
-* preserve provided orientation
+- `outputPath` exactly
+- preserve provided format
+- preserve provided orientation
 
 Defaults:
 
-* format → A4
-* landscape → false
+- format → A4
+- landscape → false
 
 ---
 
@@ -113,28 +112,28 @@ Defaults:
 
 Design for:
 
-* reports
-* proposals
-* resumes
-* invoices
-* research documents
-* business documents
-* presentation-style PDFs
+- reports
+- proposals
+- resumes
+- invoices
+- research documents
+- business documents
+- presentation-style PDFs
 
 Style goals:
 
-* modern
-* premium
-* minimal
-* readable
-* print-friendly
+- modern
+- premium
+- minimal
+- readable
+- print-friendly
 
 Avoid:
 
-* excessive decoration
-* neon colors
-* giant gradients
-* template appearance
+- excessive decoration
+- neon colors
+- giant gradients
+- template appearance
 
 ---
 
@@ -144,7 +143,7 @@ Use only HTTPS font imports.
 
 Maximum:
 
-* 2 font families
+- 2 font families
 
 Preferred stack:
 
@@ -188,16 +187,16 @@ margin: 18mm;
 
 Document:
 
-* centered layout
-* balanced whitespace
-* consistent spacing
-* predictable page flow
+- centered layout
+- balanced whitespace
+- consistent spacing
+- predictable page flow
 
 Avoid:
 
-* overflow
-* clipped content
-* page edge collisions
+- overflow
+- clipped content
+- page edge collisions
 
 ---
 
@@ -212,20 +211,20 @@ page-break-inside: avoid;
 
 To:
 
-* sections
-* tables
-* cards
-* images
-* headings
-* lists
+- sections
+- tables
+- cards
+- images
+- headings
+- lists
 
 Rules:
 
-* no orphan headings
-* avoid widows
-* avoid isolated lines
-* keep related content together
-* start large sections on clean pages
+- no orphan headings
+- avoid widows
+- avoid isolated lines
+- keep related content together
+- start large sections on clean pages
 
 Allow:
 
@@ -242,9 +241,9 @@ Auto-convert tabular content.
 
 Requirements:
 
-* responsive width
-* wrapped text
-* repeating headers
+- responsive width
+- wrapped text
+- repeating headers
 
 Use:
 
@@ -254,26 +253,26 @@ display: table-header-group;
 
 Avoid:
 
-* horizontal overflow
-* broken rows
+- horizontal overflow
+- broken rows
 
 ---
 
 ## Images
 
-Only use images when URLs exist.
+Use workspace-relative paths for local images in HTML (`assets/chart.png`, `uploads/photo.jpg`). They are inlined automatically when generating the PDF.
 
 Rules:
 
-* max-width: 100%
-* object-fit: contain
-* preserve aspect ratio
-* avoid page splitting
+- max-width: 100%
+- object-fit: contain
+- preserve aspect ratio
+- avoid page splitting
 
 Never:
 
-* invent images
-* use placeholders
+- invent images
+- use placeholders
 
 ---
 
@@ -322,13 +321,13 @@ Muted
 
 Requirements:
 
-* accessible contrast
-* professional appearance
-* print-safe
+- accessible contrast
+- professional appearance
+- print-safe
 
 Avoid:
 
-* dark backgrounds unless requested
+- dark backgrounds unless requested
 
 ---
 
@@ -338,18 +337,18 @@ Document must render in headless environments.
 
 Do not use:
 
-* JavaScript
-* animations
-* viewport units
-* sticky elements
-* unsupported CSS
-* remote assets except fonts
+- JavaScript
+- animations
+- viewport units
+- sticky elements
+- unsupported CSS
+- remote assets except fonts
 
 Prefer:
 
-* Flexbox
-* CSS Grid
-* semantic HTML
+- Flexbox
+- CSS Grid
+- semantic HTML
 
 ---
 
@@ -378,10 +377,10 @@ Output: <outputPath>
 
 Metadata:
 
-* Format: <format>
-* Orientation: portrait|landscape
-* Layout: detected layout type
-* Pages: auto
-* Notes: page breaks optimized
+- Format: <format>
+- Orientation: portrait|landscape
+- Layout: detected layout type
+- Pages: auto
+- Notes: page breaks optimized
 
 End.
