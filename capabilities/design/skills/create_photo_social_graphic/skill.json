@@ -58,5 +58,5 @@
     "detect_image_region"
   ],
   "maxIterations": 24,
-  "deadlineMs": 180000
+  "deadlineMs": 300000
 }
