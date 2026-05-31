@@ -1,17 +1,12 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import path from "node:path";
 import { z } from "zod";
 import type { Tool, ToolContext } from "../../../common/interfaces/types.js";
 import {
   downloadImageFromUrl,
   inferImageExtension,
 } from "../../../common/services/image-download.js";
+import { writeDownloadToWorkspace } from "../../../common/services/file-download.js";
 import { logger } from "../../../common/services/logger.js";
 import { parseToolInput, zodSchemaToJsonInputSchema } from "../../../common/services/zod-tool-schema.js";
-import {
-  DEFAULT_WORKSPACE_BASE,
-  resolveWorkspacePath,
-} from "../../../common/services/workspace-path.js";
 
 export const downloadImageInputSchema = z.object({
   url: z.string().url().describe("HTTPS URL of the image to download."),
@@ -24,12 +19,6 @@ export const downloadImageInputSchema = z.object({
 });
 
 export type DownloadImageInput = z.infer<typeof downloadImageInputSchema>;
-
-function ensureExtension(outputPath: string, ext: string): string {
-  const current = path.extname(outputPath).toLowerCase();
-  if (current.length) return outputPath;
-  return outputPath + ext;
-}
 
 export class DownloadImageTool implements Tool {
   name = "download_image";
@@ -47,14 +36,12 @@ export class DownloadImageTool implements Tool {
       });
 
       const ext = inferImageExtension(contentType, parsed.url);
-      const outputPath = ensureExtension(parsed.outputPath, ext);
-      const absOutput = resolveWorkspacePath(
-        DEFAULT_WORKSPACE_BASE,
+      const outputPath = await writeDownloadToWorkspace(
         context.sessionId,
-        outputPath,
+        parsed.outputPath,
+        buffer,
+        ext,
       );
-      await mkdir(path.dirname(absOutput), { recursive: true });
-      await writeFile(absOutput, buffer);
 
       return {
         success: true,

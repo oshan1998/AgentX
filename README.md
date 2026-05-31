@@ -15,7 +15,7 @@ Minimal but scalable single-agent framework in Node.js + TypeScript.
   - `GET /api/session/:id/files` — list files in `uploads/`
   - Chat accepts `attachmentPaths` to tell the agent which workspace files to use
 - File system capability:
-  - Tools: `read_file`, `write_file`, `list_directory`
+  - Tools: `read_file`, `write_file`, `list_directory`, `download_file`
 - Scheduler capability:
   - Tools: `upsert_cron_job`, `list_cron_jobs`, `delete_cron_job`
   - Background runner: evaluates due cron jobs every 30s and executes their `task` via AgentLoop
