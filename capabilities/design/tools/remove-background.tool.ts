@@ -46,7 +46,7 @@ function sharpFormatToMime(format: string | undefined): string {
 export class RemoveBackgroundTool implements Tool {
   name = "remove_background";
   description =
-    "Remove the background from an image, outputting a transparent PNG, a background mask, or both. Uses Vertex AI segmentation when available, otherwise falls back to Gemini vision segmentation. The mask (white = background) can be used with edit_image background_swap, or omit maskPath and use background_swap with auto-detection.";
+    "Remove the background from an image, outputting a transparent PNG, a background mask, or both. Uses Vertex AI image-segmentation (IMAGEN_SEGMENTATION_MODEL). The mask (white = background) can be used with edit_image background_swap, or omit maskPath and use background_swap with auto-detection.";
   inputSchema = zodSchemaToJsonInputSchema(removeBackgroundInputSchema);
 
   async run(input: Record<string, unknown>, context: ToolContext): Promise<unknown> {

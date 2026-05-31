@@ -268,6 +268,8 @@ Rules:
 - object-fit: contain
 - preserve aspect ratio
 - avoid page splitting
+- avoid page breaks within content
+- ensure content continuity across page breaks
 
 Never:
 

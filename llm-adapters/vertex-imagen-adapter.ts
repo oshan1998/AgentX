@@ -58,6 +58,20 @@ function resolvePersonGeneration(override?: PersonGenerationSetting): PersonGene
   return PersonGeneration.ALLOW_ALL;
 }
 
+const DEFAULT_SEGMENTATION_MASK_DILATION = 0.02;
+
+function resolveSegmentationMaskDilation(override?: number): number {
+  if (override !== undefined) {
+    return override;
+  }
+  const raw = process.env.IMAGEN_SEGMENTATION_MASK_DILATION?.trim();
+  if (!raw) {
+    return DEFAULT_SEGMENTATION_MASK_DILATION;
+  }
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : DEFAULT_SEGMENTATION_MASK_DILATION;
+}
+
 function mimeTypeFromOutput(outputMimeType?: string): string {
   if (outputMimeType === "image/jpeg") return "image/jpeg";
   if (outputMimeType === "image/webp") return "image/webp";
@@ -232,7 +246,7 @@ export class VertexImagenAdapter implements ImageGenAdapter {
       },
       config: {
         mode: SegmentMode.FOREGROUND,
-        maskDilation: 0,
+        maskDilation: resolveSegmentationMaskDilation(input.maskDilation),
         binaryColorThreshold: -1,
       },
     });

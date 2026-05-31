@@ -173,6 +173,10 @@ export interface ImageEditInput {
 export interface RemoveBackgroundInput {
   sourceImage: Buffer;
   sourceMimeType: string;
+  /** segmentImage mask dilation (0–1). Defaults from IMAGEN_SEGMENTATION_MASK_DILATION (0.02). */
+  maskDilation?: number;
+  /** Gaussian blur sigma on the mask before compositing. 0 disables. Defaults from IMAGEN_SEGMENTATION_MASK_BLUR (0.5). */
+  maskBlurSigma?: number;
 }
 
 export interface RemoveBackgroundResult {

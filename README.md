@@ -113,6 +113,9 @@ UNSPLASH_ACCESS_KEY=your_unsplash_access_key_here
 VISION_PROVIDER=openai
 IMAGE_GEN_PROVIDER=vertex
 IMAGEN_MODEL=imagen-4.0-generate-001
+# Optional: background removal tuning (defaults: 0.02 dilation, 0.5 mask blur; set to 0 to disable)
+# IMAGEN_SEGMENTATION_MASK_DILATION=0.02
+# IMAGEN_SEGMENTATION_MASK_BLUR=0.5
 
 ```
 

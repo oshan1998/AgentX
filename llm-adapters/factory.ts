@@ -1,5 +1,5 @@
 import type { ImageGenAdapter, LlmAdapter } from "../common/interfaces/types.js";
-import { OpenAIAdapter } from "./llm-adapter.js";
+import { OpenAIAdapter } from "./openai-adapter.js";
 import { OllamaAdapter } from "./ollama-adapter.js";
 import { MockLlmAdapter } from "./mock-llm-adapter.js";
 import { GeminiVertexAdapter } from "./gemini-vertex-adapter.js";
