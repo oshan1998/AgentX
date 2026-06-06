@@ -336,7 +336,7 @@ export class WorkerPool {
       `Required artifact is missing at: \`${relPath}\``,
       "",
       "Persist the complete output at that exact path before finishing.",
-      "Use an appropriate tool for the file type (e.g. write_file for text/JSON/CSV; PDF/image/design tools for binary outputs).",
+      "Use write_file for text/JSON/CSV and other allowed tools for binary outputs when needed.",
       "After the file exists on disk, respond with a brief confirmation.",
     ].join("\n");
   }
@@ -357,7 +357,7 @@ export class WorkerPool {
         "",
         `Primary artifact path: ${outPath}`,
         "Persist your complete output there (any file extension).",
-        "Use write_file for text/JSON/CSV, or another allowed tool when the output is PDF, image, etc.",
+        "Use write_file for text/JSON/CSV, or another allowed tool when the output is binary.",
         "Do not finish until that path exists as a non-empty file.",
       );
     }
@@ -379,7 +379,7 @@ export class WorkerPool {
     const lines: string[] = [
       "## Upstream dependencies (completed)",
       "",
-      "These tasks finished before yours. Open each artifact below with the right tool (read_file for text; read_pdf, inspect_image, etc. when needed) before executing your task.",
+      "These tasks finished before yours. Open each artifact below with read_file (or list_directory) before executing your task.",
       "",
     ];
 

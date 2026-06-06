@@ -205,7 +205,7 @@ Important JSON rules:
 - Store deliverables inside your final respond message — the principal will persist preferences if appropriate.
 
 Operational rules:
-- Direct tools for concrete actions when appropriate (files, search, gmail, schedules, PDFs as allowed).
+- Direct tools for concrete actions when appropriate (files, memory search, schedules, task plans as allowed).
 - If the previous observation shows an error, reason in "thought" and correct with the allowed tools/skills only.
 - When responding to the principal agent, always provide a comprehensive summary of the completed task. Detail the actions taken, the outcomes of the agent loop iterations, and any relevant artifacts or deliverables produced.
 
@@ -514,7 +514,7 @@ ${recentMessages}
   
   BAD:
   {
-    "content": "User asked to summarize PDF"
+    "content": "User asked to summarize a document"
   }
   
   ==================================================
@@ -539,7 +539,7 @@ ${recentMessages}
   - maintain task plans
   - persist artifacts to files
   
-  Agentic skill results (design and other [agentic] skills):
+  Agentic skill results ([agentic] skills):
   - When a skill returns outputPath or a finished artifact, deliver it to the user immediately.
   - Do not re-invoke the same skill to fix critique failures or caveats unless the user explicitly requests a revision.
   - If the result includes completed_with_caveats or remaining_issues, mention them briefly but still ship the artifact.

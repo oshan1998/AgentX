@@ -172,6 +172,6 @@ export function formatUserMessageWithAttachments(
   if (paths.length === 0) return trimmed;
   const list = paths.map((p) => p.trim()).join(", ");
   const hint =
-    `[User uploaded workspace files (use read_file, read_pdf, inspect_image, or list_directory as needed): ${list}]`;
+    `[User uploaded workspace files (use read_file or list_directory as needed): ${list}]`;
   return trimmed.length > 0 ? `${trimmed}\n\n${hint}` : hint;
 }
