@@ -38,6 +38,85 @@ function formatSkillCatalogLine(s: Skill): string {
   return schemaLines ? `${head}\n${schemaLines}` : head;
 }
 
+function formatIterationRulesSection(input: PromptBuilderInput): string {
+  return `
+==================================================
+ITERATION RULES
+==================================================
+
+Current iteration: ${input.iteration} / ${input.maxIterations}
+
+If iteration = 1:
+- The original user request is your primary instruction.
+- Interpret intent, plan, and take the first action.
+
+If iteration > 1:
+- PRIMARY: Last observation and recent context (especially tool/skill results).
+- SECONDARY: Original user request — background intent only; already accepted at run start.
+- Advance ONE step from the last observation. Do not reinterpret the original request as a brand-new task.
+- Do not re-run the same skill/tool for the same deliverable unless the last observation shows failure or missing output.
+- If a skill already returned a finished artifact (e.g. outputPath), respond to the user — do not generate another version.
+
+As iteration approaches the maximum:
+- Reduce exploration.
+- Prioritize convergence and finalization.
+- Complete the task in this run when sufficient information is available.`.trim();
+}
+
+function formatCurrentGoalSection(input: PromptBuilderInput, goalLabel: string): string {
+  if (input.iteration === 1) {
+    return `
+==================================================
+${goalLabel} (primary instruction — interpret and plan first action)
+==================================================
+
+${input.latestUserMessage}`.trim();
+  }
+
+  return `
+==================================================
+${goalLabel} (already accepted — in progress, do not restart)
+==================================================
+
+${input.latestUserMessage}`.trim();
+}
+
+function formatAgentUserPrompt(
+  input: PromptBuilderInput,
+  recentMessages: string,
+  memory: string,
+  contextLabel: string,
+): string {
+  const iterationLine = `Iteration: ${input.iteration}/${input.maxIterations}`;
+  const lastObservation = `Last observation:\n${input.lastObservation || "none"}`;
+  const memorySection = `Relevant long-term memory:\n${memory}`;
+  const contextSection = `${contextLabel}:\n${recentMessages}`;
+
+  if (input.iteration === 1) {
+    return `
+${iterationLine}
+
+${memorySection}
+
+${contextSection}
+
+${lastObservation}
+`.trim();
+  }
+
+  return `
+${iterationLine}
+
+EXECUTION MODE: Continue from Last observation. Do not reinterpret the original request as a new task.
+
+${lastObservation}
+
+${contextSection}
+
+${memorySection}
+`.trim();
+}
+
 export class PromptBuilder {
   build(input: PromptBuilderInput): BuiltPrompt {
     const recentMessages =
@@ -138,23 +217,17 @@ ${skills}
 
 ${input.subAgentSystemPromptAppend?.trim() ? `---\n\n## Domain instructions\n\n${input.subAgentSystemPromptAppend.trim()}` : ""}
 
-## Current Goal (delegated task from principal)
-${input.latestUserMessage}
+${formatIterationRulesSection(input)}
+
+${formatCurrentGoalSection(input, "DELEGATED TASK FROM PRINCIPAL")}
 `.trim();
 
-    const userPrompt = `
-Iteration:
-${input.iteration}/${input.maxIterations}
-
-Relevant long-term memory (read-only):
-${memory}
-
-Recent sub-session transcript:
-${recentMessages}
-
-Last observation:
-${input.lastObservation || "none"}
-`.trim();
+    const userPrompt = formatAgentUserPrompt(
+      input,
+      recentMessages,
+      memory,
+      "Recent sub-session transcript",
+    );
 
     return { systemPrompt, userPrompt };
   }
@@ -511,26 +584,17 @@ ${recentMessages}
   
   ${skills}
 
-  ==================================================
-  CURRENT GOAL
-  ==================================================
+  ${formatIterationRulesSection(input)}
 
-  ${input.latestUserMessage}
+  ${formatCurrentGoalSection(input, "ORIGINAL USER REQUEST")}
   `.trim();
   
-    const userPrompt = `
-  Iteration:
-  ${input.iteration}/${input.maxIterations}
-  
-  Relevant long-term memory:
-  ${memory}
-  
-  Recent context:
-  ${recentMessages}
-  
-  Last observation:
-  ${input.lastObservation || "none"}
-  `.trim();
+    const userPrompt = formatAgentUserPrompt(
+      input,
+      recentMessages,
+      memory,
+      "Recent context",
+    );
   
     return {
       systemPrompt,
