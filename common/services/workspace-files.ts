@@ -18,6 +18,7 @@ const ALLOWED_EXTENSIONS = new Set([
   ".pdf",
   ".txt",
   ".md",
+  ".docx",
   ".json",
   ".csv",
   ".html",

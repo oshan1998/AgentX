@@ -47,6 +47,7 @@ agentX/
 ├── capabilities/
 │   ├── core/            # memory, task plans, delegation, orchestration
 │   ├── filesystem/      # read/write/list/download + document skills
+│   ├── rag/             # Vertex AI RAG Engine document Q&A
 │   └── scheduler/       # cron job tools
 ├── common/
 │   ├── interfaces/      # types + registries
@@ -82,6 +83,13 @@ OPENAI_API_KEY=your_openai_api_key_here
 GOOGLE_CLOUD_PROJECT=your_gcp_project
 GOOGLE_CLOUD_LOCATION=us-central1
 GEMINI_MODEL=gemini-1.5-flash
+
+# Optional: Vertex AI RAG Engine (Serverless mode in us-central1)
+GCP_BUCKET_NAME=your_document_bucket
+GOOGLE_CLOUD_LOCATION=us-central1
+# RAG_CORPUS_NAME=projects/.../locations/us-central1/ragCorpora/...  # reuse an existing corpus
+# RAG_LOCATION=us-central1  # defaults to GOOGLE_CLOUD_LOCATION
+# RAG_GEMINI_MODEL=gemini-2.5-flash
 
 # Optional: local Ollama
 OLLAMA_MODEL=qwen3:1.7b
@@ -119,6 +127,18 @@ Example:
 
 - `capabilities/filesystem/skills/summarize_document/skill.json`: flow steps (`tool_call`, `llm`, `respond`)
 - `capabilities/filesystem/skills/summarize_document/prompt.md`: behavior instructions for the LLM
+
+## Vertex RAG documents
+
+The RAG capability keeps the flow simple:
+
+1. Upload a document to the session workspace with `POST /api/session/:id/files`.
+2. Ask the agent to index it, or call the `index_document` tool with the workspace path.
+3. Ask document questions through the `qa_document` skill or `ask_document` tool.
+
+`index_document` uploads the original file to GCS and imports it into Vertex AI RAG Engine. Vertex handles parsing, chunking, embeddings, and corpus retrieval. If `RAG_CORPUS_NAME` is not set, AgentX creates a small corpus per session and records it in `memory/rag-sessions.json`.
+
+On startup, AgentX switches the project to **Serverless mode** in `us-central1` (recommended for new projects). You can also switch manually in the GCP console: Vertex AI → RAG Engine → Switch to Serverless. If you previously created a corpus in another region, set `RAG_CORPUS_NAME` to a corpus in `us-central1` or clear `memory/rag-sessions.json`.
 
 ## Adding capabilities
 

@@ -2,12 +2,18 @@ import path from "node:path";
 import { ToolRegistry } from "../common/interfaces/registry.js";
 import type { Tool } from "../common/interfaces/types.js";
 import { MemoryManager } from "./memory-manager.js";
+import type { RagToolDependencies } from "../common/services/rag-tool-dependencies.js";
+
+export interface ToolManagerDependencies {
+  rag?: RagToolDependencies;
+}
 
 export class ToolManager {
   private readonly toolRegistry = new ToolRegistry();
 
   constructor(
     private readonly memoryManager: MemoryManager,
+    private readonly dependencies: ToolManagerDependencies = {},
     private readonly baseDir: string = process.cwd(),
   ) {}
 
@@ -45,7 +51,7 @@ export class ToolManager {
                 ) {
                   const maybeTool = new (
                     exported as new (...args: unknown[]) => Tool
-                  )(this.memoryManager);
+                  )(this.memoryManager, this.dependencies.rag);
                   if (typeof maybeTool.name === "string") {
                     this.toolRegistry.register(maybeTool);
                   }

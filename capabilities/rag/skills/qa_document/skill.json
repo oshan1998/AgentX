@@ -1,0 +1,33 @@
+{
+  "schemaVersion": "1",
+  "name": "qa_document",
+  "description": "Answer a question from the app knowledge base when document content is relevant. Do not use for unrelated general chat.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "question": {
+        "type": "string",
+        "description": "Question to answer from indexed documents."
+      },
+      "topK": {
+        "type": "number",
+        "description": "Optional number of retrieved contexts. Defaults to 5."
+      }
+    },
+    "required": ["question"]
+  },
+  "steps": [
+    {
+      "type": "tool_call",
+      "tool": "ask_document",
+      "input": {
+        "question": "{{input.question}}"
+      },
+      "saveAs": "ragResult"
+    },
+    {
+      "type": "respond",
+      "messageTemplate": "{{ragResult.answer}}"
+    }
+  ]
+}

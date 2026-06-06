@@ -10,7 +10,8 @@ interface GeminiAdapterOptions {
 
 export class GeminiVertexAdapter implements LlmAdapter {
   private vertexAI: VertexAI;
-  private model: GenerativeModel;
+  private decisionModel: GenerativeModel;
+  private textModel: GenerativeModel;
   private readonly modelName: string;
 
   constructor(private readonly options: GeminiAdapterOptions) {
@@ -19,16 +20,19 @@ export class GeminiVertexAdapter implements LlmAdapter {
       project: options.projectId,
       location: options.location ?? resolveVertexLocation(),
     });
-    this.model = this.vertexAI.getGenerativeModel({
+    this.decisionModel = this.vertexAI.getGenerativeModel({
       model: this.modelName,
       generationConfig: {
         responseMimeType: "application/json",
       },
     });
+    this.textModel = this.vertexAI.getGenerativeModel({
+      model: this.modelName,
+    });
   }
 
   async decide(prompt: string, systemPrompt?: string): Promise<AgentDecision> {
-    const raw = await this.complete(prompt, systemPrompt);
+    const raw = await this.generateText(this.decisionModel, prompt, systemPrompt);
     try {
       return JSON.parse(raw) as AgentDecision;
     } catch (e) {
@@ -38,6 +42,14 @@ export class GeminiVertexAdapter implements LlmAdapter {
   }
 
   async complete(prompt: string, systemPrompt?: string): Promise<string> {
+    return this.generateText(this.textModel, prompt, systemPrompt);
+  }
+
+  private async generateText(
+    model: GenerativeModel,
+    prompt: string,
+    systemPrompt?: string,
+  ): Promise<string> {
     const request: GenerateContentRequest = {
       contents: [
         {
@@ -54,7 +66,7 @@ export class GeminiVertexAdapter implements LlmAdapter {
       };
     }
 
-    const result = await this.model.generateContent(request);
+    const result = await model.generateContent(request);
     const response = await result.response;
     const text = response.candidates?.[0]?.content?.parts?.[0]?.text;
 

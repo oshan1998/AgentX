@@ -1,3 +1,4 @@
+import "dotenv/config";
 import express from "express";
 import http from "node:http";
 import path from "node:path";
@@ -22,6 +23,12 @@ import { ChatController } from "./controllers/chat/chat.controller.js";
 import { SessionController } from "./controllers/session/session.controller.js";
 import { WorkspaceService } from "./controllers/workspace/workspace.service.js";
 import { WorkspaceController } from "./controllers/workspace/workspace.controller.js";
+import { GcsService } from "./common/services/gcs.service.js";
+import { RagCorpusStore } from "./common/services/rag-corpus-store.js";
+import { CorpusService } from "./common/services/corpus.service.js";
+import { VertexRagEngineService } from "./common/services/vertex-rag-engine.service.js";
+import { VertexRagRetriever } from "./common/services/vertex-rag.retriever.js";
+import { CorpusController } from "./controllers/corpus/corpus.controller.js";
 
 async function main() {
   const app = express();
@@ -42,7 +49,32 @@ async function main() {
   const profileManager = new ProfileManager(memoryPath);
   await profileManager.init();
 
-  const toolManager = new ToolManager(memoryManager);
+  const gcsService = new GcsService();
+  const ragCorpusStore = new RagCorpusStore();
+  const ragEngine = new VertexRagEngineService();
+  try {
+    await ragEngine.ensureServerlessMode();
+    logger.info("Vertex RAG Engine serverless mode ready (us-central1)");
+  } catch (error) {
+    logger.warn(`Vertex RAG serverless setup skipped: ${String(error)}`);
+  }
+  const corpusService = new CorpusService(ragEngine, gcsService, ragCorpusStore);
+  try {
+    await corpusService.ensureCorpus();
+    logger.info("App knowledge base corpus ready");
+  } catch (error) {
+    logger.warn(`Corpus bootstrap skipped: ${String(error)}`);
+  }
+  const retriever = new VertexRagRetriever(ragEngine, corpusService);
+
+  const toolManager = new ToolManager(memoryManager, {
+    rag: {
+      gcsService,
+      ragEngine,
+      corpusService,
+      retriever,
+    },
+  });
   const toolRegistry = await toolManager.loadAllTools();
 
   const llm = createLlmAdapter();
@@ -95,6 +127,7 @@ async function main() {
   const chatController = new ChatController(chatService);
   const sessionController = new SessionController(sessionService);
   const workspaceController = new WorkspaceController(workspaceService);
+  const corpusController = new CorpusController(corpusService);
 
   // ── Routes ─────────────────────────────────────────────
   // Chat
@@ -114,6 +147,14 @@ async function main() {
     workspaceController.uploadFile,
   );
   app.get("/api/session/:id/files", workspaceController.listFiles);
+
+  // App knowledge base (single corpus)
+  app.post(
+    "/api/corpus/documents",
+    upload.single("file"),
+    corpusController.uploadDocument,
+  );
+  app.get("/api/corpus/documents", corpusController.listDocuments);
 
   const server = http.createServer(app);
   attachWebSocketGateway(server, sessionTraceHub);

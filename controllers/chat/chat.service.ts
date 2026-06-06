@@ -10,7 +10,7 @@ export interface ChatResponse {
 /**
  * Encapsulates chat business logic:
  * - auto-generating session titles on the first message
- * - delegating to the AgentLoop for actual processing
+ * - delegating to the AgentLoop (agent decides when to use tools/skills, including RAG)
  */
 export class ChatService {
   constructor(
@@ -19,10 +19,6 @@ export class ChatService {
     private readonly llm: LlmAdapter,
   ) {}
 
-  /**
-   * Process a user chat message.
-   * Automatically generates a session title from the first user message.
-   */
   cancelRun(runId: string): boolean {
     return this.agentLoop.cancelRun(runId);
   }
@@ -33,12 +29,10 @@ export class ChatService {
     runId: string,
     abortSignal?: AbortSignal,
   ): Promise<ChatResponse> {
-    // Auto-generate title from the first user message using LLM
     const session = await this.memoryManager.getSession(sessionId);
-    const hasUserMessages = session.messages.some((m: any) => m.role === "user");
+    const hasUserMessages = session.messages.some((m: { role: string }) => m.role === "user");
 
     if (!hasUserMessages && !session.title) {
-      // Fire-and-forget so it doesn't delay the chat response
       this.llm
         .complete(
           `User message: "${message}"`,
@@ -49,7 +43,6 @@ export class ChatService {
           return this.memoryManager.updateSessionTitle(sessionId, clean);
         })
         .catch(() => {
-          // Fallback to truncated first message if LLM fails
           const words = message.trim().split(/\s+/).slice(0, 6).join(" ");
           const fallback = words.length > 40 ? words.slice(0, 40) + "…" : words;
           return this.memoryManager.updateSessionTitle(sessionId, fallback);
