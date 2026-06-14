@@ -1,5 +1,6 @@
 import { VertexAI, GenerativeModel, GenerateContentRequest } from "@google-cloud/vertexai";
 import type { AgentDecision, LlmAdapter, LlmImageInput } from "../common/interfaces/types.js";
+import { logger } from "../common/services/logger.js";
 import { resolveVertexLocation } from "./vertex-config.js";
 
 interface GeminiAdapterOptions {
@@ -72,6 +73,17 @@ export class GeminiVertexAdapter implements LlmAdapter {
 
     if (!text) {
       throw new Error("Gemini returned an empty response.");
+    }
+
+    const usage = response.usageMetadata;
+    if (usage) {
+      logger.debug("Gemini usage", {
+        model: this.modelName,
+        promptTokens: usage.promptTokenCount ?? 0,
+        cachedTokens: usage.cachedContentTokenCount ?? 0,
+        completionTokens: usage.candidatesTokenCount ?? 0,
+        totalTokens: usage.totalTokenCount ?? 0,
+      });
     }
 
     return text;

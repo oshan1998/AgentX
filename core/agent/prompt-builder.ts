@@ -7,7 +7,234 @@ import type {
 import { formatInputSchemaForPrompt } from "../../common/services/format-input-schema.js";
 import type { Soul, User } from "../../managers/profile-manager.js";
 import { DecisionType, SkillType } from "../../common/interfaces/types.js";
+
 const SESSION_MESSAGE_LIMIT = 20;
+const ALLOWED_DECISION_TYPES = Object.values(DecisionType).join(" | ");
+
+const OUTPUT_CONTRACT = `
+==================================================
+OUTPUT CONTRACT
+==================================================
+
+Return ONLY valid JSON.
+Never output markdown.
+Never output text outside JSON.
+
+Allowed decisions:
+
+Respond
+{
+  "thought": "...",
+  "type": "respond",
+  "message": "..."
+}
+
+Tool call
+{
+  "thought": "...",
+  "type": "tool_call",
+  "tool": "tool_name",
+  "input": {}
+}
+
+Skill call
+{
+  "thought": "...",
+  "type": "skill_call",
+  "skill": "skill_name",
+  "input": {}
+}
+
+Memory write
+{
+  "thought": "...",
+  "type": "memory_write",
+  "memoryEntry": {
+    "type": "user_preference|behavior_rule|fact",
+    "content": "...",
+    "sourceSessionId": "<sessionId>"
+  }
+}
+
+Profile write
+{
+  "thought": "...",
+  "type": "profile_write",
+  "target": "soul|user",
+  "content": {}
+}`.trim();
+
+const REASONING_RULES = `
+==================================================
+REASONING RULES
+==================================================
+
+- "thought" is REQUIRED.
+- Think step-by-step.
+- Explain:
+  1. current understanding
+  2. relevant memory/context
+  3. next action
+  4. why alternatives were rejected
+
+Choose EXACTLY ONE action.
+
+"type" MUST be one of:
+${ALLOWED_DECISION_TYPES}
+
+Never place tool names in "type".`.trim();
+
+const MEMORY_POLICY = `
+==================================================
+LONG TERM MEMORY POLICY
+==================================================
+
+You may proactively store memory.
+
+Create a memory_write ONLY if information is likely
+to remain useful across future sessions.
+
+GOOD memory candidates:
+
+✓ User preferences
+  - preferred language
+  - coding style
+  - favorite tools
+  - communication style
+
+✓ Long-term goals
+  - career goals
+  - learning roadmap
+  - ongoing project goals
+
+✓ Stable facts
+  - profession
+  - expertise level
+  - recurring workflows
+
+✓ Explicit requests
+  - "remember this"
+  - "save this"
+  - "from now on"
+
+DO NOT store:
+
+✗ temporary requests
+✗ one-time tasks
+✗ large conversation summaries
+✗ short-lived plans
+✗ sensitive/private information
+✗ raw copied text
+✗ duplicates of existing memory
+
+Memory confidence rule:
+
+HIGH confidence
+→ write memory
+
+MEDIUM confidence
+→ continue task without memory
+
+LOW confidence
+→ do not write memory
+
+Prefer UNDER-saving over OVER-saving.
+
+Memory format:
+
+"user_preference"
+- stable likes/dislikes
+
+"behavior_rule"
+- instructions that should affect future behavior
+
+"fact"
+- durable user/project information
+
+Examples:
+
+GOOD:
+{
+  "type": "memory_write",
+  "memoryEntry": {
+    "type": "user_preference",
+    "content": "User prefers TypeScript over JavaScript"
+  }
+}
+
+GOOD:
+{
+  "type": "memory_write",
+  "memoryEntry": {
+    "type": "fact",
+    "content": "User is building a drone controller project"
+  }
+}
+
+BAD:
+{
+  "content": "User asked to summarize PDF"
+}`.trim();
+
+const ACTION_POLICY = `
+==================================================
+ACTION POLICY
+==================================================
+
+Tools:
+- single external action
+
+Skills:
+- packaged workflows
+- prefer skill_call when available
+
+delegate_sub_agent:
+- TOOL only
+- never a decision type
+
+orchestrate_task_graph:
+- use for parallel independent work
+
+Multi-step tasks:
+- maintain task plans
+- persist artifacts to files
+
+Agentic skill results (design and other [agentic] skills):
+- When a skill returns outputPath or a finished artifact, deliver it to the user immediately.
+- Do not re-invoke the same skill to fix critique failures or caveats unless the user explicitly requests a revision.
+- If the result includes completed_with_caveats or remaining_issues, mention them briefly but still ship the artifact.
+
+Respond only when task is complete.`.trim();
+
+function buildFilesSection(sessionId: string): string {
+  const baseUrl = process.env.APP_BASE_URL ?? "";
+  return `
+==================================================
+FILES
+==================================================
+
+Workspace paths are relative.
+
+Correct:
+tasks/report.md
+
+Wrong:
+filename.txt
+
+To show a generated image or file to the user, use this markdown format in your respond message:
+![Image Description](${baseUrl}/workspace/sessions/${sessionId}/workspace/<relative-path>)
+For non-image files, use a standard markdown link.
+
+Use:
+{
+  "type": "tool_call",
+  "tool": "write_file",
+  "input": {
+    "path": "...",
+    "content": "..."
+  }
+}`.trim();
+}
 
 interface PromptBuilderInput {
   latestUserMessage: string;
@@ -29,6 +256,11 @@ interface PromptBuilderInput {
 export interface BuiltPrompt {
   systemPrompt: string;
   userPrompt: string;
+}
+
+interface StringCache {
+  key: string;
+  value: string;
 }
 
 function formatSkillCatalogLine(s: Skill): string {
@@ -87,15 +319,12 @@ function formatAgentUserPrompt(
   memory: string,
   contextLabel: string,
 ): string {
-  const iterationLine = `Iteration: ${input.iteration}/${input.maxIterations}`;
   const lastObservation = `Last observation:\n${input.lastObservation || "none"}`;
   const memorySection = `Relevant long-term memory:\n${memory}`;
   const contextSection = `${contextLabel}:\n${recentMessages}`;
 
   if (input.iteration === 1) {
     return `
-${iterationLine}
-
 ${memorySection}
 
 ${contextSection}
@@ -105,8 +334,6 @@ ${lastObservation}
   }
 
   return `
-${iterationLine}
-
 EXECUTION MODE: Continue from Last observation. Do not reinterpret the original request as a new task.
 
 ${lastObservation}
@@ -117,7 +344,23 @@ ${memorySection}
 `.trim();
 }
 
+function formatDynamicUserPrefix(input: PromptBuilderInput, goalLabel: string): string {
+  return `
+${formatIterationRulesSection(input)}
+
+${formatCurrentGoalSection(input, goalLabel)}`.trim();
+}
+
+function registryNamesKey(registry: { list(): { name: string }[] }): string {
+  return registry.list().map((entry) => entry.name).join(",");
+}
+
 export class PromptBuilder {
+  private toolCatalogCache: StringCache | null = null;
+  private skillCatalogCache: StringCache | null = null;
+  private mainSystemPromptCache: StringCache | null = null;
+  private subAgentSystemPromptCache: StringCache | null = null;
+
   build(input: PromptBuilderInput): BuiltPrompt {
     const recentMessages =
       input.session.messages
@@ -136,13 +379,14 @@ export class PromptBuilder {
     return this.buildMainPrompt(input, recentMessages);
   }
 
-  /** Task instructions come from the principal agent; tooling is allow-listed; no persistence. */
-  private buildSubAgentPrompt(
-    input: PromptBuilderInput,
-    recentMessages: string,
-  ): BuiltPrompt {
-    const tools =
-      input.toolRegistry
+  private serializeTools(registry: ToolRegistry): string {
+    const key = registryNamesKey(registry);
+    if (this.toolCatalogCache?.key === key) {
+      return this.toolCatalogCache.value;
+    }
+
+    const value =
+      registry
         .list()
         .map((t) => {
           const head = `- ${t.name}${t.description ? `: ${t.description}` : ""}`;
@@ -151,18 +395,102 @@ export class PromptBuilder {
         })
         .join("\n\n") || "none";
 
-    const skills =
-      input.skillRegistry
+    this.toolCatalogCache = { key, value };
+    return value;
+  }
+
+  private serializeSkills(registry: SkillRegistry): string {
+    const key = registryNamesKey(registry);
+    if (this.skillCatalogCache?.key === key) {
+      return this.skillCatalogCache.value;
+    }
+
+    const value =
+      registry
         .list()
         .map((s) => formatSkillCatalogLine(s))
         .join("\n\n") || "none";
 
-    const memory =
-      input.relevantLongTermMemory
-        .map((m) => `- ${m.type}: ${m.content}`)
-        .join("\n") || "none";
+    this.skillCatalogCache = { key, value };
+    return value;
+  }
 
-    const systemPrompt = `
+  private mainSystemPromptCacheKey(input: PromptBuilderInput): string {
+    return [
+      input.session.sessionId,
+      JSON.stringify(input.soul),
+      JSON.stringify(input.user),
+      registryNamesKey(input.toolRegistry),
+      registryNamesKey(input.skillRegistry),
+      process.env.APP_BASE_URL ?? "",
+    ].join("\0");
+  }
+
+  private buildMainSystemPrompt(input: PromptBuilderInput): string {
+    const tools = this.serializeTools(input.toolRegistry);
+    const skills = this.serializeSkills(input.skillRegistry);
+    const outputContract = OUTPUT_CONTRACT.replace("<sessionId>", input.session.sessionId);
+
+    return `
+You are an AI Agent.
+
+Soul:
+${JSON.stringify(input.soul, null, 2)}
+
+User profile:
+${JSON.stringify(input.user, null, 2)}
+
+${outputContract}
+
+${REASONING_RULES}
+
+${MEMORY_POLICY}
+
+${ACTION_POLICY}
+
+${buildFilesSection(input.session.sessionId)}
+
+==================================================
+AVAILABLE TOOLS
+==================================================
+
+${tools}
+
+==================================================
+AVAILABLE SKILLS
+==================================================
+
+${skills}`.trim();
+  }
+
+  private getMainSystemPrompt(input: PromptBuilderInput): string {
+    const key = this.mainSystemPromptCacheKey(input);
+    if (this.mainSystemPromptCache?.key === key) {
+      return this.mainSystemPromptCache.value;
+    }
+
+    const value = this.buildMainSystemPrompt(input);
+    this.mainSystemPromptCache = { key, value };
+    return value;
+  }
+
+  private subAgentSystemPromptCacheKey(input: PromptBuilderInput): string {
+    return [
+      input.session.sessionId,
+      registryNamesKey(input.toolRegistry),
+      registryNamesKey(input.skillRegistry),
+      input.subAgentSystemPromptAppend?.trim() ?? "",
+    ].join("\0");
+  }
+
+  private buildSubAgentSystemPrompt(input: PromptBuilderInput): string {
+    const tools = this.serializeTools(input.toolRegistry);
+    const skills = this.serializeSkills(input.skillRegistry);
+    const domainAppend = input.subAgentSystemPromptAppend?.trim()
+      ? `---\n\n## Domain instructions\n\n${input.subAgentSystemPromptAppend.trim()}`
+      : "";
+
+    return `
 You are a delegated specialist agent. Another agent (“principal”) assigns each task below; reply so the principal can act or relay to someone else.
 Soul and end-user blobs are grounding only—they are NOT your conversation partner this turn (the principal is). You cannot persist new long-term memories or profiles from this runtime.
 
@@ -215,19 +543,37 @@ ${tools}
 Available skills (tag: [workflow] = step runner, [agentic] = specialist sub-agent):
 ${skills}
 
-${input.subAgentSystemPromptAppend?.trim() ? `---\n\n## Domain instructions\n\n${input.subAgentSystemPromptAppend.trim()}` : ""}
+${domainAppend}`.trim();
+  }
 
-${formatIterationRulesSection(input)}
+  private getSubAgentSystemPrompt(input: PromptBuilderInput): string {
+    const key = this.subAgentSystemPromptCacheKey(input);
+    if (this.subAgentSystemPromptCache?.key === key) {
+      return this.subAgentSystemPromptCache.value;
+    }
 
-${formatCurrentGoalSection(input, "DELEGATED TASK FROM PRINCIPAL")}
+    const value = this.buildSubAgentSystemPrompt(input);
+    this.subAgentSystemPromptCache = { key, value };
+    return value;
+  }
+
+  /** Task instructions come from the principal agent; tooling is allow-listed; no persistence. */
+  private buildSubAgentPrompt(
+    input: PromptBuilderInput,
+    recentMessages: string,
+  ): BuiltPrompt {
+    const memory =
+      input.relevantLongTermMemory
+        .map((m) => `- ${m.type}: ${m.content}`)
+        .join("\n") || "none";
+
+    const systemPrompt = this.getSubAgentSystemPrompt(input);
+
+    const userPrompt = `
+${formatDynamicUserPrefix(input, "DELEGATED TASK FROM PRINCIPAL")}
+
+${formatAgentUserPrompt(input, recentMessages, memory, "Recent sub-session transcript")}
 `.trim();
-
-    const userPrompt = formatAgentUserPrompt(
-      input,
-      recentMessages,
-      memory,
-      "Recent sub-session transcript",
-    );
 
     return { systemPrompt, userPrompt };
   }
@@ -323,279 +669,19 @@ ${recentMessages}
     input: PromptBuilderInput,
     recentMessages: string,
   ): BuiltPrompt {
-    const tools =
-      input.toolRegistry
-        .list()
-        .map((t) => {
-          const head = `- ${t.name}${t.description ? `: ${t.description}` : ""}`;
-          const schemaLines = formatInputSchemaForPrompt(t.inputSchema);
-          return schemaLines ? `${head}\n${schemaLines}` : head;
-        })
-        .join("\n\n") || "none";
-  
-    const skills =
-      input.skillRegistry
-        .list()
-        .map((s) => formatSkillCatalogLine(s))
-        .join("\n\n") || "none";
-  
     const memory =
       input.relevantLongTermMemory
         .map((m) => `- ${m.type}: ${m.content}`)
         .join("\n") || "none";
-  
-    const allowedDecisionTypes = Object.values(DecisionType).join(" | ");
-  
-    const systemPrompt = `
-  You are an AI Agent.
-  
-  Soul:
-  ${JSON.stringify(input.soul, null, 2)}
-  
-  User profile:
-  ${JSON.stringify(input.user, null, 2)}
-  
-  ==================================================
-  OUTPUT CONTRACT
-  ==================================================
-  
-  Return ONLY valid JSON.
-  Never output markdown.
-  Never output text outside JSON.
-  
-  Allowed decisions:
-  
-  Respond
-  {
-    "thought": "...",
-    "type": "respond",
-    "message": "..."
-  }
-  
-  Tool call
-  {
-    "thought": "...",
-    "type": "tool_call",
-    "tool": "tool_name",
-    "input": {}
-  }
-  
-  Skill call
-  {
-    "thought": "...",
-    "type": "skill_call",
-    "skill": "skill_name",
-    "input": {}
-  }
-  
-  Memory write
-  {
-    "thought": "...",
-    "type": "memory_write",
-    "memoryEntry": {
-      "type": "user_preference|behavior_rule|fact",
-      "content": "...",
-      "sourceSessionId": "${input.session.sessionId}"
-    }
-  }
-  
-  Profile write
-  {
-    "thought": "...",
-    "type": "profile_write",
-    "target": "soul|user",
-    "content": {}
-  }
-  
-  ==================================================
-  REASONING RULES
-  ==================================================
-  
-  - "thought" is REQUIRED.
-  - Think step-by-step.
-  - Explain:
-    1. current understanding
-    2. relevant memory/context
-    3. next action
-    4. why alternatives were rejected
-  
-  Choose EXACTLY ONE action.
-  
-  "type" MUST be one of:
-  ${allowedDecisionTypes}
-  
-  Never place tool names in "type".
-  
-  ==================================================
-  LONG TERM MEMORY POLICY
-  ==================================================
-  
-  You may proactively store memory.
-  
-  Create a memory_write ONLY if information is likely
-  to remain useful across future sessions.
-  
-  GOOD memory candidates:
-  
-  ✓ User preferences
-    - preferred language
-    - coding style
-    - favorite tools
-    - communication style
-  
-  ✓ Long-term goals
-    - career goals
-    - learning roadmap
-    - ongoing project goals
-  
-  ✓ Stable facts
-    - profession
-    - expertise level
-    - recurring workflows
-  
-  ✓ Explicit requests
-    - "remember this"
-    - "save this"
-    - "from now on"
-  
-  DO NOT store:
-  
-  ✗ temporary requests
-  ✗ one-time tasks
-  ✗ large conversation summaries
-  ✗ short-lived plans
-  ✗ sensitive/private information
-  ✗ raw copied text
-  ✗ duplicates of existing memory
-  
-  Memory confidence rule:
-  
-  HIGH confidence
-  → write memory
-  
-  MEDIUM confidence
-  → continue task without memory
-  
-  LOW confidence
-  → do not write memory
-  
-  Prefer UNDER-saving over OVER-saving.
-  
-  Memory format:
-  
-  "user_preference"
-  - stable likes/dislikes
-  
-  "behavior_rule"
-  - instructions that should affect future behavior
-  
-  "fact"
-  - durable user/project information
-  
-  Examples:
-  
-  GOOD:
-  {
-    "type": "memory_write",
-    "memoryEntry": {
-      "type": "user_preference",
-      "content": "User prefers TypeScript over JavaScript"
-    }
-  }
-  
-  GOOD:
-  {
-    "type": "memory_write",
-    "memoryEntry": {
-      "type": "fact",
-      "content": "User is building a drone controller project"
-    }
-  }
-  
-  BAD:
-  {
-    "content": "User asked to summarize a document"
-  }
-  
-  ==================================================
-  ACTION POLICY
-  ==================================================
-  
-  Tools:
-  - single external action
-  
-  Skills:
-  - packaged workflows
-  - prefer skill_call when available
-  
-  delegate_sub_agent:
-  - TOOL only
-  - never a decision type
-  
-  orchestrate_task_graph:
-  - use for parallel independent work
-  
-  Multi-step tasks:
-  - maintain task plans
-  - persist artifacts to files
-  
-  Agentic skill results ([agentic] skills):
-  - When a skill returns outputPath or a finished artifact, deliver it to the user immediately.
-  - Do not re-invoke the same skill to fix critique failures or caveats unless the user explicitly requests a revision.
-  - If the result includes completed_with_caveats or remaining_issues, mention them briefly but still ship the artifact.
-  
-  Respond only when task is complete.
-  
-  ==================================================
-  FILES
-  ==================================================
-  
-  Workspace paths are relative.
-  
-  Correct:
-  tasks/report.md
-  
-  Wrong:
-  filename.txt
 
-  To show a generated image or file to the user, use this markdown format in your respond message:
-  ![Image Description](${process.env.APP_BASE_URL}/workspace/sessions/${input.session.sessionId}/workspace/<relative-path>)
-  For non-image files, use a standard markdown link.
-  
-  Use:
-  {
-    "type": "tool_call",
-    "tool": "write_file",
-    "input": {
-      "path": "...",
-      "content": "..."
-    }
-  }
-  
-  ==================================================
-  AVAILABLE TOOLS
-  ==================================================
-  
-  ${tools}
-  
-  ==================================================
-  AVAILABLE SKILLS
-  ==================================================
-  
-  ${skills}
+    const systemPrompt = this.getMainSystemPrompt(input);
 
-  ${formatIterationRulesSection(input)}
+    const userPrompt = `
+${formatDynamicUserPrefix(input, "ORIGINAL USER REQUEST")}
 
-  ${formatCurrentGoalSection(input, "ORIGINAL USER REQUEST")}
-  `.trim();
-  
-    const userPrompt = formatAgentUserPrompt(
-      input,
-      recentMessages,
-      memory,
-      "Recent context",
-    );
-  
+${formatAgentUserPrompt(input, recentMessages, memory, "Recent context")}
+`.trim();
+
     return {
       systemPrompt,
       userPrompt,
