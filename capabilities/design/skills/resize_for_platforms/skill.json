@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "1",
+  "name": "resize_for_platforms",
+  "description": "Resize and export a source image to multiple social-platform sizes using named presets (e.g. instagram_post, youtube_thumbnail).",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "sourcePath": {
+        "type": "string",
+        "description": "Workspace-relative path to the source image."
+      },
+      "presets": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Named sizes: instagram_post, instagram_story, twitter_post, linkedin_post, facebook_cover, youtube_thumbnail, open_graph."
+      },
+      "outputDir": {
+        "type": "string",
+        "description": "Directory prefix for outputs (e.g. exports/). Default exports/."
+      }
+    },
+    "required": ["sourcePath", "presets"]
+  },
+  "steps": [
+    {
+      "type": "tool_call",
+      "tool": "export_multi_size",
+      "input": {
+        "sourcePath": "{{input.sourcePath}}",
+        "presets": "{{input.presets}}",
+        "outputDir": "{{input.outputDir}}"
+      },
+      "saveAs": "exports"
+    },
+    {
+      "type": "respond",
+      "messageTemplate": "Exported platform sizes:\n{{exports}}"
+    }
+  ]
+}

@@ -1,7 +1,22 @@
 {
   "schemaVersion": "1",
+  "kind": "workflow",
   "name": "remember_fact",
-  "description": "Persist a meaningful long-term memory entry.",
+  "description": "Save a long-term memory entry (user preference, behavior rule, or fact) for future recall.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "type": {
+        "type": "string",
+        "description": "Memory category: user_preference, behavior_rule, or fact."
+      },
+      "content": {
+        "type": "string",
+        "description": "Text to store."
+      }
+    },
+    "required": ["type", "content"]
+  },
   "steps": [
     {
       "type": "memory_write",

@@ -10,8 +10,12 @@ Minimal but scalable single-agent framework in Node.js + TypeScript.
   - Session memory per JSON file in `memory/sessions/`
   - Long-term memory in `memory/long-term.json`
 - Tool/skill executor with pluggable registries
+- Session workspace file uploads (HTTP):
+  - `POST /api/session/:id/files` — multipart `file` → `workspace/sessions/<id>/workspace/uploads/...`
+  - `GET /api/session/:id/files` — list files in `uploads/`
+  - Chat accepts `attachmentPaths` to tell the agent which workspace files to use
 - File system capability:
-  - Tools: `read_file`, `write_file`, `list_directory`
+  - Tools: `read_file`, `write_file`, `list_directory`, `download_file`
 - Scheduler capability:
   - Tools: `upsert_cron_job`, `list_cron_jobs`, `delete_cron_job`
   - Background runner: evaluates due cron jobs every 30s and executes their `task` via AgentLoop
@@ -26,8 +30,17 @@ Minimal but scalable single-agent framework in Node.js + TypeScript.
   - Optional advanced TS skills for custom logic (not required for current capabilities/integrations)
 - Core capability tools:
   - `ask_user`, `search_memory`, `get_current_time`
+  - Task plan (session file `memory/sessions/<id>.task-plan.json`; tasks support `notes` + `artifact_path` under `workspace/`): `read_task_plan`, `write_task_plan`, `patch_task_plan_task`
 - Core capability skills:
-  - `remember_fact`, `plan_steps`, `get_current_time`
+  - `remember_fact`, `bootstrap_finalize` (onboarding)
+  - `plan_steps` [agentic]: builds ordered steps and persists them via task-plan tools (`read_task_plan`, `write_task_plan`, `patch_task_plan_task`)
+- Filesystem skills (multi-step): `summarize_document`, `extract_tasks`
+- PDF skill: `generate_designed_pdf`
+- Design capability:
+  - Tools: `render_html_to_png`, `write_svg`, `render_svg_to_png`, `read_image_metadata`, `crop_and_resize`, `export_multi_size`, `compose_layers`, `download_image`, `generate_image`, `apply_image_transform`, `add_image_overlay`, `inspect_image`
+  - Integration: `search_stock_images` (Unsplash; requires `UNSPLASH_ACCESS_KEY`)
+  - Skills [agentic]: `create_social_graphic`, `create_photo_social_graphic`, `create_infographic`, `create_icon_set`, `prepare_images_for_design`
+  - Skill [workflow]: `resize_for_platforms`
 - OpenAI adapter plus mock adapter fallback
 - Interactive CLI (`main.ts`)
 
@@ -36,12 +49,10 @@ Minimal but scalable single-agent framework in Node.js + TypeScript.
 ```text
 agentix/
 ├── core/
-│   ├── agent-loop.ts
-│   ├── executor.ts
-│   ├── llm-adapter.ts
-│   ├── memory-manager.ts
-│   ├── mock-llm-adapter.ts
-│   └── prompt-builder.ts
+│   ├── agent/           # agent loop, runtime factory, executor, prompts
+│   ├── skills/          # skill loader + workflow/agentic runners
+│   ├── orchestrator/    # DAG task graph execution
+│   └── index.ts
 ├── capabilities/
 │   ├── core/
 │   │   ├── tools/
@@ -49,7 +60,13 @@ agentix/
 │   ├── filesystem/
 │       ├── tools/
 │       └── skills/
-│   └── scheduler/
+│   ├── scheduler/
+│   │   ├── tools/
+│   │   └── skills/
+│   ├── pdf/
+│   │   ├── tools/
+│   │   └── skills/
+│   └── design/
 │       ├── tools/
 │       └── skills/
 ├── integrations/
@@ -92,8 +109,17 @@ GMAIL_CLIENT_SECRET=your_gmail_client_secret_here
 GMAIL_REFRESH_TOKEN=your_gmail_refresh_token_here
 LLM_PROVIDER=openai or ollama(for local)
 OPENAI_API_KEY=your_openai_api_key_here
+UNSPLASH_ACCESS_KEY=your_unsplash_access_key_here
+VISION_PROVIDER=openai
+IMAGE_GEN_PROVIDER=vertex
+IMAGEN_MODEL=imagen-4.0-generate-001
+# Optional: background removal tuning (defaults: 0.02 dilation, 0.5 mask blur; set to 0 to disable)
+# IMAGEN_SEGMENTATION_MASK_DILATION=0.02
+# IMAGEN_SEGMENTATION_MASK_BLUR=0.5
 
 ```
+
+`inspect_image` uses `VISION_PROVIDER` (defaults to `LLM_PROVIDER`) with OpenAI or Gemini vision. `generate_image` uses Vertex Imagen (`IMAGE_GEN_PROVIDER=vertex`, reuses `GOOGLE_CLOUD_PROJECT` / `GOOGLE_CLOUD_LOCATION`). `search_stock_images` needs [Unsplash API](https://unsplash.com/developers) access key.
 
 Then in the CLI, ask:
 

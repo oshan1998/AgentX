@@ -1,7 +1,7 @@
 import path from "node:path";
-import { SkillRegistry } from "../interfaces/registry.js";
-import { loadConfigSkills } from "../core/config-skill-runner.js";
-import type { LlmAdapter } from "../interfaces/types.js";
+import { SkillRegistry } from "../common/interfaces/registry.js";
+import { loadSkillsFromDirectory } from "../core/skills/index.js";
+import type { LlmAdapter } from "../common/interfaces/types.js";
 
 export class SkillManager {
   private readonly skillRegistry = new SkillRegistry();
@@ -26,7 +26,7 @@ export class SkillManager {
 
       for (const entry of entries) {
         const skillsPath = path.join(rootDir, entry, "skills");
-        const skills = await loadConfigSkills(skillsPath, this.llm);
+        const skills = await loadSkillsFromDirectory(skillsPath, this.llm);
         for (const skill of skills) {
           this.skillRegistry.register(skill);
         }

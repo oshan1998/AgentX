@@ -1,4 +1,4 @@
-import type { AgentDecision, LlmAdapter } from "../interfaces/types.js";
+import type { AgentDecision, LlmAdapter, LlmImageInput } from "../common/interfaces/types.js";
 
 export interface OllamaAdapterOptions {
   model?: string;
@@ -14,8 +14,8 @@ export class OllamaAdapter implements LlmAdapter {
     this.baseUrl = options?.baseUrl ?? "http://localhost:11434";
   }
 
-  async decide(prompt: string): Promise<AgentDecision> {
-    const raw = await this.complete(prompt);
+  async decide(prompt: string, systemPrompt?: string): Promise<AgentDecision> {
+    const raw = await this.complete(prompt, systemPrompt);
     try {
       return JSON.parse(raw) as AgentDecision;
     } catch {
@@ -24,10 +24,14 @@ export class OllamaAdapter implements LlmAdapter {
     }
   }
 
-  async complete(prompt: string): Promise<string> {
+  async complete(prompt: string, systemPrompt?: string): Promise<string> {
     if (prompt.length > 5000) {
       console.warn(`[WARNING] Prompt is very large: ${prompt.length} characters.`);
     }
+
+    const fullPrompt = systemPrompt 
+      ? `System: ${systemPrompt}\n\nUser: ${prompt}`
+      : prompt;
 
     const response = await fetch(`${this.baseUrl}/api/generate`, {
       method: "POST",
@@ -36,7 +40,7 @@ export class OllamaAdapter implements LlmAdapter {
       },
       body: JSON.stringify({
         model: this.model,
-        prompt: prompt,
+        prompt: fullPrompt,
         stream: false,
         options: {
           temperature: 0,
@@ -58,6 +62,10 @@ export class OllamaAdapter implements LlmAdapter {
       throw new Error("Ollama response did not include readable text output.");
     }
     return raw;
+  }
+
+  async completeWithImage(_prompt: string, _image: LlmImageInput): Promise<string> {
+    throw new Error("Ollama adapter does not support vision.");
   }
 
   private extractJsonBlock(text: string): string {

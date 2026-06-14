@@ -1,22 +1,25 @@
-import { google } from "googleapis";
+import { z } from "zod";
+import type { Tool, ToolContext } from "../../../common/interfaces/types.js";
+import { parseToolInput, zodSchemaToJsonInputSchema } from "../../../common/services/zod-tool-schema.js";
+import { getGmailClient } from "../gmail-auth.js";
 
-export class ReadEmailTool {
+export const readEmailInputSchema = z.object({
+  id: z.string().min(1).describe("Gmail message id."),
+});
+
+export type ReadEmailInput = z.infer<typeof readEmailInputSchema>;
+
+export class ReadEmailTool implements Tool {
   name = "read_email";
   description = "Read a Gmail email by message ID.";
+  inputSchema = zodSchemaToJsonInputSchema(readEmailInputSchema);
 
-  async run(input: { id: string }) {
-    const clientId = process.env.GMAIL_CLIENT_ID;
-    const clientSecret = process.env.GMAIL_CLIENT_SECRET;
-    const refreshToken = process.env.GMAIL_REFRESH_TOKEN;
-    if (!clientId || !clientSecret || !refreshToken) {
-      throw new Error("Missing Gmail credentials in .env");
-    }
-    const oAuth2Client = new google.auth.OAuth2(clientId, clientSecret);
-    oAuth2Client.setCredentials({ refresh_token: refreshToken });
-    const gmail = google.gmail({ version: "v1", auth: oAuth2Client });
+  async run(input: Record<string, unknown>, _context: ToolContext): Promise<unknown> {
+    const { id } = parseToolInput(this.name, readEmailInputSchema, input);
+    const gmail = await getGmailClient();
     const res = await gmail.users.messages.get({
       userId: "me",
-      id: input.id,
+      id,
       format: "full",
     });
     return res.data;

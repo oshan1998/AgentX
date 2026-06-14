@@ -1,16 +1,25 @@
 {
   "schemaVersion": "1",
+  "kind": "agentic",
+  "model": "gemini-2.5-pro",
   "name": "plan_steps",
-  "description": "Turn an objective into ordered implementation steps.",
-  "steps": [
-    {
-      "type": "llm",
-      "promptTemplate": "Create a concise step-by-step plan for this objective. Return numbered steps only.\n\nObjective: {{input.objective}}",
-      "saveAs": "plan"
+  "description": "Break an objective into an ordered task plan (DAG) with dependencies, statuses, and tool assignments. Independent tasks can later be run in parallel via orchestrate_task_graph.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "objective": {
+        "type": "string",
+        "description": "Goal to break into ordered steps with stable task ids."
+      }
     },
-    {
-      "type": "respond",
-      "messageTemplate": "{{plan}}"
-    }
-  ]
+    "required": ["objective"]
+  },
+  "toolNames": [
+    "list_capabilities",
+    "read_task_plan",
+    "write_task_plan",
+    "patch_task_plan_task"
+  ],
+  "maxIterations": 12,
+  "deadlineMs": 120000
 }

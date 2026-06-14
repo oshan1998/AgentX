@@ -1,0 +1,55 @@
+{
+  "schemaVersion": "1",
+  "kind": "agentic",
+  "name": "create_infographic",
+  "description": "Transform structured facts or data into a visual infographic PNG using HTML/CSS layout. Does not invent data — only visualises what is supplied.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "content": {
+        "type": "string",
+        "description": "Facts, stats, and labels to visualize. The sub-agent must not invent data."
+      },
+      "designBrief": {
+        "type": "string",
+        "description": "Optional visual direction (palette, style, vertical vs horizontal)."
+      },
+      "outputPath": {
+        "type": "string",
+        "description": "PNG output path under workspace/."
+      },
+      "width": {
+        "type": "number",
+        "description": "Canvas width in pixels. Default 1200."
+      },
+      "height": {
+        "type": "number",
+        "description": "Canvas height in pixels. Default 1600 for vertical infographics."
+      },
+      "imagePaths": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Optional workspace image paths (photos, logos, icons)."
+      },
+      "imageUrls": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Optional HTTPS URLs to download before layout."
+      }
+    },
+    "required": ["content", "outputPath"]
+  },
+  "toolNames": [
+    "download_image",
+    "generate_image",
+    "read_image_metadata",
+    "crop_and_resize",
+    "compose_layers",
+    "render_html_to_png",
+    "write_svg",
+    "render_svg_to_png",
+    "inspect_image"
+  ],
+  "maxIterations": 20,
+  "deadlineMs": 240000
+}

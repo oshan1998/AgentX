@@ -1,24 +1,36 @@
-import { google } from "googleapis";
+import { z } from "zod";
+import type { Tool, ToolContext } from "../../../common/interfaces/types.js";
+import { parseToolInput, zodSchemaToJsonInputSchema } from "../../../common/services/zod-tool-schema.js";
+import { getGmailClient } from "../gmail-auth.js";
 
-export class ListEmailsTool {
+export const listEmailsInputSchema = z
+  .object({
+    maxResults: z
+      .number()
+      .finite()
+      .positive()
+      .optional()
+      .describe("Default 5."),
+  })
+  .describe("Optional cap on how many ids to fetch.");
+
+export type ListEmailsInput = z.infer<typeof listEmailsInputSchema>;
+
+export class ListEmailsTool implements Tool {
   name = "list_emails";
   description = "List recent emails from Gmail inbox.";
+  inputSchema = zodSchemaToJsonInputSchema(listEmailsInputSchema);
 
-  async run(input: { maxResults?: number }) {
-    const clientId = process.env.GMAIL_CLIENT_ID;
-    const clientSecret = process.env.GMAIL_CLIENT_SECRET;
-    const refreshToken = process.env.GMAIL_REFRESH_TOKEN;
-    if (!clientId || !clientSecret || !refreshToken) {
-      throw new Error("Missing Gmail credentials in .env");
-    }
-    const oAuth2Client = new google.auth.OAuth2(clientId, clientSecret);
-    oAuth2Client.setCredentials({ refresh_token: refreshToken });
-    const gmail = google.gmail({ version: "v1", auth: oAuth2Client });
+  async run(input: Record<string, unknown>, _context: ToolContext): Promise<unknown> {
+    const { maxResults: raw } = parseToolInput(this.name, listEmailsInputSchema, input);
+    const maxResults =
+      typeof raw === "number" && Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 5;
+
+    const gmail = await getGmailClient();
     const res = await gmail.users.messages.list({
       userId: "me",
-      maxResults: input.maxResults || 5,
+      maxResults,
     });
-    const messages = res.data.messages || [];
-    return messages;
+    return res.data.messages || [];
   }
 }

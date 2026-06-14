@@ -1,4 +1,6 @@
-import type { Tool, ToolContext } from "../../../interfaces/types.js";
+import { z } from "zod";
+import type { Tool, ToolContext } from "../../../common/interfaces/types.js";
+import { parseToolInput, zodSchemaToJsonInputSchema } from "../../../common/services/zod-tool-schema.js";
 
 interface TavilySearchResult {
   title?: string;
@@ -10,19 +12,30 @@ interface TavilySearchResult {
 interface TavilySearchResponse {
   query?: string;
   results?: TavilySearchResult[];
+  images?: string[];
 }
+
+export const webSearchInputSchema = z.object({
+  query: z.string().min(1).describe("Search query."),
+  maxResults: z
+    .number()
+    .finite()
+    .optional()
+    .describe("1–10; default 5."),
+  includeImages: z
+    .boolean()
+    .describe("Whether to include a list of relevant image URLs in the response. This is useful for image retrievals."),
+});
+
+export type WebSearchInput = z.infer<typeof webSearchInputSchema>;
 
 export class WebSearchTool implements Tool {
   name = "web_search";
   description = "Search the web with Tavily and return top results.";
+  inputSchema = zodSchemaToJsonInputSchema(webSearchInputSchema);
 
   async run(input: Record<string, unknown>, _context: ToolContext): Promise<unknown> {
-    const query = input.query;
-    const maxResultsRaw = input.maxResults;
-
-    if (typeof query !== "string" || query.trim().length === 0) {
-      throw new Error("web_search requires { query: string }.");
-    }
+    const { query, maxResults: maxResultsRaw, includeImages } = parseToolInput(this.name, webSearchInputSchema, input);
 
     const maxResults =
       typeof maxResultsRaw === "number" && Number.isFinite(maxResultsRaw)
@@ -44,6 +57,7 @@ export class WebSearchTool implements Tool {
         query,
         max_results: maxResults,
         search_depth: "basic",
+        include_images: includeImages ?? false,
       }),
     });
 
@@ -55,11 +69,20 @@ export class WebSearchTool implements Tool {
     const data = (await response.json()) as TavilySearchResponse;
     const results = (data.results ?? []).slice(0, maxResults);
 
-    return results.map((result) => ({
+    const mappedResults = results.map((result) => ({
       title: result.title ?? "",
       url: result.url ?? "",
       snippet: result.content ?? "",
       score: result.score ?? 0,
     }));
+
+    if (includeImages) {
+      return {
+        results: mappedResults,
+        images: data.images ?? [],
+      };
+    }
+
+    return mappedResults;
   }
 }

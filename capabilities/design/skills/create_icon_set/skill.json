@@ -1,0 +1,32 @@
+{
+  "schemaVersion": "1",
+  "kind": "agentic",
+  "name": "create_icon_set",
+  "description": "Generate a matching set of SVG icons (and optional PNG exports) from a list of icon names and a visual style brief.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "iconNames": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Names/labels for each icon (e.g. home, settings, user)."
+      },
+      "designBrief": {
+        "type": "string",
+        "description": "Visual style: stroke weight, corner radius, palette, metaphor constraints."
+      },
+      "outputDir": {
+        "type": "string",
+        "description": "Directory under workspace/ for outputs (e.g. icons/). Default icons/."
+      },
+      "pngSize": {
+        "type": "number",
+        "description": "PNG export size in pixels (square). Default 512."
+      }
+    },
+    "required": ["iconNames", "designBrief"]
+  },
+  "toolNames": ["write_svg", "render_svg_to_png"],
+  "maxIterations": 24,
+  "deadlineMs": 300000
+}
