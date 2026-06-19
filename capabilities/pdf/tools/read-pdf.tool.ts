@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import pdf from "pdf-parse";
+import { PDFParse } from "pdf-parse";
 import { z } from "zod";
 import type { Tool, ToolContext } from "../../../common/interfaces/types.js";
 import { logger } from "../../../common/services/logger.js";
@@ -29,14 +29,20 @@ export class ReadPdfTool implements Tool {
 
     try {
       const dataBuffer = await readFile(absPath);
-      const data = await pdf(dataBuffer);
+      const parser = new PDFParse({ data: dataBuffer });
+      try {
+        const textResult = await parser.getText();
+        const infoResult = await parser.getInfo();
 
-      return {
-        text: data.text,
-        info: data.info,
-        numpages: data.numpages,
-        success: true,
-      };
+        return {
+          text: textResult.text,
+          info: infoResult.info,
+          numpages: textResult.total,
+          success: true,
+        };
+      } finally {
+        await parser.destroy();
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       logger.error(`Failed to read PDF: ${message}`);
