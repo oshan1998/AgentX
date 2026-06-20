@@ -32,6 +32,10 @@ import {
 } from "./execution-policy.js";
 import { MemoryManager } from "../../managers/memory-manager.js";
 import { PromptBuilder } from "./prompt-builder.js";
+import {
+  buildMcpServerCatalog,
+  routeMcpServers,
+} from "../../managers/mcp/mcp-server-catalog.js";
 import type { Soul, User } from "../../managers/profile-manager.js";
 import { ProfileManager } from "../../managers/profile-manager.js";
 import { logger } from "../../common/services/logger.js";
@@ -299,6 +303,11 @@ export class AgentLoop {
       ? options?.subAgentSystemPromptAppend
       : undefined;
 
+    const inlineSchemaMcpServers =
+      !isSubAgent
+        ? routeMcpServers(userInput, buildMcpServerCatalog(this.deps.toolRegistry))
+        : undefined;
+
     const staticSystemPrompt = this.promptBuilder.buildStaticSystem({
       sessionId,
       soul,
@@ -308,6 +317,7 @@ export class AgentLoop {
       isSubAgent,
       isBootstrapComplete,
       subAgentSystemPromptAppend,
+      inlineSchemaMcpServers,
     });
 
     logger.debug("Built static system prompt for run", {

@@ -1,5 +1,10 @@
 export { McpClientManager } from "./mcp-client-manager.js";
 export {
+  buildMcpServerCatalog,
+  routeMcpServers,
+  type McpServerCatalogEntry,
+} from "./mcp-server-catalog.js";
+export {
   loadMcpServerConfigs,
   mcpServerConfigSchema,
   mcpConfigFileSchema,
