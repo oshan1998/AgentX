@@ -2,6 +2,7 @@ import path from "node:path";
 import { ToolRegistry } from "../common/interfaces/registry.js";
 import type { Tool } from "../common/interfaces/types.js";
 import { MemoryManager } from "./memory-manager.js";
+import { logger } from "../common/services/logger.js";
 
 export class ToolManager {
   private readonly toolRegistry = new ToolRegistry();
@@ -48,6 +49,7 @@ export class ToolManager {
                   )(this.memoryManager);
                   if (typeof maybeTool.name === "string") {
                     this.toolRegistry.register(maybeTool);
+                    logger.debug(`Tool ${maybeTool.name} loaded`);
                   }
                 }
               }
