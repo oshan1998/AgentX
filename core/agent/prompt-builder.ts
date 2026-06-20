@@ -1,4 +1,7 @@
-import type { SkillRegistry, ToolRegistry } from "../../common/interfaces/registry.js";
+import type {
+  SkillRegistry,
+  ToolRegistry,
+} from "../../common/interfaces/registry.js";
 import type {
   LongTermMemoryEntry,
   SessionMemory,
@@ -35,7 +38,8 @@ export interface BuiltPrompt {
 }
 
 function formatSkillCatalogLine(s: Skill): string {
-  const tag = s.kind === SkillType.Agentic ? SkillType.Agentic : SkillType.Workflow;
+  const tag =
+    s.kind === SkillType.Agentic ? SkillType.Agentic : SkillType.Workflow;
   const head = `- ${s.name} [${tag}]${s.description ? `: ${s.description}` : ""}`;
   const schemaLines = formatInputSchemaForPrompt(s.inputSchema);
   return schemaLines ? `${head}\n${schemaLines}` : head;
@@ -114,7 +118,10 @@ REASONING RULES
 Choose EXACTLY ONE action.`.trim();
 }
 
-function formatCurrentGoalSection(input: PromptBuilderInput, goalLabel: string): string {
+function formatCurrentGoalSection(
+  input: PromptBuilderInput,
+  goalLabel: string,
+): string {
   if (input.iteration === 1) {
     return `
 ==================================================
@@ -155,10 +162,9 @@ ${lastObservation}
 `.trim();
   }
 
-  const planSection =
-    input.activePlan?.length
-      ? `Active plan (emit at iteration 1 — check off completed steps):\n${input.activePlan.join("\n")}`
-      : "";
+  const planSection = input.activePlan?.length
+    ? `Active plan (emit at iteration 1 — check off completed steps):\n${input.activePlan.join("\n")}`
+    : "";
 
   return `
 ${iterationLine}

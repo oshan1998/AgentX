@@ -13,7 +13,12 @@ export {
   type ExecutionPolicy,
 } from "./execution-policy.js";
 export { Executor, type ExecutorInvocationContext, type ExecutorTraceContext } from "./executor.js";
-export { PromptBuilder } from "./prompt-builder.js";
+export {
+  PromptBuilder,
+  type DynamicPromptInput,
+  type PromptMode,
+  type StaticPromptInput,
+} from "./prompt-builder.js";
 export {
   cloneSkillWhitelist,
   cloneToolWhitelist,
