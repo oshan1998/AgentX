@@ -1,7 +1,7 @@
 import path from "node:path";
 import { logger } from "./logger.js";
 import { AgentLoop } from "../../core/agent/agent-loop.js";
-import { readCronJobs, writeCronJobs } from "../../capabilities/scheduler/scheduler-utils.js";
+import { readCronJobs, writeCronJobs } from "../../runtime/services/scheduler-utils.js";
 
 
 function minuteKeyUtc(date: Date): string {

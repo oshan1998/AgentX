@@ -10,65 +10,44 @@ export class ToolManager {
   constructor(
     private readonly memoryManager: MemoryManager,
     private readonly baseDir: string = process.cwd(),
-    /**
-     * Capability/integration directory names to skip when loading local tools
-     * (e.g. "design" once those tools are served by an external MCP server).
-     */
-    private readonly excludedDirs: ReadonlySet<string> = new Set(),
   ) {}
 
   async loadAllTools(): Promise<ToolRegistry> {
-    const roots = ["capabilities", "integrations"];
+    await this.loadToolsFromDirectory(path.join(this.baseDir, "runtime", "tools"));
+    return this.toolRegistry;
+  }
+
+  private async loadToolsFromDirectory(toolsDir: string): Promise<void> {
     const { readdir } = await import("node:fs/promises");
+    let toolFiles: string[] = [];
+    try {
+      toolFiles = await readdir(toolsDir);
+    } catch {
+      return;
+    }
 
-    for (const root of roots) {
-      const rootDir = path.join(this.baseDir, root);
-      let entries: string[] = [];
+    for (const file of toolFiles) {
+      if (!file.endsWith(".tool.ts") && !file.endsWith(".tool.js")) continue;
       try {
-        entries = await readdir(rootDir);
-      } catch {
-        continue;
-      }
-
-      for (const entry of entries) {
-        if (this.excludedDirs.has(entry)) {
-          logger.info(`Skipping local tools for "${entry}" (offloaded to MCP).`);
-          continue;
-        }
-        const toolsDir = path.join(rootDir, entry, "tools");
-        let toolFiles: string[] = [];
-        try {
-          toolFiles = await readdir(toolsDir);
-        } catch {
-          continue;
-        }
-
-        for (const file of toolFiles) {
-          if (file.endsWith(".tool.ts") || file.endsWith(".tool.js")) {
-            try {
-              const mod = await import(path.join(toolsDir, file));
-              for (const exported of Object.values(mod)) {
-                if (
-                  typeof exported === "function" &&
-                  exported.prototype &&
-                  typeof exported.prototype.run === "function"
-                ) {
-                  const maybeTool = new (
-                    exported as new (...args: unknown[]) => Tool
-                  )(this.memoryManager);
-                  if (typeof maybeTool.name === "string") {
-                    this.toolRegistry.register(maybeTool);
-                    logger.debug(`Tool ${maybeTool.name} loaded`);
-                  }
-                }
-              }
-            } catch {
-              // Ignore broken tool files
+        const mod = await import(path.join(toolsDir, file));
+        for (const exported of Object.values(mod)) {
+          if (
+            typeof exported === "function" &&
+            exported.prototype &&
+            typeof exported.prototype.run === "function"
+          ) {
+            const maybeTool = new (
+              exported as new (...args: unknown[]) => Tool
+            )(this.memoryManager);
+            if (typeof maybeTool.name === "string") {
+              this.toolRegistry.register(maybeTool);
+              logger.debug(`Tool ${maybeTool.name} loaded`);
             }
           }
         }
+      } catch {
+        // Ignore broken tool files
       }
     }
-    return this.toolRegistry;
   }
 }

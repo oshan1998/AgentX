@@ -9,6 +9,13 @@
       },
       "namePrefix": "github",
       "toolTimeoutMs": 120000
+    },
+    "design": {
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["tsx", "mcp/design/index.ts"],
+      "namePrefix": "",
+      "toolTimeoutMs": 180000
     }
   }
 }
