@@ -23,6 +23,28 @@
       "args": ["tsx", "mcp/web/index.ts"],
       "namePrefix": "",
       "toolTimeoutMs": 180000
+    },
+    "jira": {
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://mcp.atlassian.com/v1/mcp"],
+      "namePrefix": "jira",
+      "toolTimeoutMs": 120000
+    },
+    "figma": {
+      "transport": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://mcp.figma.com/mcp",
+        "--transport",
+        "http-first",
+        "--static-oauth-client-metadata",
+        "{\"client_name\":\"${FIGMA_MCP_CLIENT_NAME}\"}"
+      ],
+      "namePrefix": "figma",
+      "toolTimeoutMs": 180000
     }
   }
 }

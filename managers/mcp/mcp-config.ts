@@ -62,6 +62,9 @@ function interpolateEnv(value: string): string {
   return value.replace(ENV_PLACEHOLDER, (_match, name: string) => {
     const resolved = process.env[name];
     if (resolved === undefined) {
+      if (name === "FIGMA_MCP_CLIENT_NAME") {
+        return "Claude Code";
+      }
       logger.warn(`[mcp-config] Env var ${name} referenced but not set; using empty string.`);
       return "";
     }

@@ -37,6 +37,40 @@
       "command": "npx",
       "args": ["tsx", "mcp/gmail/index.ts"],
       "namePrefix": ""
+    },
+    "jira": {
+      "transport": "stdio",
+      "disabled": true,
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://mcp.atlassian.com/v1/mcp"],
+      "namePrefix": "jira",
+      "toolTimeoutMs": 120000
+    },
+    "jira-token": {
+      "transport": "http",
+      "disabled": true,
+      "url": "https://mcp.atlassian.com/v1/mcp",
+      "headers": {
+        "Authorization": "${ATLASSIAN_MCP_AUTH}"
+      },
+      "namePrefix": "jira",
+      "toolTimeoutMs": 120000
+    },
+    "figma": {
+      "transport": "stdio",
+      "disabled": true,
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://mcp.figma.com/mcp",
+        "--transport",
+        "http-first",
+        "--static-oauth-client-metadata",
+        "{\"client_name\":\"${FIGMA_MCP_CLIENT_NAME}\"}"
+      ],
+      "namePrefix": "figma",
+      "toolTimeoutMs": 180000
     }
   }
 }

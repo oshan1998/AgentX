@@ -13,6 +13,7 @@
     "start:mcp:web": "node dist/mcp/web/index.js",
     "mcp:gmail": "tsx mcp/gmail/index.ts",
     "start:mcp:gmail": "node dist/mcp/gmail/index.js",
+    "mcp:figma:auth": "npx -y -p mcp-remote@latest mcp-remote-client https://mcp.figma.com/mcp --transport http-first --static-oauth-client-metadata \"{\\\"client_name\\\":\\\"Claude Code\\\"}\"",
     "build:standalone:design": "node mcp/_harness/build-standalone.mjs mcp/design/index.ts design-mcp",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
