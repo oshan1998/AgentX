@@ -1,5 +1,6 @@
 import { VertexAI, GenerativeModel, GenerateContentRequest } from "@google-cloud/vertexai";
 import type { AgentDecision, LlmAdapter, LlmImageInput } from "../../../common/interfaces/types.js";
+import { logLlmTokenUsage } from "../../../llm-adapters/log-token-usage.js";
 import { resolveVertexLocation } from "./vertex-config.js";
 
 interface GeminiAdapterOptions {
@@ -28,7 +29,7 @@ export class GeminiVertexAdapter implements LlmAdapter {
   }
 
   async decide(prompt: string, systemPrompt?: string): Promise<AgentDecision> {
-    const raw = await this.complete(prompt, systemPrompt);
+    const raw = await this.complete(prompt, systemPrompt, "decide");
     try {
       return JSON.parse(raw) as AgentDecision;
     } catch (e) {
@@ -37,7 +38,7 @@ export class GeminiVertexAdapter implements LlmAdapter {
     }
   }
 
-  async complete(prompt: string, systemPrompt?: string): Promise<string> {
+  async complete(prompt: string, systemPrompt?: string, operation = "complete"): Promise<string> {
     const request: GenerateContentRequest = {
       contents: [
         {
@@ -56,6 +57,7 @@ export class GeminiVertexAdapter implements LlmAdapter {
 
     const result = await this.model.generateContent(request);
     const response = await result.response;
+    this.logUsage(operation, response.usageMetadata);
     const text = response.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!text) {
@@ -80,11 +82,30 @@ export class GeminiVertexAdapter implements LlmAdapter {
     });
 
     const response = await result.response;
+    this.logUsage("completeWithImage", response.usageMetadata);
     const text = response.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!text?.trim()) {
       throw new Error("Gemini vision returned empty text.");
     }
 
     return text.trim();
+  }
+
+  private logUsage(
+    operation: string,
+    usage?: {
+      promptTokenCount?: number;
+      candidatesTokenCount?: number;
+      cachedContentTokenCount?: number;
+    },
+  ): void {
+    logLlmTokenUsage({
+      provider: "gemini",
+      model: this.modelName,
+      operation,
+      inputTokens: usage?.promptTokenCount ?? 0,
+      outputTokens: usage?.candidatesTokenCount ?? 0,
+      cachedTokens: usage?.cachedContentTokenCount ?? 0,
+    });
   }
 }
