@@ -21,11 +21,26 @@ export type AgentTraceRunOutcome =
   | AgentRunOutcome.CANCELLED
   | AgentRunOutcome.TIMED_OUT;
 
+/** Where a tool executes: in-process or via an external MCP server. */
+export type ToolSource = "local" | "mcp";
+
+/**
+ * Optional execution metadata for tool/skill_tool steps. `source`/`server` are
+ * typically present on both phases; `durationMs` only on `end`.
+ */
+export interface ToolTraceMeta {
+  source?: ToolSource;
+  /** MCP server name when `source` is "mcp". */
+  server?: string;
+  /** Wall-clock execution time in ms (set on the `end` phase). */
+  durationMs?: number;
+}
+
 export type AgentTraceStep =
   | { step: "thought"; iteration: number; phase: AgentTracePhase.START | AgentTracePhase.END; text?: string }
-  | { step: "tool"; iteration: number; name: string; phase: AgentTracePhase.START | AgentTracePhase.END }
+  | ({ step: "tool"; iteration: number; name: string; phase: AgentTracePhase.START | AgentTracePhase.END } & ToolTraceMeta)
   | { step: "skill"; iteration: number; name: string; phase: AgentTracePhase.START | AgentTracePhase.END }
-  | { step: "skill_tool"; iteration: number; skill: string; tool: string; phase: AgentTracePhase.START | AgentTracePhase.END }
+  | ({ step: "skill_tool"; iteration: number; skill: string; tool: string; phase: AgentTracePhase.START | AgentTracePhase.END } & ToolTraceMeta)
   | { step: "memory_write"; iteration: number; phase: AgentTracePhase.START | AgentTracePhase.END }
   | { step: "profile_write"; iteration: number; phase: AgentTracePhase.START | AgentTracePhase.END; target?: string }
   | {
@@ -44,9 +59,15 @@ export type AgentTracePayload = { sessionId: string; runId: string; seq: number;
 export interface RunTracer {
   /** `text` applies to `phase: "end"` (model thought); omit on start */
   thought(iteration: number, phase: AgentTracePhase, text?: string): void;
-  tool(iteration: number, name: string, phase: AgentTracePhase): void;
+  tool(iteration: number, name: string, phase: AgentTracePhase, meta?: ToolTraceMeta): void;
   skill(iteration: number, name: string, phase: AgentTracePhase): void;
-  skillTool(iteration: number, skill: string, tool: string, phase: AgentTracePhase): void;
+  skillTool(
+    iteration: number,
+    skill: string,
+    tool: string,
+    phase: AgentTracePhase,
+    meta?: ToolTraceMeta,
+  ): void;
   memoryWrite(iteration: number, phase: AgentTracePhase): void;
   profileWrite(iteration: number, phase: AgentTracePhase, target?: string): void;
   runDone(outcome: AgentTraceRunOutcome): void;

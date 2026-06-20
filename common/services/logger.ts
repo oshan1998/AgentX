@@ -22,6 +22,14 @@ class LoggerService {
   private winstonLogger: winston.Logger;
 
   constructor() {
+    // Stdio MCP servers use stdout for the JSON-RPC channel, so console logs
+    // MUST go to stderr to avoid corrupting the protocol. Opt in via
+    // AGENTX_LOG_STDERR (set by stdio server bootstrap).
+    const logToStderr = process.env.AGENTX_LOG_STDERR === "1";
+    const consoleTransport = logToStderr
+      ? new winston.transports.Stream({ stream: process.stderr, format: consoleFormat })
+      : new winston.transports.Console({ format: consoleFormat });
+
     this.winstonLogger = winston.createLogger({
       level: "debug",
       transports: [
@@ -29,9 +37,7 @@ class LoggerService {
           filename: path.join(process.cwd(), "server.log"),
           format: fileFormat,
         }),
-        new winston.transports.Console({
-          format: consoleFormat,
-        })
+        consoleTransport,
       ]
     });
   }

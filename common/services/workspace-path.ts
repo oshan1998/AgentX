@@ -2,8 +2,14 @@ import { access, stat } from "node:fs/promises";
 import { constants } from "node:fs";
 import path from "node:path";
 
-/** Matches `main.ts` memory root (`process.cwd()/memory`). */
-export const DEFAULT_WORKSPACE_BASE = path.join(process.cwd(), "workspace");
+/**
+ * Workspace base directory. Defaults to `process.cwd()/workspace` (matches the
+ * main app). An extracted MCP server can override it with AGENTX_WORKSPACE_BASE
+ * to point at the same shared workspace when running as a separate process.
+ */
+export const DEFAULT_WORKSPACE_BASE = process.env.AGENTX_WORKSPACE_BASE?.trim()
+  ? path.resolve(process.env.AGENTX_WORKSPACE_BASE.trim())
+  : path.join(process.cwd(), "workspace");
 
 /** Principal session id for delegated runs (`root::sub_*` → `root`). */
 export function resolveRootSessionId(sessionId: string): string {

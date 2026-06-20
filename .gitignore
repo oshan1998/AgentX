@@ -39,6 +39,10 @@ jspm_packages/
 # Build output
 /dist
 /build
+/dist-standalone
+
+# Local MCP client config (may reference real endpoints/paths)
+/config/mcp-servers.json
 
 # Coverage directory
 coverage/
