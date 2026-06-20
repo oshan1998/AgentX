@@ -1,4 +1,5 @@
 import type { AgentDecision, LlmAdapter, LlmImageInput } from "../common/interfaces/types.js";
+import { logLlmTokenUsage } from "./log-token-usage.js";
 
 interface OpenAIAdapterOptions {
   apiKey: string;
@@ -13,7 +14,7 @@ export class OpenAIAdapter implements LlmAdapter {
   }
 
   async decide(prompt: string, systemPrompt?: string): Promise<AgentDecision> {
-    const raw = await this.complete(prompt, systemPrompt);
+    const raw = await this.complete(prompt, systemPrompt, "decide");
     try {
       return JSON.parse(raw) as AgentDecision;
     } catch {
@@ -22,7 +23,7 @@ export class OpenAIAdapter implements LlmAdapter {
     }
   }
 
-  async complete(prompt: string, systemPrompt?: string): Promise<string> {
+  async complete(prompt: string, systemPrompt?: string, operation = "complete"): Promise<string> {
     if (prompt.length > 5000) {
       console.warn(`[WARNING] Prompt is very large: ${prompt.length} characters.`);
     }
@@ -39,7 +40,7 @@ export class OpenAIAdapter implements LlmAdapter {
       content: [{ type: "input_text", text: prompt }]
     });
 
-    const raw = await this.postResponses({ model: this.model, input: messages, temperature: 0 });
+    const raw = await this.postResponses({ model: this.model, input: messages, temperature: 0 }, operation);
     if (!raw) {
       throw new Error("OpenAI response did not include readable text output.");
     }
@@ -62,14 +63,14 @@ export class OpenAIAdapter implements LlmAdapter {
         },
       ],
       temperature: 0,
-    });
+    }, "completeWithImage");
     if (!raw) {
       throw new Error("OpenAI vision returned empty text.");
     }
     return raw;
   }
 
-  private async postResponses(body: Record<string, unknown>): Promise<string> {
+  private async postResponses(body: Record<string, unknown>, operation: string): Promise<string> {
     const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
@@ -93,7 +94,23 @@ export class OpenAIAdapter implements LlmAdapter {
           text?: string;
         }>;
       }>;
+      usage?: {
+        input_tokens?: number;
+        output_tokens?: number;
+        input_tokens_details?: { cached_tokens?: number };
+      };
     };
+
+    const usage = payload.usage;
+    logLlmTokenUsage({
+      provider: "openai",
+      model: this.model,
+      operation,
+      inputTokens: usage?.input_tokens ?? 0,
+      outputTokens: usage?.output_tokens ?? 0,
+      cachedTokens: usage?.input_tokens_details?.cached_tokens ?? 0,
+    });
+
     return this.extractTextFromResponse(payload).trim();
   }
 

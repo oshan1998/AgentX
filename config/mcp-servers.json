@@ -16,6 +16,13 @@
       "args": ["tsx", "mcp/design/index.ts"],
       "namePrefix": "",
       "toolTimeoutMs": 180000
+    },
+    "web": {
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["tsx", "mcp/web/index.ts"],
+      "namePrefix": "",
+      "toolTimeoutMs": 180000
     }
   }
 }

@@ -1,5 +1,13 @@
-import { GoogleGenAI, type GenerateContentResponseUsageMetadata } from "@google/genai";
-import type { AgentDecision, LlmAdapter, LlmImageInput } from "../common/interfaces/types.js";
+import {
+  GoogleGenAI,
+  type GenerateContentResponseUsageMetadata,
+} from "@google/genai";
+import type {
+  AgentDecision,
+  LlmAdapter,
+  LlmImageInput,
+} from "../common/interfaces/types.js";
+import { logLlmTokenUsage } from "./log-token-usage.js";
 import { logLlmTokenUsage } from "./log-token-usage.js";
 import { resolveVertexLocation } from "./vertex-config.js";
 
@@ -24,6 +32,7 @@ export class GeminiVertexAdapter implements LlmAdapter {
 
   async decide(prompt: string, systemPrompt?: string): Promise<AgentDecision> {
     const raw = await this.complete(prompt, systemPrompt, "decide");
+    const raw = await this.complete(prompt, systemPrompt, "decide");
     try {
       return JSON.parse(raw) as AgentDecision;
     } catch (e) {
@@ -32,7 +41,11 @@ export class GeminiVertexAdapter implements LlmAdapter {
     }
   }
 
-  async complete(prompt: string, systemPrompt?: string, operation = "complete"): Promise<string> {
+  async complete(
+    prompt: string,
+    systemPrompt?: string,
+    operation = "complete",
+  ): Promise<string> {
     const response = await this.client.models.generateContent({
       model: this.modelName,
       contents: prompt,
@@ -51,7 +64,10 @@ export class GeminiVertexAdapter implements LlmAdapter {
     return text;
   }
 
-  async completeWithImage(prompt: string, image: LlmImageInput): Promise<string> {
+  async completeWithImage(
+    prompt: string,
+    image: LlmImageInput,
+  ): Promise<string> {
     const response = await this.client.models.generateContent({
       model: this.modelName,
       contents: [
@@ -59,7 +75,9 @@ export class GeminiVertexAdapter implements LlmAdapter {
           role: "user",
           parts: [
             { text: prompt },
-            { inlineData: { mimeType: image.mimeType, data: image.dataBase64 } },
+            {
+              inlineData: { mimeType: image.mimeType, data: image.dataBase64 },
+            },
           ],
         },
       ],
@@ -74,7 +92,10 @@ export class GeminiVertexAdapter implements LlmAdapter {
     return text;
   }
 
-  private logUsage(operation: string, usage?: GenerateContentResponseUsageMetadata): void {
+  private logUsage(
+    operation: string,
+    usage?: GenerateContentResponseUsageMetadata,
+  ): void {
     logLlmTokenUsage({
       provider: "gemini",
       model: this.modelName,
