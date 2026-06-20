@@ -14,6 +14,7 @@ import { SecretsManager } from "./managers/secrets-manager.js";
 import { SkillManager } from "./managers/skill-manager.js";
 import { SchedulerRunner } from "./common/services/scheduler-runner.js";
 import { ToolManager } from "./managers/tool-manager.js";
+import { McpClientManager } from "./managers/mcp/index.js";
 import { logger } from "./common/services/logger.js";
 
 // Services
@@ -49,6 +50,11 @@ async function main() {
 
   const toolManager = new ToolManager(memoryManager);
   const toolRegistry = await toolManager.loadAllTools();
+
+  // External MCP servers contribute additional tools into the same registry, so
+  // the agent loop, skills, sub-agents, and orchestrator treat them as native.
+  const mcpClientManager = await McpClientManager.fromConfig();
+  await mcpClientManager.registerInto(toolRegistry);
 
   const llm = createLlmAdapter();
 
@@ -137,6 +143,14 @@ async function main() {
   server.listen(port, () => {
     logger.info(`HTTP + WebSocket server at http://localhost:${port} (ws path /ws)`);
   });
+
+  const shutdown = async (signal: string) => {
+    logger.info(`Received ${signal}; closing MCP connections and HTTP server.`);
+    await mcpClientManager.close();
+    server.close(() => process.exit(0));
+  };
+  process.on("SIGINT", () => void shutdown("SIGINT"));
+  process.on("SIGTERM", () => void shutdown("SIGTERM"));
 }
 
 main();
