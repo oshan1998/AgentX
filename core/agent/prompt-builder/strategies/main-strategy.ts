@@ -1,5 +1,6 @@
 import { DecisionType } from "../../../../common/interfaces/types.js";
 import {
+  countInlineSchemaTools,
   formatCapabilitySchemaGuidance,
   formatMemorySection,
   formatSkillCatalog,
@@ -10,9 +11,34 @@ import type { DynamicPromptInput, PromptStrategy, StaticPromptInput } from "../t
 
 export class MainStrategy implements PromptStrategy {
   buildStatic(input: StaticPromptInput): string {
-    const tools = formatToolCatalog(input.toolRegistry, false);
+    const catalogOptions =
+      input.inlineSchemaMcpServers && input.inlineSchemaMcpServers.length > 0
+        ? {
+            inlineSchemaMcpServers: new Set(input.inlineSchemaMcpServers),
+            inlineLocalSchemas: true,
+          }
+        : undefined;
+    const tools = formatToolCatalog(input.toolRegistry, false, catalogOptions);
+    const inlineSchemaToolCount = countInlineSchemaTools(
+      input.toolRegistry,
+      false,
+      catalogOptions,
+    );
     const skills = formatSkillCatalog(input.skillRegistry, false);
     const allowedDecisionTypes = Object.values(DecisionType).join(" | ");
+    const schemaGuidance = formatCapabilitySchemaGuidance(inlineSchemaToolCount);
+    const schemaEnforcement =
+      inlineSchemaToolCount > 0
+        ? `SCHEMA ENFORCEMENT:
+  - Tools with an inline "input:" block below can be called immediately.
+  - For tools without an inline schema, call get_capability_schema before tool_call.
+  - Skills always require get_capability_schema before skill_call (unless already fetched this session).`
+        : `SCHEMA ENFORCEMENT (CRITICAL):
+  - The catalog below lists names and descriptions ONLY — NO input schemas.
+  - You MUST call get_capability_schema to retrieve the exact input schema BEFORE
+    emitting any tool_call or skill_call.
+  - Guessing or hallucinating input fields WILL cause validation failure.
+  - Exception: you already retrieved that schema earlier in THIS session.`;
 
     return `
   You are an AI Agent.
@@ -124,16 +150,7 @@ export class MainStrategy implements PromptStrategy {
   Skills:
   - packaged workflows — prefer skill_call when a matching skill exists
   
-  SCHEMA ENFORCEMENT (CRITICAL):
-  - The catalog below lists names and descriptions ONLY — NO input schemas.
-  - You MUST call get_capability_schema to retrieve the exact input schema BEFORE
-    emitting any tool_call or skill_call.
-  - Guessing or hallucinating input fields WILL cause validation failure.
-  - Exception: you already retrieved that schema earlier in THIS session.
-  
-  WRONG: { "type": "tool_call", "tool": "write_file", "input": { "file": "x.txt", "data": "..." } }
-  CORRECT STEP 1: { "type": "tool_call", "tool": "get_capability_schema", "input": { "kind": "tool", "name": "write_file" } }
-  CORRECT STEP 2 (after observing schema): { "type": "tool_call", "tool": "write_file", "input": { "path": "x.txt", "content": "..." } }
+  ${schemaEnforcement}
   
   ERROR RECOVERY:
   - If last observation shows a validation/input error → call get_capability_schema, then retry with corrected fields.
@@ -190,7 +207,7 @@ export class MainStrategy implements PromptStrategy {
   
   ${tools}
   
-  ${formatCapabilitySchemaGuidance()}
+  ${schemaGuidance}
   
   ==================================================
   AVAILABLE SKILLS
