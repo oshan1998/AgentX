@@ -250,19 +250,17 @@ Without a configured provider, AgentX boots with the mock adapter — enough to 
 
 ### Tools & skills (pluggable)
 
-Capabilities and integrations are auto-discovered from `capabilities/` and `integrations/` at startup.
+In-process tools load from `runtime/tools/`; domain tools from MCP servers in `mcp/`; skills from `skills/`.
 
 | Domain | Tools (examples) | Skills (examples) |
 |--------|------------------|-------------------|
-| **Core** | `ask_user`, `search_memory`, task-plan tools | `remember_fact`, `bootstrap_finalize`, `plan_steps` |
-| **Filesystem** | `read_file`, `write_file`, `list_directory`, `download_file` | `summarize_document`, `extract_tasks` |
-| **Design** | HTML/SVG render, image edit/generate, compose, crop | `create_photo_social_graphic`, `create_infographic`, `create_icon_set`, `resize_for_platforms` |
-| **PDF** | `read_pdf`, `generate_designed_pdf` | `generate_designed_pdf` |
-| **RAG** | `index_document`, `ask_document` | `qa_document` |
-| **Scheduler** | cron job CRUD | — |
-| **Gmail** | `list_emails`, `read_email`, `search_emails` | — |
-| **Web search** | `web_search` (Tavily) | — |
-| **Unsplash** | `search_stock_images` | — |
+| **Runtime (in-process)** | `ask_user`, `search_memory`, task-plan tools, `read_file`, `write_file`, cron CRUD | — |
+| **Core skills** | — | `remember_fact`, `bootstrap_finalize`, `plan_steps` |
+| **Filesystem skills** | — | `summarize_document`, `extract_tasks` |
+| **Design (MCP)** | HTML/SVG render, image edit/generate, compose, crop | `create_photo_social_graphic`, `create_infographic`, `create_icon_set`, `resize_for_platforms` |
+| **PDF (MCP)** | `read_pdf`, `generate_designed_pdf` | `generate_designed_pdf` |
+| **Gmail (MCP)** | `list_emails`, `read_email`, `search_emails` | — |
+| **Web (MCP)** | `web_search` (Tavily), `search_stock_images` | — |
 
 ### Skill types
 
@@ -272,7 +270,7 @@ Capabilities and integrations are auto-discovered from `capabilities/` and `inte
 Example layout:
 
 ```text
-capabilities/filesystem/skills/summarize_document/
+skills/filesystem/summarize_document/
 ├── skill.json    # steps + metadata
 └── prompt.md     # LLM instructions (agentic skills)
 ```
@@ -296,8 +294,11 @@ AgentX/
 │   ├── agent/                 # AgentLoop, Executor, PromptBuilder, delegation
 │   ├── skills/                # Workflow + agentic skill runners
 │   └── orchestrator/          # DAG scheduler, worker pool, parallel execution
-├── capabilities/              # Domain tools + skills
-├── integrations/              # Gmail, Tavily, Unsplash
+├── runtime/
+│   ├── tools/                 # In-process agent tools
+│   └── services/              # Runtime helpers (cron store, …)
+├── skills/                    # Domain skills (workflow + agentic)
+├── mcp/                       # Standalone MCP domain servers (design, web, gmail)
 ├── controllers/               # HTTP controllers + services (chat, corpus, workspace, …)
 ├── llm-adapters/              # Gemini, OpenAI, Ollama, Imagen, mock
 ├── managers/                  # Memory, profile, tools, skills, secrets
@@ -338,8 +339,10 @@ Other decision types include `skill_call`, `memory_write`, and `profile_write`. 
 
 ## Extending AgentX
 
-**New tool** — add `capabilities/<domain>/tools/my-tool.tool.ts` with `name`, `description`, and `run()`. Restart to auto-discover.
+**New in-process tool** — add `runtime/tools/my-tool.tool.ts` with `name`, `description`, and `run()`. Restart to auto-discover.
 
-**New skill** — add `capabilities/<domain>/skills/my_skill/skill.json` (+ optional `prompt.md`). Set `kind` to `workflow` or `agentic`.
+**New skill** — add `skills/<domain>/my_skill/skill.json` (+ optional `prompt.md`). Set `kind` to `workflow` or `agentic`.
+
+**New MCP domain** — add tools under `mcp/<domain>/`, wire an `index.ts` harness entrypoint, and enable in `config/mcp-servers.json`.
 
 No core code changes required for most extensions.

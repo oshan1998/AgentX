@@ -20,7 +20,7 @@
       "transport": "stdio",
       "disabled": true,
       "command": "npx",
-      "args": ["tsx", "servers/design-mcp/index.ts"],
+      "args": ["tsx", "mcp/design/index.ts"],
       "namePrefix": "",
       "toolTimeoutMs": 180000
     },
@@ -28,14 +28,14 @@
       "transport": "stdio",
       "disabled": true,
       "command": "npx",
-      "args": ["tsx", "servers/web-mcp/index.ts"],
+      "args": ["tsx", "mcp/web/index.ts"],
       "namePrefix": ""
     },
     "gmail": {
       "transport": "stdio",
       "disabled": true,
       "command": "npx",
-      "args": ["tsx", "servers/gmail-mcp/index.ts"],
+      "args": ["tsx", "mcp/gmail/index.ts"],
       "namePrefix": ""
     }
   }

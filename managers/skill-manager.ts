@@ -12,24 +12,21 @@ export class SkillManager {
   ) {}
 
   async loadAllSkills(): Promise<SkillRegistry> {
-    const roots = ["capabilities", "integrations"];
+    const skillsRoot = path.join(this.baseDir, "skills");
     const { readdir } = await import("node:fs/promises");
 
-    for (const root of roots) {
-      const rootDir = path.join(this.baseDir, root);
-      let entries: string[] = [];
-      try {
-        entries = await readdir(rootDir);
-      } catch {
-        continue;
-      }
+    let domains: string[] = [];
+    try {
+      domains = await readdir(skillsRoot);
+    } catch {
+      return this.skillRegistry;
+    }
 
-      for (const entry of entries) {
-        const skillsPath = path.join(rootDir, entry, "skills");
-        const skills = await loadSkillsFromDirectory(skillsPath, this.llm);
-        for (const skill of skills) {
-          this.skillRegistry.register(skill);
-        }
+    for (const domain of domains) {
+      const skillsPath = path.join(skillsRoot, domain);
+      const skills = await loadSkillsFromDirectory(skillsPath, this.llm);
+      for (const skill of skills) {
+        this.skillRegistry.register(skill);
       }
     }
     return this.skillRegistry;

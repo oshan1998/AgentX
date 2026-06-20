@@ -6,7 +6,7 @@ import multer from "multer";
 import { attachWebSocketGateway } from "./common/realtime/ws-gateway.js";
 import { SessionTraceHub } from "./common/realtime/session-trace-hub.js";
 import { AgentLoop, AgentType, AgentRuntimeFactory, registerDelegateToolOnce } from "./core/index.js";
-import { ListCapabilitiesTool } from "./capabilities/core/tools/list-capabilities.js";
+import { ListCapabilitiesTool } from "./runtime/tools/list-capabilities.js";
 import { createLlmAdapter } from "./llm-adapters/factory.js";
 import { MemoryManager } from "./managers/memory-manager.js";
 import { ProfileManager } from "./managers/profile-manager.js";
@@ -48,16 +48,7 @@ async function main() {
   const profileManager = new ProfileManager(memoryPath);
   await profileManager.init();
 
-  // Domains offloaded to external MCP servers are skipped during local tool
-  // loading so they are not double-registered (comma-separated dir names, e.g.
-  // AGENTX_LOCAL_TOOL_EXCLUDE=design).
-  const excludedLocalDirs = new Set(
-    (process.env.AGENTX_LOCAL_TOOL_EXCLUDE ?? "")
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean),
-  );
-  const toolManager = new ToolManager(memoryManager, process.cwd(), excludedLocalDirs);
+  const toolManager = new ToolManager(memoryManager, process.cwd());
   const toolRegistry = await toolManager.loadAllTools();
 
   // External MCP servers contribute additional tools into the same registry, so
