@@ -10,6 +10,11 @@ export class ToolManager {
   constructor(
     private readonly memoryManager: MemoryManager,
     private readonly baseDir: string = process.cwd(),
+    /**
+     * Capability/integration directory names to skip when loading local tools
+     * (e.g. "design" once those tools are served by an external MCP server).
+     */
+    private readonly excludedDirs: ReadonlySet<string> = new Set(),
   ) {}
 
   async loadAllTools(): Promise<ToolRegistry> {
@@ -26,6 +31,10 @@ export class ToolManager {
       }
 
       for (const entry of entries) {
+        if (this.excludedDirs.has(entry)) {
+          logger.info(`Skipping local tools for "${entry}" (offloaded to MCP).`);
+          continue;
+        }
         const toolsDir = path.join(rootDir, entry, "tools");
         let toolFiles: string[] = [];
         try {

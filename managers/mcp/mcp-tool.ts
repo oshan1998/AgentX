@@ -91,6 +91,7 @@ export class McpTool implements Tool {
   readonly name: string;
   readonly description: string;
   readonly inputSchema?: JsonInputSchema;
+  readonly mcpServer: string;
 
   constructor(
     /** Server registry key this tool belongs to. */
@@ -107,6 +108,7 @@ export class McpTool implements Tool {
     this.name = registeredName;
     this.description = description;
     this.inputSchema = inputSchema;
+    this.mcpServer = serverName;
   }
 
   async run(input: Record<string, unknown>, context: ToolContext): Promise<unknown> {

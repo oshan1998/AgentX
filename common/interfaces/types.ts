@@ -100,6 +100,8 @@ export interface Tool {
   description: string;
   /** When set, appended to the system prompt so the model knows valid tool_call.input. */
   inputSchema?: JsonInputSchema;
+  /** Set by MCP-backed tools to the source server name (used for tracing). */
+  readonly mcpServer?: string;
   run(input: Record<string, unknown>, context: ToolContext): Promise<unknown>;
 }
 

@@ -6,7 +6,12 @@ import {
   type SkillDelegateRunner,
   type ToolContext,
 } from "../../common/interfaces/types.js";
-import { AgentTracePhase, type RunTracer } from "../../common/realtime/agent-trace-types.js";
+import {
+  AgentTracePhase,
+  type RunTracer,
+  type ToolTraceMeta,
+} from "../../common/realtime/agent-trace-types.js";
+import type { Tool } from "../../common/interfaces/types.js";
 import { logger } from "../../common/services/logger.js";
 import { MemoryManager } from "../../managers/memory-manager.js";
 import { ProfileManager } from "../../managers/profile-manager.js";
@@ -24,6 +29,11 @@ export interface ExecutorInvocationContext {
   /** Tool run linkage for tracing delegation; optional outside HTTP runs. */
   runId?: string;
   abortSignal?: AbortSignal;
+}
+
+/** Derives trace metadata (local vs MCP server) from a tool instance. */
+function toolSourceMeta(tool: Tool): ToolTraceMeta {
+  return tool.mcpServer ? { source: "mcp", server: tool.mcpServer } : { source: "local" };
 }
 
 export class Executor {
@@ -83,20 +93,28 @@ export class Executor {
     }
     logger.info(`Executing tool: ${decision.tool}`);
     const iter = trace?.iteration ?? 0;
-    trace?.tracer.tool(iter, decision.tool, AgentTracePhase.START);
+    const sourceMeta = toolSourceMeta(tool);
+    trace?.tracer.tool(iter, decision.tool, AgentTracePhase.START, sourceMeta);
+    const startedAt = Date.now();
     try {
       const result = await tool.run(
         decision.input ?? {},
         this.toolContext(sessionId, invocation),
       );
       logger.debug(`Tool execution completed: ${decision.tool}`);
-      trace?.tracer.tool(iter, decision.tool, AgentTracePhase.END);
+      trace?.tracer.tool(iter, decision.tool, AgentTracePhase.END, {
+        ...sourceMeta,
+        durationMs: Date.now() - startedAt,
+      });
       return result;
     } catch (e) {
       logger.error(`Tool execution failed: ${decision.tool}`, {
         error: e instanceof Error ? e.message : String(e),
       });
-      trace?.tracer.tool(iter, decision.tool, AgentTracePhase.END);
+      trace?.tracer.tool(iter, decision.tool, AgentTracePhase.END, {
+        ...sourceMeta,
+        durationMs: Date.now() - startedAt,
+      });
       throw e;
     }
   }
@@ -128,19 +146,28 @@ export class Executor {
         abortSignal: tcx.abortSignal,
         runTool: async (name, input) => {
           logger.debug(`Skill ${decision.skill} requested tool execution: ${name}`);
-          trace?.tracer.skillTool(iter, skillName, name, AgentTracePhase.START);
           const tool = this.toolRegistry.get(name);
           if (!tool) {
             logger.error(`Skill requested unknown tool: ${name}`);
+            trace?.tracer.skillTool(iter, skillName, name, AgentTracePhase.START);
             trace?.tracer.skillTool(iter, skillName, name, AgentTracePhase.END);
             throw new Error(`Skill requested unknown tool: ${name}`);
           }
+          const sourceMeta = toolSourceMeta(tool);
+          trace?.tracer.skillTool(iter, skillName, name, AgentTracePhase.START, sourceMeta);
+          const startedAt = Date.now();
           try {
             const out = await tool.run(input, tcx);
-            trace?.tracer.skillTool(iter, skillName, name, AgentTracePhase.END);
+            trace?.tracer.skillTool(iter, skillName, name, AgentTracePhase.END, {
+              ...sourceMeta,
+              durationMs: Date.now() - startedAt,
+            });
             return out;
           } catch (err) {
-            trace?.tracer.skillTool(iter, skillName, name, AgentTracePhase.END);
+            trace?.tracer.skillTool(iter, skillName, name, AgentTracePhase.END, {
+              ...sourceMeta,
+              durationMs: Date.now() - startedAt,
+            });
             throw err;
           }
         },

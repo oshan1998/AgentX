@@ -28,9 +28,10 @@ For setup and quick start, see [README.md](./README.md).
 16. [Background scheduler](#background-scheduler)
 17. [LLM and media adapters](#llm-and-media-adapters)
 18. [Capabilities and integrations](#capabilities-and-integrations)
-19. [Extension points](#extension-points)
-20. [Directory structure](#directory-structure)
-21. [Environment variables](#environment-variables)
+19. [Model Context Protocol (MCP)](#model-context-protocol-mcp)
+20. [Extension points](#extension-points)
+21. [Directory structure](#directory-structure)
+22. [Environment variables](#environment-variables)
 
 ---
 
@@ -661,6 +662,8 @@ Sub-agent prompts add:
 
 Orchestrator task events appear as `tool` steps named `task:<taskId>`.
 
+**Tool execution metadata** (`ToolTraceMeta` on `tool` and `skill_tool` steps): `source` (`local` | `mcp`), `server` (MCP server name when remote), and `durationMs` (on the `end` phase). This lets the UI distinguish in-process tools from MCP-backed ones and surface per-call latency. Fields are optional/back-compatible.
+
 ---
 
 ## HTTP API and UI
@@ -775,6 +778,81 @@ Broken tool files are silently skipped during discovery (logged internally).
 
 ---
 
+## Model Context Protocol (MCP)
+
+AgentX supports the [Model Context Protocol](https://modelcontextprotocol.io/) in two directions, both built on the existing `Tool` / `ToolRegistry` abstraction. The agent loop, executor, skills, sub-agents, and orchestrator are unchanged — a remote MCP tool is just another `Tool`.
+
+### As an MCP client (consuming external servers)
+
+At startup `main.ts` builds an `McpClientManager` from `config/mcp-servers.json`, connects to each enabled server, lists its tools, and registers them into the **same** `ToolRegistry` as local tools. Because they share one registry, MCP tools automatically appear in `list_capabilities`, are clonable into sub-agent allowlists, and are usable as orchestrator task-node tools.
+
+```
+main.ts
+  └─ McpClientManager.fromConfig()        # managers/mcp/mcp-config.ts (zod-validated, ${ENV} interpolation)
+       └─ per server: connect (stdio | Streamable HTTP)
+            └─ tools/list → McpTool (implements Tool) → ToolRegistry
+                 └─ McpTool.run() → tools/call (session bridged via _meta)
+```
+
+| Component | File | Responsibility |
+|-----------|------|----------------|
+| Config loader | `managers/mcp/mcp-config.ts` | Validate/resolve server configs; infer transport; interpolate `${ENV}` |
+| Client manager | `managers/mcp/mcp-client-manager.ts` | Connect per server, discover tools, route `tools/call`, isolate failures |
+| Tool adapter | `managers/mcp/mcp-tool.ts` | `McpTool implements Tool`; normalize MCP results; throw on `isError` |
+
+**Properties:**
+
+- **Failure isolation** — a server that fails to start logs a warning and is skipped; it never blocks boot.
+- **Name prefixing** — tools register as `<namePrefix>.<tool>` (default prefix = server key) to avoid collisions; set `namePrefix: ""` for bare names. Local tools win on collision (MCP duplicate skipped).
+- **Session bridging** — `ToolContext.sessionId`/`runId` are sent as MCP `_meta` (`agentx/sessionId`, `agentx/runId`).
+- **Cancellation** — `ToolContext.abortSignal` maps to the MCP request signal; a per-call timeout applies (`toolTimeoutMs`).
+- **Non-breaking** — a missing/empty `config/mcp-servers.json` means no external servers and unchanged behavior.
+
+### As MCP servers (extracting local tools)
+
+Any capability/integration domain can run as a standalone MCP **server** process while reusing its existing tool classes verbatim. A reusable harness serves them over stdio:
+
+```
+servers/<domain>-mcp/index.ts
+  ├─ import "../mcp-stdio-bootstrap.js"   # route logging to stderr (stdout is the JSON-RPC channel)
+  ├─ import "dotenv/config"               # server loads its own credentials
+  ├─ loadCapabilityTools(<dir>/tools)     # instantiate *.tool.ts classes (no in-process managers)
+  └─ serveToolsOverStdio({ name, version, tools })
+       └─ low-level Server: tools/list + tools/call → Tool.run(args, ctx from _meta)
+```
+
+| Component | File |
+|-----------|------|
+| Stderr bootstrap | `servers/mcp-stdio-bootstrap.ts` |
+| Tool loader | `servers/load-capability-tools.ts` |
+| Serving harness | `servers/mcp-tool-harness.ts` |
+| Design server | `servers/design-mcp/index.ts` (`capabilities/design`) |
+| Web server | `servers/web-mcp/index.ts` (`integrations/web-search` + `unsplash`) |
+| Gmail server | `servers/gmail-mcp/index.ts` (`integrations/gmail`) |
+
+**To offload a domain to MCP:**
+
+1. Enable its server in `config/mcp-servers.json` (set `disabled: false`, `namePrefix: ""` to keep skill tool names stable).
+2. Add the domain dir name to `AGENTX_LOCAL_TOOL_EXCLUDE` (comma-separated) so `ToolManager` skips loading it locally — avoiding double registration.
+3. Restart. Tools now resolve to the separate process; skills, sub-agents, and the orchestrator are unaffected because tool names are unchanged.
+
+**Workspace bridging:** extracted tools resolve files via `resolveWorkspacePath`, which uses `DEFAULT_WORKSPACE_BASE` (`process.cwd()/workspace`, overridable with `AGENTX_WORKSPACE_BASE`). A stdio server inherits the parent cwd, so paths match out of the box on one machine. For a server on another host, point both at a shared workspace via `AGENTX_WORKSPACE_BASE`. Gmail credentials work the same way: the server reads the shared `secrets/` dir (written by the OAuth flow in `IntegrationController`) and `.env`.
+
+**Keep local (do not extract):** core runtime tools — `delegate_sub_agent`, `orchestrate_task_graph`, task-plan tools, `search_memory`, profile writes, `ask_user`, `list_capabilities`, scheduler cron tools — and all skills. MCP has no skill concept; skills orchestrate tools (local or MCP) by name.
+
+### Standalone deployable artifact
+
+In-repo servers (`servers/<domain>-mcp`) run via `tsx`/`node` and share the repo's `node_modules`. To deploy a domain on its own host, `servers/build-standalone.mjs` (esbuild) bundles all AgentX source into one ESM file and emits a **trimmed `package.json`** listing only the npm packages that domain reaches:
+
+```bash
+npm run build:standalone:design
+# → dist-standalone/design-mcp/{index.mjs, package.json, README.md}
+```
+
+The design bundle ships 8 runtime deps (sharp, puppeteer, the Google AI SDKs, zod, winston, dotenv, MCP SDK) instead of the full app set — `express`, `ws`, `multer`, `googleapis`, `pdfkit`, etc. are dropped. Copy the folder elsewhere, `npm install --omit=dev`, provide credentials via env, and run `node index.mjs`. For bundling, the design server uses a **static tool manifest** (`servers/design-mcp/tools.ts`) rather than the dynamic directory loader, so esbuild can follow the imports.
+
+---
+
 ## Extension points
 
 | Extension | How |
@@ -783,6 +861,8 @@ Broken tool files are silently skipped during discovery (logged internally).
 | **New tool** | Add `capabilities/<domain>/tools/my-tool.tool.ts` with `name`, `description`, `inputSchema?`, `run()` |
 | **New skill** | Add `capabilities/<domain>/skills/my_skill/skill.json` (+ `prompt.md`); set `kind: workflow \| agentic` |
 | **New integration** | Add `integrations/<service>/tools/`; optional OAuth in controllers |
+| **Consume an external MCP server** | Add an entry to `config/mcp-servers.json` (stdio or Streamable HTTP) |
+| **Extract a domain to an MCP server** | Add `servers/<domain>-mcp/index.ts` via the harness; enable in config; set `AGENTX_LOCAL_TOOL_EXCLUDE` |
 | **Custom execution policy** | Pass `executionPolicy` when constructing `AgentLoop` |
 | **Sub-agent specialization** | Whitelist tools/skills; append `prompt.md`; optional model override |
 | **Orchestrator tuning** | Pass `OrchestratorConfig` (`failFast`, worker pool limits) |
@@ -816,13 +896,24 @@ AgentX/
 │       └── event-bus.ts
 ├── capabilities/                   # Domain tools + skills
 ├── integrations/                   # External service connectors
+├── servers/                        # Standalone MCP servers (extracted domains)
+│   ├── mcp-stdio-bootstrap.ts      # Route logging to stderr for stdio servers
+│   ├── mcp-tool-harness.ts         # Serve Tool[] over stdio MCP
+│   ├── load-capability-tools.ts    # Instantiate *.tool.ts from a dir
+│   ├── design-mcp/                 # capabilities/design over MCP
+│   ├── web-mcp/                    # web-search + unsplash over MCP
+│   └── gmail-mcp/                  # gmail over MCP
+├── config/
+│   ├── mcp-servers.json            # Active MCP client config (gitignored secrets via ${ENV})
+│   └── mcp-servers.example.json    # Copy-paste examples
 ├── controllers/                    # HTTP controllers + services
 ├── managers/
 │   ├── memory-manager.ts
 │   ├── profile-manager.ts
 │   ├── tool-manager.ts
 │   ├── skill-manager.ts
-│   └── secrets-manager.ts
+│   ├── secrets-manager.ts
+│   └── mcp/                        # MCP client (config, client manager, tool adapter)
 ├── llm-adapters/                   # Gemini, OpenAI, Ollama, Imagen, mock
 ├── common/
 │   ├── interfaces/                 # Types, registries
@@ -860,6 +951,9 @@ AgentX/
 | `UNSPLASH_ACCESS_KEY` | Stock image search |
 | `APP_BASE_URL` | Base URL for OAuth redirects and workspace links in prompts |
 | `PORT` | HTTP server port (default 3000) |
+| `AGENTX_LOCAL_TOOL_EXCLUDE` | Comma-separated capability/integration dir names to skip loading locally (offloaded to MCP servers), e.g. `design,gmail` |
+| `AGENTX_WORKSPACE_BASE` | Override workspace root (default `cwd/workspace`); set on extracted MCP servers to share a workspace |
+| `AGENTX_LOG_STDERR` | Set to `1` to route console logs to stderr (auto-set by stdio MCP server bootstrap) |
 
 See [.env.example](./.env.example) for a copy-paste template.
 

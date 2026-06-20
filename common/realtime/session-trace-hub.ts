@@ -105,8 +105,8 @@ export class SessionTraceHub {
           ...(text !== undefined ? { text } : {}),
         });
       },
-      tool(iteration: number, name: string, phase: AgentTracePhase): void {
-        emitFrag({ step: "tool", iteration, name, phase });
+      tool(iteration: number, name: string, phase: AgentTracePhase, meta): void {
+        emitFrag({ step: "tool", iteration, name, phase, ...(meta ?? {}) });
       },
       skill(iteration: number, name: string, phase: AgentTracePhase): void {
         emitFrag({ step: "skill", iteration, name, phase });
@@ -116,8 +116,9 @@ export class SessionTraceHub {
         skill: string,
         tool: string,
         phase: AgentTracePhase,
+        meta,
       ): void {
-        emitFrag({ step: "skill_tool", iteration, skill, tool, phase });
+        emitFrag({ step: "skill_tool", iteration, skill, tool, phase, ...(meta ?? {}) });
       },
       memoryWrite(iteration: number, phase: AgentTracePhase): void {
         emitFrag({ step: "memory_write", iteration, phase });
