@@ -9,6 +9,7 @@ import type { SkillRegistry, ToolRegistry } from "../../common/interfaces/regist
 import type { Skill, Tool, ToolContext } from "../../common/interfaces/types.js";
 import { SkillType } from "../../common/interfaces/types.js";
 import { DELEGATE_SUB_AGENT_TOOL_NAME } from "../../core/agent/agent-runtime-constants.js";
+import { GET_CAPABILITY_SCHEMA_TOOL_NAME } from "./get-capability-schema.js";
 import { ORCHESTRATE_TASK_GRAPH_TOOL_NAME } from "./orchestrate-task-graph.js";
 import { parseToolInput, zodSchemaToJsonInputSchema } from "../../common/services/zod-tool-schema.js";
 
@@ -18,6 +19,7 @@ const META_TOOL_NAMES = new Set([
   DELEGATE_SUB_AGENT_TOOL_NAME,
   ORCHESTRATE_TASK_GRAPH_TOOL_NAME,
   LIST_CAPABILITIES_TOOL_NAME,
+  GET_CAPABILITY_SCHEMA_TOOL_NAME,
   "read_task_plan",
   "write_task_plan",
   "patch_task_plan_task",
@@ -28,7 +30,9 @@ export const listCapabilitiesInputSchema = z
     include_schemas: z
       .boolean()
       .optional()
-      .describe("When true, include inputSchema for each tool and skill. Default: false."),
+      .describe(
+        "When true, include inputSchema for each tool and skill. Prefer get_capability_schema for a single lookup. Default: false.",
+      ),
     exclude_meta: z
       .boolean()
       .optional()
@@ -66,7 +70,7 @@ function serializeSkill(skill: Skill, includeSchemas: boolean): Record<string, u
 export class ListCapabilitiesTool implements Tool {
   readonly name = LIST_CAPABILITIES_TOOL_NAME;
   readonly description =
-    "List all registered tools and skills (name, description, kind). Use exact names when assigning tool_names or skill_names in a task plan.";
+    "List all registered tools and skills (name, description, kind). Use exact names when assigning tool_names or skill_names in a task plan. For input schemas, call get_capability_schema.";
   readonly inputSchema = zodSchemaToJsonInputSchema(listCapabilitiesInputSchema);
 
   constructor(
