@@ -6,6 +6,7 @@ import multer from "multer";
 import { attachWebSocketGateway } from "./common/realtime/ws-gateway.js";
 import { SessionTraceHub } from "./common/realtime/session-trace-hub.js";
 import { AgentLoop, AgentType, AgentRuntimeFactory, registerDelegateToolOnce } from "./core/index.js";
+import { resolveCapabilityRetrievalMethod } from "./core/agent/capability-retriever.js";
 import { ListCapabilitiesTool } from "./runtime/tools/list-capabilities.js";
 import { GetCapabilitySchemaTool } from "./runtime/tools/get-capability-schema.js";
 import { createLlmAdapter } from "./llm-adapters/factory.js";
@@ -104,6 +105,9 @@ async function main() {
     await vectorManager.indexCapabilities(toolRegistry.list(), skillRegistry.list());
   }
 
+  const capabilityRetrievalMethod = resolveCapabilityRetrievalMethod();
+  logger.info(`Capability retrieval method: ${capabilityRetrievalMethod}`);
+
   const agentLoop = new AgentLoop({
     llm,
     memoryManager,
@@ -114,6 +118,7 @@ async function main() {
     agentType: AgentType.Primary,
     skillDelegateRunner: agentRuntimeFactory.skillDelegateRunner,
     vectorManager,
+    capabilityRetrievalMethod,
   });
 
   const schedulerRunner = new SchedulerRunner(agentLoop);

@@ -8,13 +8,17 @@ You receive a skill input JSON with an `objective` field. Your job is to break i
 
 Call `list_capabilities({})` first to get the exact registered tool and skill names. Use only names from that response when assigning `tool_names` and `skill_names` — do not guess or invent names.
 
-Then call `read_task_plan({})`. If a plan exists, decide whether to extend or replace it based on the objective.
+Then call `read_task_plan({})`. If a plan exists:
+- **Extend or patch** when the new objective adds to ongoing work or shares context with existing tasks.
+- **Replace** only when the new objective clearly supersedes the old one AND no existing tasks are
+  `in_progress` or `completed` for unrelated work. Never blindly overwrite a plan with active tasks.
 
 ---
 
 ## Step 2 — Define tasks
 
-Create **4–8 tasks** (fewer if the goal is simple). Each task must have:
+Create the **minimum number of tasks needed** — often 1–3 for simple goals, 4–8 only for genuinely
+complex objectives with multiple deliverables and dependencies. Each task must have:
 
 | Field | Required | Description |
 |---|---|---|
@@ -75,7 +79,8 @@ Tasks with no shared dependencies can run at the same time.
 
 ## Step 5 — Write the plan
 
-Call `write_task_plan({ "tasks": [...] })` with the full list. This replaces the existing plan.
+Call `write_task_plan({ "tasks": [...] })` with the full list when creating or replacing a plan.
+When extending an existing plan, merge new tasks with retained ones rather than discarding unrelated work.
 
 Use `patch_task_plan_task` only for single-field updates (status, notes, blocked_reason) without rewriting everything.
 
@@ -85,8 +90,9 @@ Use `patch_task_plan_task` only for single-field updates (status, notes, blocked
 
 List the tasks by number with their titles and a one-sentence summary. Mention:
 - Which tasks can run in parallel
+- That the principal should run the plan via `orchestrate_task_graph` with the user's objective
 - That outputs are written to `artifact_path` files — not kept in memory
-- That later tasks read prior results from their upstream `artifact_path` files (via `read_task_plan` and the registry's file-reading tool)
+- That later tasks read prior results from their upstream `artifact_path` files (via the registry's file-reading tool)
 
 ---
 

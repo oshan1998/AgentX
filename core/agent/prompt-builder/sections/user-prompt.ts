@@ -1,5 +1,8 @@
 import type { DynamicPromptInput } from "../types.js";
-import { formatCurrentGoalSection, formatIterationRulesSection } from "./iteration-rules.js";
+import {
+  formatCurrentGoalSection,
+  formatIterationUrgencySection,
+} from "./iteration-rules.js";
 
 export function formatAgentUserPrompt(
   input: DynamicPromptInput,
@@ -9,41 +12,34 @@ export function formatAgentUserPrompt(
   goalLabel: string,
 ): string {
   const iterationLine = `Iteration: ${input.iteration}/${input.maxIterations}`;
-  const iterationRules = formatIterationRulesSection(input);
+  const urgencySection = formatIterationUrgencySection(input);
   const goalSection = formatCurrentGoalSection(input, goalLabel);
   const lastObservation = `Last observation:\n${input.lastObservation || "none"}`;
   const memorySection = `Relevant long-term memory:\n${memory}`;
   const contextSection = `${contextLabel}:\n${recentMessages}`;
 
   if (input.iteration === 1) {
-    return `
-${iterationLine}
-
-${iterationRules}
-
-${goalSection}
-
-${memorySection}
-
-${contextSection}
-
-${lastObservation}
-`.trim();
+    return [
+      iterationLine,
+      urgencySection,
+      goalSection,
+      memorySection,
+      contextSection,
+      lastObservation,
+    ]
+      .filter((section): section is string => Boolean(section))
+      .join("\n\n");
   }
 
-  return `
-${iterationLine}
-
-EXECUTION MODE: Continue from Last observation. Do not reinterpret the original request as a new task.
-
-${iterationRules}
-
-${goalSection}
-
-${lastObservation}
-
-${contextSection}
-
-${memorySection}
-`.trim();
+  return [
+    iterationLine,
+    urgencySection,
+    "EXECUTION MODE: Continue from Last observation. Your plan was set in iteration 1 — advance to the next step. Do NOT re-plan or reinterpret the original request as a new task.",
+    goalSection,
+    lastObservation,
+    contextSection,
+    memorySection,
+  ]
+    .filter((section): section is string => Boolean(section))
+    .join("\n\n");
 }

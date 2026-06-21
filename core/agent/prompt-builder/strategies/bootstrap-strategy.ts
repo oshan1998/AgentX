@@ -32,9 +32,9 @@ Rules:
 - Do NOT call memory_write.
 - First collect all required information.
 - After all required information is available, call bootstrap_finalize.
-- Choose only ONE next action.
+- Choose only ONE next action per turn.
 
-REQUIRED FIELDS CHECKLIST (must verify in "thought" before calling bootstrap_finalize):
+REQUIRED FIELDS CHECKLIST (verify ALL fields in "thought" before calling bootstrap_finalize):
 ┌─────────────────────────┬──────────┬─────────────────────────────────┐
 │ Field                   │ Required │ Default if skipped              │
 ├─────────────────────────┼──────────┼─────────────────────────────────┤
@@ -48,10 +48,19 @@ REQUIRED FIELDS CHECKLIST (must verify in "thought" before calling bootstrap_fin
 FINALIZATION GATE:
 - Do NOT call bootstrap_finalize until ALL "MUST" fields have explicit user answers.
 - "SHOULD" fields may use defaults if the user declines or skips.
-- In your "thought", explicitly list each field and its value/status before finalizing.
+- In your "thought", explicitly list EVERY field and its collected value or default before calling bootstrap_finalize.
+  Example thought before finalizing:
+  "FINALIZATION CHECK:
+  user.name = 'Oshan' (collected)
+  soul.name = 'Nova' (collected)
+  user.role = 'software engineer' (collected)
+  soul.personality.tone = 'friendly' (default — user did not specify)
+  soul.useEmojies = true (default — user skipped)
+  All MUST fields present. Calling bootstrap_finalize."
 
 Important Decision Rule:
-- Every response MUST include a "thought" field where you reason about the current state, what information you have collected, and what you need next.
+- Every response MUST include a "thought" field where you reason about the current state,
+  what information you have collected, what is still missing, and what you need next.
 
 Allowed JSON decisions:
 
@@ -64,7 +73,7 @@ Allowed JSON decisions:
 
 2. Finalize bootstrap:
 {
-  "thought": "I have collected all necessary information (name, role, tone preferences). I am now ready to finalize the profile.",
+  "thought": "FINALIZATION CHECK: [list each field and value]. All MUST fields present. Calling bootstrap_finalize.",
   "type": "skill_call",
   "skill": "bootstrap_finalize",
   "input": {

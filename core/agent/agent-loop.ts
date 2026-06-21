@@ -30,6 +30,13 @@ import { PromptBuilder } from "./prompt-builder.js";
 import type { Soul, User } from "../../managers/profile-manager.js";
 import { ProfileManager } from "../../managers/profile-manager.js";
 import { logger } from "../../common/services/logger.js";
+import {
+  type CapabilityRetrievalMethod,
+  DEFAULT_RETRIEVED_SKILL_LIMIT,
+  DEFAULT_RETRIEVED_TOOL_LIMIT,
+  resolveCapabilityRetrievalMethod,
+  retrieveCapabilities,
+} from "./capability-retriever.js";
 
 // ─── Public types ────────────────────────────────────────────────────────────
 
@@ -65,6 +72,8 @@ interface AgentLoopDependencies {
   agentType: AgentType;
   skillDelegateRunner?: SkillDelegateRunner;
   vectorManager?: VectorManager;
+  /** Override env `CAPABILITY_RETRIEVAL_METHOD` (`rag` | `llm`). */
+  capabilityRetrievalMethod?: CapabilityRetrievalMethod;
 }
 
 /** Run-scoped prompt state: static system prompt and in-memory session mirror. */
@@ -271,45 +280,46 @@ export class AgentLoop {
     let activeToolRegistry = this.deps.toolRegistry;
     let activeSkillRegistry = this.deps.skillRegistry;
 
-    if (this.deps.vectorManager) {
-      try {
-        const queryEmbedding = await this.deps.vectorManager.getEmbedding(userInput);
-        const retrievedTools = this.deps.vectorManager.searchTools(queryEmbedding, this.deps.toolRegistry.list(), 8);
-        const retrievedSkills = this.deps.vectorManager.searchSkills(queryEmbedding, this.deps.skillRegistry.list(), 4);
+    const retrievalMethod = resolveCapabilityRetrievalMethod(
+      this.deps.capabilityRetrievalMethod,
+    );
+    const canRetrieve =
+      retrievalMethod === "llm" || this.deps.vectorManager !== undefined;
 
-        const ALWAYS_ON_TOOLS = new Set([
-          "get_capability_schema",
-          "list_capabilities",
-          "ask_user",
-          "delegate_sub_agent",
-          "orchestrate_task_graph",
-          "read_task_plan",
-          "write_task_plan",
-          "patch_task_plan_task",
-        ]);
+    if (canRetrieve) {
+      try {
+        const { tools, skills, method } = await retrieveCapabilities({
+          method: retrievalMethod,
+          userInput,
+          llm: this.deps.llm,
+          vectorManager: this.deps.vectorManager,
+          allTools: this.deps.toolRegistry.list(),
+          allSkills: this.deps.skillRegistry.list(),
+          toolLimit: DEFAULT_RETRIEVED_TOOL_LIMIT,
+          skillLimit: DEFAULT_RETRIEVED_SKILL_LIMIT,
+        });
 
         const filteredTools = new ToolRegistry();
-        for (const toolName of ALWAYS_ON_TOOLS) {
-          const tool = this.deps.toolRegistry.get(toolName);
-          if (tool) {
-            filteredTools.register(tool);
-          }
-        }
-        for (const tool of retrievedTools) {
+        for (const tool of tools) {
           filteredTools.register(tool);
         }
 
         const filteredSkills = new SkillRegistry();
-        for (const skill of retrievedSkills) {
+        for (const skill of skills) {
           filteredSkills.register(skill);
         }
 
         activeToolRegistry = filteredTools;
         activeSkillRegistry = filteredSkills;
 
-        logger.info(`RAG dynamic prompt: selected ${filteredTools.list().length} tools (8 retrieved + always-on) and ${filteredSkills.list().length} skills.`);
+        logger.info(
+          `${method.toUpperCase()} dynamic prompt: selected ${filteredTools.list().length} tools and ${filteredSkills.list().length} skills.`,
+        );
       } catch (err) {
-        logger.error("RAG context filtering failed. Falling back to full registry.", { error: err });
+        logger.error(
+          "Dynamic capability filtering failed. Falling back to full registry.",
+          { error: err },
+        );
       }
     }
 
