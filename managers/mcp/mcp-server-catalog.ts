@@ -28,6 +28,22 @@ const SERVER_HINTS: Record<string, string[]> = {
   github: ["github", "repository", "repo", "pull request", "commit", "branch", "gist"],
   jira: ["jira", "ticket", "sprint", "atlassian", "issue tracker", "epic"],
   figma: ["figma", "prototype", "design file", "frame"],
+  maps: [
+    "maps",
+    "google maps",
+    "directions",
+    "route",
+    "driving",
+    "walking",
+    "places",
+    "nearby",
+    "weather",
+    "geocode",
+    "location",
+    "address",
+    "restaurant",
+    "coffee shop",
+  ],
   filesystem: ["file system", "filesystem", "directory", "folder"],
 };
 

@@ -71,6 +71,16 @@
       ],
       "namePrefix": "figma",
       "toolTimeoutMs": 180000
+    },
+    "maps": {
+      "transport": "http",
+      "disabled": true,
+      "url": "https://mapstools.googleapis.com/mcp",
+      "headers": {
+        "X-Goog-Api-Key": "${GOOGLE_MAPS_API_KEY}"
+      },
+      "namePrefix": "maps",
+      "toolTimeoutMs": 120000
     }
   }
 }

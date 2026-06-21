@@ -46,16 +46,21 @@
       "namePrefix": "figma",
       "toolTimeoutMs": 180000
     },
-    
-        "Canva": {
-          "type": "stdio",
-          "command": "npx",
-          "args": [
-            "-y",
-            "mcp-remote@latest",
-            "https://mcp.canva.com/mcp"
-          ]
-        }
-    
-      }
+    "maps": {
+      "transport": "http",
+      "url": "https://mapstools.googleapis.com/mcp",
+      "headers": {
+        "X-Goog-Api-Key": "${GOOGLE_MAPS_API_KEY}"
+      },
+      "namePrefix": "maps",
+      "toolTimeoutMs": 120000
+    },
+    "canva": {
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "mcp-remote@latest", "https://mcp.canva.com/mcp"],
+      "namePrefix": "canva",
+      "toolTimeoutMs": 180000
+    }
+  }
 }

@@ -1,6 +1,5 @@
 import { DecisionType } from "../../../../common/interfaces/types.js";
 import {
-  countInlineSchemaTools,
   formatCapabilitySchemaGuidance,
   formatMemorySection,
   formatSkillCatalog,
@@ -11,41 +10,18 @@ import type { DynamicPromptInput, PromptStrategy, StaticPromptInput } from "../t
 
 export class MainStrategy implements PromptStrategy {
   buildStatic(input: StaticPromptInput): string {
-    // Local tool schemas are ALWAYS inlined so common tools can be called without a
-    // get_capability_schema round-trip. Routed MCP servers additionally get their
-    // schemas inlined for the current request.
-    const catalogOptions = {
-      inlineSchemaMcpServers:
-        input.inlineSchemaMcpServers && input.inlineSchemaMcpServers.length > 0
-          ? new Set(input.inlineSchemaMcpServers)
-          : undefined,
-      inlineLocalSchemas: true,
-    };
-    const tools = formatToolCatalog(input.toolRegistry, false, catalogOptions);
-    const inlineSchemaToolCount = countInlineSchemaTools(
-      input.toolRegistry,
-      false,
-      catalogOptions,
-    );
+    // Catalog lists names/descriptions only — schemas are fetched on demand via
+    // get_capability_schema to keep the static prompt small and reliable.
+    const tools = formatToolCatalog(input.toolRegistry, false);
     const skills = formatSkillCatalog(input.skillRegistry, false);
     const allowedDecisionTypes = Object.values(DecisionType).join(" | ");
-    const schemaGuidance = formatCapabilitySchemaGuidance(inlineSchemaToolCount);
-    const schemaEnforcement =
-      inlineSchemaToolCount > 0
-        ? `SCHEMA POLICY:
-  - Tools with an inline "input:" block below can be called immediately — do NOT fetch their schema.
-  - For tools WITHOUT an inline schema: if the inputs are obvious from the description, call the
-    tool directly. Call get_capability_schema only when the input is non-trivial and you are unsure,
-    or when a previous call failed validation.
-  - For skills: call get_capability_schema once before skill_call (unless already fetched this session).
-  - Do NOT spend an iteration fetching a schema you can reasonably infer.`
-        : `SCHEMA POLICY:
-  - The catalog below lists names and descriptions ONLY — no input schemas.
-  - Attempt calls directly using obvious fields from the description. Fetch the schema with
-    get_capability_schema ONLY when (a) the input is non-trivial and you are unsure, or
-    (b) a previous call failed validation.
-  - Reuse any schema you already retrieved earlier in THIS session — never re-fetch it.
-  - Avoid spending a whole iteration on a schema for a tool whose inputs are obvious.`;
+    const schemaGuidance = formatCapabilitySchemaGuidance(0);
+    const schemaEnforcement = `SCHEMA ENFORCEMENT (CRITICAL):
+  - The catalog below lists names and descriptions ONLY — NO input schemas.
+  - You MUST call get_capability_schema to retrieve the exact input schema BEFORE
+    emitting any tool_call or skill_call.
+  - Guessing or hallucinating input fields WILL cause validation failure.
+  - Exception: you already retrieved that schema earlier in THIS session.`;
 
     return `
   You are an AI Agent.

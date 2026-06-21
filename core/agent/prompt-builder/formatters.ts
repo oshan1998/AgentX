@@ -70,16 +70,15 @@ export function formatCapabilitySchemaGuidance(inlineSchemaToolCount = 0): strin
   if (inlineSchemaToolCount > 0) {
     return `
 SCHEMA RULES:
-- Tools with an "input:" block under Available tools can be called directly — use those exact field names. Do NOT fetch their schema.
-- For tools listed without an input block (and for skills): if the inputs are obvious, call directly.
-  Fetch get_capability_schema only when the input is non-trivial and you are unsure, or after a validation error.
-- Reuse any schema you already fetched earlier in this session — never re-fetch it.
+- Tools with an "input:" block under Available tools can be called directly — use those exact field names.
+- Tools listed without an input block, and all skills, still require get_capability_schema before tool_call or skill_call
+  (unless you already fetched that exact schema earlier in this session).
 
-Pattern when you DO need a schema:
+Pattern for tools without an inline schema:
   Step 1: { "type": "tool_call", "tool": "get_capability_schema", "input": { "kind": "tool"|"skill", "name": "<exact_name>" } }
   Step 2: { "type": "tool_call"|"skill_call", ... } using the observed schema fields.
 
-Do NOT guess or hallucinate non-obvious input fields.`.trim();
+Do NOT guess or hallucinate input fields.`.trim();
   }
 
   return `
