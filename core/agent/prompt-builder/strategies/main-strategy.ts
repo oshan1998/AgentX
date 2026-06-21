@@ -11,13 +11,16 @@ import type { DynamicPromptInput, PromptStrategy, StaticPromptInput } from "../t
 
 export class MainStrategy implements PromptStrategy {
   buildStatic(input: StaticPromptInput): string {
-    const catalogOptions =
-      input.inlineSchemaMcpServers && input.inlineSchemaMcpServers.length > 0
-        ? {
-            inlineSchemaMcpServers: new Set(input.inlineSchemaMcpServers),
-            inlineLocalSchemas: true,
-          }
-        : undefined;
+    // Local tool schemas are ALWAYS inlined so common tools can be called without a
+    // get_capability_schema round-trip. Routed MCP servers additionally get their
+    // schemas inlined for the current request.
+    const catalogOptions = {
+      inlineSchemaMcpServers:
+        input.inlineSchemaMcpServers && input.inlineSchemaMcpServers.length > 0
+          ? new Set(input.inlineSchemaMcpServers)
+          : undefined,
+      inlineLocalSchemas: true,
+    };
     const tools = formatToolCatalog(input.toolRegistry, false, catalogOptions);
     const inlineSchemaToolCount = countInlineSchemaTools(
       input.toolRegistry,
@@ -29,16 +32,20 @@ export class MainStrategy implements PromptStrategy {
     const schemaGuidance = formatCapabilitySchemaGuidance(inlineSchemaToolCount);
     const schemaEnforcement =
       inlineSchemaToolCount > 0
-        ? `SCHEMA ENFORCEMENT:
-  - Tools with an inline "input:" block below can be called immediately.
-  - For tools without an inline schema, call get_capability_schema before tool_call.
-  - Skills always require get_capability_schema before skill_call (unless already fetched this session).`
-        : `SCHEMA ENFORCEMENT (CRITICAL):
-  - The catalog below lists names and descriptions ONLY — NO input schemas.
-  - You MUST call get_capability_schema to retrieve the exact input schema BEFORE
-    emitting any tool_call or skill_call.
-  - Guessing or hallucinating input fields WILL cause validation failure.
-  - Exception: you already retrieved that schema earlier in THIS session.`;
+        ? `SCHEMA POLICY:
+  - Tools with an inline "input:" block below can be called immediately — do NOT fetch their schema.
+  - For tools WITHOUT an inline schema: if the inputs are obvious from the description, call the
+    tool directly. Call get_capability_schema only when the input is non-trivial and you are unsure,
+    or when a previous call failed validation.
+  - For skills: call get_capability_schema once before skill_call (unless already fetched this session).
+  - Do NOT spend an iteration fetching a schema you can reasonably infer.`
+        : `SCHEMA POLICY:
+  - The catalog below lists names and descriptions ONLY — no input schemas.
+  - Attempt calls directly using obvious fields from the description. Fetch the schema with
+    get_capability_schema ONLY when (a) the input is non-trivial and you are unsure, or
+    (b) a previous call failed validation.
+  - Reuse any schema you already retrieved earlier in THIS session — never re-fetch it.
+  - Avoid spending a whole iteration on a schema for a tool whose inputs are obvious.`;
 
     return `
   You are an AI Agent.
@@ -123,9 +130,18 @@ export class MainStrategy implements PromptStrategy {
     3. next action
     4. why alternatives were rejected
   
-  Choose EXACTLY ONE decision.
-  - For a single step, use respond / tool_call / skill_call / memory_write / profile_write.
-  - When 2+ tool_call/skill_call actions are INDEPENDENT (none needs another's output), prefer a single "batch" to run them in parallel and save round-trips.
+  EFFICIENCY (read before choosing):
+  - Every decision is one LLM round-trip. Do the MOST you safely can per decision.
+  - Before emitting a single tool_call, ask: "Do I already know other independent
+    actions I'll need?" If yes, emit them together as ONE "batch".
+  - Example — review three files:
+      WASTEFUL (3 round-trips): read_file a → read_file b → read_file c
+      CORRECT (1 round-trip): batch [read_file a, read_file b, read_file c]
+  - If a workflow skill covers the whole task, call it instead of hand-rolling tool_calls.
+
+  Choose ONE decision per turn (a "batch" counts as one and is preferred for parallel work).
+  - For a single dependent step, use respond / tool_call / skill_call / memory_write / profile_write.
+  - When 2+ tool_call/skill_call actions are INDEPENDENT (none needs another's output), you MUST use a single "batch" to run them in parallel and save round-trips.
   - Do NOT batch dependent steps, writes (memory_write/profile_write), or respond — run those on their own.
   
   "type" MUST be one of:
@@ -161,7 +177,9 @@ export class MainStrategy implements PromptStrategy {
   - one external action per decision — unless several independent calls can share a "batch"
   
   Skills:
-  - packaged workflows — prefer skill_call when a matching skill exists
+  - packaged workflows that run all their internal steps in ONE iteration (no per-step LLM round-trips).
+  - A matching skill almost always beats a manual sequence of tool_calls. Before composing
+    multiple tool_calls yourself, check the catalog for a skill that already does the job.
   
   Parallelism:
   - batch — for a few independent tool/skill calls in one turn (e.g. reading several files, fetching multiple schemas).
