@@ -1,6 +1,5 @@
 import { DecisionType } from "../../../../common/interfaces/types.js";
 import {
-  formatCapabilitySchemaGuidance,
   formatMemorySection,
   formatSkillCatalog,
   formatToolCatalog,
@@ -10,18 +9,12 @@ import type { DynamicPromptInput, PromptStrategy, StaticPromptInput } from "../t
 
 export class MainStrategy implements PromptStrategy {
   buildStatic(input: StaticPromptInput): string {
-    // Catalog lists names/descriptions only — schemas are fetched on demand via
-    // get_capability_schema to keep the static prompt small and reliable.
-    const tools = formatToolCatalog(input.toolRegistry, false);
-    const skills = formatSkillCatalog(input.skillRegistry, false);
+    const tools = formatToolCatalog(input.toolRegistry, true);
+    const skills = formatSkillCatalog(input.skillRegistry, true);
     const allowedDecisionTypes = Object.values(DecisionType).join(" | ");
-    const schemaGuidance = formatCapabilitySchemaGuidance(0);
-    const schemaEnforcement = `SCHEMA ENFORCEMENT (CRITICAL):
-  - The catalog below lists names and descriptions ONLY — NO input schemas.
-  - You MUST call get_capability_schema to retrieve the exact input schema BEFORE
-    emitting any tool_call or skill_call.
-  - Guessing or hallucinating input fields WILL cause validation failure.
-  - Exception: you already retrieved that schema earlier in THIS session.`;
+    const schemaEnforcement = `SCHEMA POLICY:
+  - For tool_call/skill_call, "input" MUST match the input schemas under Available tools / Available skills.
+  - Do NOT guess or hallucinate field names — use the exact fields from the inline schema.`;
 
     return `
   You are an AI Agent.
@@ -158,13 +151,13 @@ export class MainStrategy implements PromptStrategy {
     multiple tool_calls yourself, check the catalog for a skill that already does the job.
   
   Parallelism:
-  - batch — for a few independent tool/skill calls in one turn (e.g. reading several files, fetching multiple schemas).
+  - batch — for a few independent tool/skill calls in one turn (e.g. reading several files).
   - orchestrate_task_graph — for larger independent work where each branch needs its own multi-step reasoning.
   
   ${schemaEnforcement}
   
   ERROR RECOVERY:
-  - If last observation shows a validation/input error → call get_capability_schema, then retry with corrected fields.
+  - If last observation shows a validation/input error → retry with corrected fields per the inline schema.
   - If last observation shows "not found" → call list_capabilities to verify available names.
   - If last observation shows a transient failure → retry the same call once.
   - If two consecutive retries fail on the same action → respond to the user explaining the blocker.
@@ -217,8 +210,6 @@ export class MainStrategy implements PromptStrategy {
   ==================================================
   
   ${tools}
-  
-  ${schemaGuidance}
   
   ==================================================
   AVAILABLE SKILLS

@@ -13,8 +13,6 @@ export interface StaticPromptInput {
   isSubAgent?: boolean;
   isBootstrapComplete: boolean;
   subAgentSystemPromptAppend?: string;
-  /** MCP server keys whose tool input schemas are inlined in the static prompt. */
-  inlineSchemaMcpServers?: string[];
 }
 
 export interface DynamicPromptInput {

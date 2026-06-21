@@ -17,6 +17,7 @@ import { SchedulerRunner } from "./common/services/scheduler-runner.js";
 import { ToolManager } from "./managers/tool-manager.js";
 import { McpClientManager } from "./managers/mcp/index.js";
 import { logger } from "./common/services/logger.js";
+import { VectorManager } from "./managers/vector-manager.js";
 
 // Services
 import { ChatService } from "./controllers/chat/chat.service.js";
@@ -43,7 +44,23 @@ async function main() {
 
   // ── Core dependencies ──────────────────────────────────
   const memoryPath = path.join(process.cwd(), "memory");
-  const memoryManager = new MemoryManager(memoryPath);
+
+  const projectId = process.env.GOOGLE_CLOUD_PROJECT;
+  let vectorManager: VectorManager | undefined;
+
+  if (projectId) {
+    logger.info("Initializing VectorManager...");
+    vectorManager = new VectorManager({
+      projectId,
+      location: process.env.GOOGLE_CLOUD_LOCATION,
+      storagePath: path.join(memoryPath, "vector-store.json"),
+    });
+    await vectorManager.init();
+  } else {
+    logger.warn("GOOGLE_CLOUD_PROJECT is not set; VectorManager will be disabled (RAG disabled).");
+  }
+
+  const memoryManager = new MemoryManager(memoryPath, vectorManager);
   await memoryManager.init();
 
   const profileManager = new ProfileManager(memoryPath);
@@ -83,6 +100,10 @@ async function main() {
     new GetCapabilitySchemaTool(toolRegistry, skillRegistry),
   );
 
+  if (vectorManager) {
+    await vectorManager.indexCapabilities(toolRegistry.list(), skillRegistry.list());
+  }
+
   const agentLoop = new AgentLoop({
     llm,
     memoryManager,
@@ -92,6 +113,7 @@ async function main() {
     sessionTraceHub,
     agentType: AgentType.Primary,
     skillDelegateRunner: agentRuntimeFactory.skillDelegateRunner,
+    vectorManager,
   });
 
   const schedulerRunner = new SchedulerRunner(agentLoop);

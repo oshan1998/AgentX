@@ -15,6 +15,8 @@ import {
   type TaskPlanDocument,
   type TaskPlanItem,
 } from "../common/services/task-plan-schema.js";
+import { VectorManager } from "./vector-manager.js";
+import { logger } from "../common/services/logger.js";
 
 function parseLegacyTaskPlanArray(parsed: unknown): TaskPlanItem[] | null {
   const r = z.array(taskPlanItemSchema).safeParse(parsed);
@@ -24,6 +26,7 @@ function parseLegacyTaskPlanArray(parsed: unknown): TaskPlanItem[] | null {
 export class MemoryManager {
   constructor(
     private readonly basePath: string,
+    private readonly vectorManager?: VectorManager,
     private readonly sessionsDir = "sessions",
     private readonly longTermFile = "long-term.json",
   ) {}
@@ -42,6 +45,27 @@ export class MemoryManager {
         JSON.stringify([], null, 2),
         "utf-8",
       );
+    }
+
+    if (this.vectorManager) {
+      const allEntries = await this.getLongTermMemory();
+      let hasNewEmbeddings = false;
+      for (const entry of allEntries) {
+        if (!this.vectorManager.getMemoryEmbedding(entry.id)) {
+          logger.info(`Generating missing embedding for long-term memory entry ${entry.id}`);
+          try {
+            const text = `Memory Type: ${entry.type}. Content: ${entry.content}`;
+            const embedding = await this.vectorManager.getEmbedding(text);
+            this.vectorManager.setMemoryEmbedding(entry.id, embedding);
+            hasNewEmbeddings = true;
+          } catch (err) {
+            logger.error(`Failed to index memory entry ${entry.id} during initialization`, { error: err });
+          }
+        }
+      }
+      if (hasNewEmbeddings) {
+        await this.vectorManager.save();
+      }
     }
   }
 
@@ -143,6 +167,18 @@ export class MemoryManager {
       JSON.stringify(allEntries, null, 2),
       "utf-8",
     );
+
+    if (this.vectorManager) {
+      try {
+        const text = `Memory Type: ${finalEntry.type}. Content: ${finalEntry.content}`;
+        const embedding = await this.vectorManager.getEmbedding(text);
+        this.vectorManager.setMemoryEmbedding(finalEntry.id, embedding);
+        await this.vectorManager.save();
+      } catch (err) {
+        logger.error(`Failed to generate embedding for new long-term memory ${finalEntry.id}`, { error: err });
+      }
+    }
+
     return finalEntry;
   }
 
@@ -265,19 +301,30 @@ export class MemoryManager {
     return item;
   }
 
-  async searchLongTermMemory(query: string): Promise<LongTermMemoryEntry[]> {
-    const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
-
+  async searchLongTermMemory(query: string, limit = 5): Promise<LongTermMemoryEntry[]> {
     const allEntries = await this.getLongTermMemory();
+    if (allEntries.length === 0) {
+      return [];
+    }
 
+    if (this.vectorManager) {
+      try {
+        const queryEmbedding = await this.vectorManager.getEmbedding(query);
+        return this.vectorManager.searchMemories(queryEmbedding, allEntries, limit);
+      } catch (err) {
+        logger.warn(`Vector search failed for long-term memory query "${query}". Falling back to keyword search.`, { error: err });
+      }
+    }
+
+    const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
     if (tokens.length === 0) {
-      return allEntries;
+      return allEntries.slice(0, limit);
     }
 
     return allEntries.filter((item) => {
       const text = `${item.type} ${item.content}`.toLowerCase();
       return tokens.some((t) => text.includes(t));
-    });
+    }).slice(0, limit);
   }
 
   private async saveSession(session: SessionMemory): Promise<void> {
