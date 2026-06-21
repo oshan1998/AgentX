@@ -82,6 +82,15 @@ interface RunPromptContext {
   subAgentSystemPromptAppend?: string;
 }
 
+/** Upper bound on actions executed in parallel for a single `batch` decision. */
+const MAX_BATCH_ACTIONS = 5;
+
+/** Decision types eligible to run inside a parallel `batch` (must be side-effect-independent). */
+const BATCHABLE_DECISION_TYPES: ReadonlySet<DecisionType> = new Set([
+  DecisionType.ToolCall,
+  DecisionType.SkillCall,
+]);
+
 // ─── Internal types ──────────────────────────────────────────────────────────
 
 /**
@@ -361,6 +370,10 @@ export class AgentLoop {
       return this.handleRespond(runContext, decision.message ?? "");
     }
 
+    if (decision.type === DecisionType.Batch) {
+      return this.handleBatch(runContext, decision, traceCtx, invocation);
+    }
+
     return this.handleToolOrSkill(runContext, decision, traceCtx, invocation);
   }
 
@@ -429,6 +442,65 @@ export class AgentLoop {
       AgentLoop.formatFeedback(decision, result),
       MAX_OBSERVATION_CHARS,
     );
+    await this.appendRunMessage(runContext, AgentLoop.message("tool", observation));
+    return { observation };
+  }
+
+  /**
+   * Runs several independent tool/skill actions concurrently within a single turn,
+   * collapsing 1 LLM call + N sequential round-trips into 1 LLM call + 1 parallel batch.
+   * Uses `allSettled` so one failure does not discard the other results.
+   */
+  private async handleBatch(
+    runContext: RunPromptContext,
+    decision: AgentDecision,
+    traceCtx: ExecutorTraceContext | undefined,
+    invocation: ExecutorInvocationContext,
+  ): Promise<IterationResult> {
+    const actions = (decision.actions ?? []).slice(0, MAX_BATCH_ACTIONS);
+
+    if (actions.length === 0) {
+      const observation = "Batch error: 'actions' was empty. Provide independent tool_call/skill_call actions, or use a single action.";
+      await this.appendRunMessage(runContext, AgentLoop.message("tool", observation));
+      return { observation };
+    }
+
+    const settled = await Promise.allSettled(
+      actions.map((action) => {
+        if (!BATCHABLE_DECISION_TYPES.has(action.type)) {
+          return Promise.reject(
+            new Error(
+              `Only tool_call and skill_call may run in a batch; got "${action.type}". Run it as a standalone decision instead.`,
+            ),
+          );
+        }
+        return this.executor.executeDecision(
+          runContext.sessionId,
+          action,
+          traceCtx,
+          invocation,
+        );
+      }),
+    );
+
+    logger.info("Executed batch decision", { actionCount: actions.length });
+
+    // Split the observation budget evenly so one large result cannot starve the rest.
+    const perActionBudget = Math.max(1, Math.floor(MAX_OBSERVATION_CHARS / actions.length));
+    const observation = actions
+      .map((action, i) => {
+        const outcome = settled[i];
+        const result =
+          outcome.status === "fulfilled"
+            ? outcome.value
+            : `Error: ${outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason)}`;
+        return truncateForPrompt(
+          `[${i + 1}/${actions.length}] ${AgentLoop.formatFeedback(action, result)}`,
+          perActionBudget,
+        );
+      })
+      .join("\n\n");
+
     await this.appendRunMessage(runContext, AgentLoop.message("tool", observation));
     return { observation };
   }
@@ -505,6 +577,7 @@ export class AgentLoop {
       [DecisionType.MemoryWrite]: "Memory write result",
       [DecisionType.ProfileWrite]: "Profile write result",
       [DecisionType.Respond]: "Response",
+      [DecisionType.Batch]: "Batch result",
     };
 
     const prefix = label[decision.type] ?? "Result";

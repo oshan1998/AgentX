@@ -4,6 +4,8 @@ export enum DecisionType {
   SkillCall = "skill_call",
   MemoryWrite = "memory_write",
   ProfileWrite = "profile_write",
+  /** Run several independent tool_call/skill_call actions in parallel within one turn. */
+  Batch = "batch",
 }
 
 export enum SkillType{
@@ -26,6 +28,8 @@ export interface AgentDecision {
   memoryEntry?: Omit<LongTermMemoryEntry, "id" | "createdAt">;
   target?: ProfileTarget;
   content?: Record<string, unknown>;
+  /** For type "batch": independent tool_call/skill_call actions executed in parallel. */
+  actions?: AgentDecision[];
 }
 
 export interface Message {

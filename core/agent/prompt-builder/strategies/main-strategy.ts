@@ -82,6 +82,16 @@ export class MainStrategy implements PromptStrategy {
     "input": {}
   }
   
+  Batch (parallel) — run independent tool_call/skill_call actions at once
+  {
+    "thought": "...",
+    "type": "batch",
+    "actions": [
+      { "type": "tool_call", "tool": "tool_a", "input": {} },
+      { "type": "tool_call", "tool": "tool_b", "input": {} }
+    ]
+  }
+  
   Memory write
   {
     "thought": "...",
@@ -113,7 +123,10 @@ export class MainStrategy implements PromptStrategy {
     3. next action
     4. why alternatives were rejected
   
-  Choose EXACTLY ONE action.
+  Choose EXACTLY ONE decision.
+  - For a single step, use respond / tool_call / skill_call / memory_write / profile_write.
+  - When 2+ tool_call/skill_call actions are INDEPENDENT (none needs another's output), prefer a single "batch" to run them in parallel and save round-trips.
+  - Do NOT batch dependent steps, writes (memory_write/profile_write), or respond — run those on their own.
   
   "type" MUST be one of:
   ${allowedDecisionTypes}
@@ -145,10 +158,14 @@ export class MainStrategy implements PromptStrategy {
   ==================================================
   
   Tools:
-  - single external action per decision
+  - one external action per decision — unless several independent calls can share a "batch"
   
   Skills:
   - packaged workflows — prefer skill_call when a matching skill exists
+  
+  Parallelism:
+  - batch — for a few independent tool/skill calls in one turn (e.g. reading several files, fetching multiple schemas).
+  - orchestrate_task_graph — for larger independent work where each branch needs its own multi-step reasoning.
   
   ${schemaEnforcement}
   
