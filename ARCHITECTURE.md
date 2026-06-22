@@ -28,9 +28,10 @@ For setup and quick start, see [README.md](./README.md).
 16. [Background scheduler](#background-scheduler)
 17. [LLM and media adapters](#llm-and-media-adapters)
 18. [Capabilities and integrations](#capabilities-and-integrations)
-19. [Extension points](#extension-points)
-20. [Directory structure](#directory-structure)
-21. [Environment variables](#environment-variables)
+19. [Model Context Protocol (MCP)](#model-context-protocol-mcp)
+20. [Extension points](#extension-points)
+21. [Directory structure](#directory-structure)
+22. [Environment variables](#environment-variables)
 
 ---
 
@@ -92,7 +93,7 @@ Every agent — principal or sub — uses the **same** `AgentLoop` implementatio
 | Principle | Implementation |
 |-----------|----------------|
 | **One loop, many roles** | `AgentLoop` drives all agents. Role is determined by `AgentType`, registry clones, and execution policy. |
-| **Pluggable capabilities** | Tools and skills are discovered at startup from `capabilities/` and `integrations/`. |
+| **Pluggable tools & skills** | In-process tools from `runtime/tools/`; domain tools from MCP servers in `mcp/`; skills from `skills/`. |
 | **Config-first skills** | Most behavior lives in `skill.json` + optional `prompt.md`; TypeScript is optional. |
 | **Session isolation** | Each chat session owns message history, workspace files, and a task plan. |
 | **Sandboxed delegation** | Sub-agents cannot write long-term memory or profiles; they return results to the principal. |
@@ -177,7 +178,7 @@ flowchart TB
   SM --> SR
 
   AL --> LLMF
-  CapTools["capabilities/* tools"] --> Vision & Imagen
+  McpTools["mcp/* tools"] --> Vision & Imagen
 
   MM --> Sessions & LTM
   PM --> Profiles
@@ -421,7 +422,7 @@ Skill summarize_document result: ...
 | | **Tools** | **Skills** |
 |---|-----------|------------|
 | **Definition** | TypeScript class (`*.tool.ts`) | `skill.json` + optional `prompt.md` |
-| **Discovery** | `ToolManager` scans `capabilities/*/tools/` and `integrations/*/tools/` | `SkillManager` scans `capabilities/*/skills/` and `integrations/*/skills/` |
+| **Discovery** | `ToolManager` scans `runtime/tools/`; MCP tools register via `McpClientManager` | `SkillManager` scans `skills/<domain>/` |
 | **Invocation** | LLM `tool_call` decision | LLM `skill_call` decision |
 | **Execution** | Single `run(input, context)` | Workflow steps or delegated sub-agent |
 | **Composition** | Atomic operations | Multi-step flows built on tools + LLM |
@@ -440,7 +441,7 @@ Defined by a `steps` array in `skill.json`. Step types (`SkillStepType`):
 
 State flows through a `state` object: `{ input, lastResult, ...saveAs keys }`.
 
-Example: `capabilities/filesystem/skills/summarize_document/` — read file → LLM summarize → respond.
+Example: `skills/filesystem/summarize_document/` — read file → LLM summarize → respond.
 
 ### Agentic skills
 
@@ -661,6 +662,8 @@ Sub-agent prompts add:
 
 Orchestrator task events appear as `tool` steps named `task:<taskId>`.
 
+**Tool execution metadata** (`ToolTraceMeta` on `tool` and `skill_tool` steps): `source` (`local` | `mcp`), `server` (MCP server name when remote), and `durationMs` (on the `end` phase). This lets the UI distinguish in-process tools from MCP-backed ones and surface per-call latency. Fields are optional/back-compatible.
+
 ---
 
 ## HTTP API and UI
@@ -740,38 +743,123 @@ Used by `inspect_image` and related design tools. Defaults to `VISION_PROVIDER` 
 
 ---
 
-## Capabilities and integrations
+## Tools, skills, and MCP domains
 
-### Capabilities (`capabilities/`)
+### In-process runtime tools (`runtime/tools/`)
 
-Domain-owned tools and skills:
+Core agent tools loaded directly by `ToolManager`:
 
-| Capability | Tools (examples) | Skills (examples) |
-|------------|------------------|-------------------|
-| **core** | `ask_user`, `search_memory`, `get_current_time`, task-plan tools, `delegate_sub_agent`, `orchestrate_task_graph`, `list_capabilities` | `remember_fact`, `bootstrap_finalize`, `plan_steps` |
-| **filesystem** | `read_file`, `write_file`, `list_directory`, `download_file` | `summarize_document`, `extract_tasks` |
-| **scheduler** | `upsert_cron_job`, `list_cron_jobs`, `delete_cron_job` | — |
-| **pdf** | `read_pdf`, `generate_designed_pdf` | `generate_designed_pdf` |
-| **design** | HTML/SVG render, image edit/generate, compose, crop, overlay, inspect | `create_photo_social_graphic`, `create_infographic`, `create_icon_set`, `prepare_images_for_design`, `resize_for_platforms` |
-| **rag** | `index_document`, `ask_document` | `qa_document` |
+| Category | Tools (examples) |
+|----------|------------------|
+| **Core** | `ask_user`, `search_memory`, `get_current_time`, task-plan tools |
+| **Filesystem** | `read_file`, `write_file`, `list_directory`, `download_file` |
+| **Scheduler** | `upsert_cron_job`, `list_cron_jobs`, `delete_cron_job` |
 
-### Integrations (`integrations/`)
+Manually registered at startup (require runtime factory deps): `delegate_sub_agent`, `orchestrate_task_graph`, `list_capabilities`.
 
-External service connectors:
+### Skills (`skills/`)
 
-| Integration | Tools | Auth / config |
-|-------------|-------|---------------|
+Domain-owned workflow and agentic skills:
+
+| Domain | Skills (examples) |
+|--------|-------------------|
+| **core** | `remember_fact`, `bootstrap_finalize`, `plan_steps` |
+| **filesystem** | `summarize_document`, `extract_tasks` |
+| **design** | `create_photo_social_graphic`, `create_infographic`, `create_icon_set`, `prepare_images_for_design`, `resize_for_platforms` |
+| **pdf** | `generate_designed_pdf` |
+
+### MCP domain servers (`mcp/`)
+
+External service and heavy-domain tools run as standalone MCP servers:
+
+| Server | Tools | Auth / config |
+|--------|-------|---------------|
+| **design** | HTML/SVG render, image edit/generate, compose, crop, overlay, inspect, PDF | Vertex Imagen, GCP credentials |
+| **web** | `web_search`, `search_stock_images` | `TAVILY_API_KEY`, `UNSPLASH_ACCESS_KEY` |
 | **gmail** | `list_emails`, `read_email`, `search_emails` | OAuth via `SecretsManager` + `/api/auth/gmail` |
-| **web-search** | `web_search` | `TAVILY_API_KEY` |
-| **unsplash** | `search_stock_images` | `UNSPLASH_ACCESS_KEY` |
 
 ### Registration rules
 
-- **Auto-discovered tools:** any `*.tool.ts` under `capabilities/*/tools/` or `integrations/*/tools/`
-- **Manually registered tools:** `delegate_sub_agent`, `orchestrate_task_graph`, `list_capabilities` (require runtime factory deps)
-- **Skills:** any folder with `skill.json` under `capabilities/*/skills/` or `integrations/*/skills/`
+- **Auto-discovered in-process tools:** any `*.tool.ts` under `runtime/tools/`
+- **Manually registered tools:** `delegate_sub_agent`, `orchestrate_task_graph`, `list_capabilities`
+- **MCP tools:** registered from `config/mcp-servers.json` via `McpClientManager`
+- **Skills:** any folder with `skill.json` under `skills/<domain>/`
 
 Broken tool files are silently skipped during discovery (logged internally).
+
+---
+
+## Model Context Protocol (MCP)
+
+AgentX supports the [Model Context Protocol](https://modelcontextprotocol.io/) in two directions, both built on the existing `Tool` / `ToolRegistry` abstraction. The agent loop, executor, skills, sub-agents, and orchestrator are unchanged — a remote MCP tool is just another `Tool`.
+
+### As an MCP client (consuming external servers)
+
+At startup `main.ts` builds an `McpClientManager` from `config/mcp-servers.json`, connects to each enabled server, lists its tools, and registers them into the **same** `ToolRegistry` as local tools. Because they share one registry, MCP tools automatically appear in `list_capabilities`, are clonable into sub-agent allowlists, and are usable as orchestrator task-node tools.
+
+```
+main.ts
+  └─ McpClientManager.fromConfig()        # managers/mcp/mcp-config.ts (zod-validated, ${ENV} interpolation)
+       └─ per server: connect (stdio | Streamable HTTP)
+            └─ tools/list → McpTool (implements Tool) → ToolRegistry
+                 └─ McpTool.run() → tools/call (session bridged via _meta)
+```
+
+| Component | File | Responsibility |
+|-----------|------|----------------|
+| Config loader | `managers/mcp/mcp-config.ts` | Validate/resolve server configs; infer transport; interpolate `${ENV}` |
+| Client manager | `managers/mcp/mcp-client-manager.ts` | Connect per server, discover tools, route `tools/call`, isolate failures |
+| Tool adapter | `managers/mcp/mcp-tool.ts` | `McpTool implements Tool`; normalize MCP results; throw on `isError` |
+
+**Properties:**
+
+- **Failure isolation** — a server that fails to start logs a warning and is skipped; it never blocks boot.
+- **Name prefixing** — tools register as `<namePrefix>.<tool>` (default prefix = server key) to avoid collisions; set `namePrefix: ""` for bare names. Local tools win on collision (MCP duplicate skipped).
+- **Session bridging** — `ToolContext.sessionId`/`runId` are sent as MCP `_meta` (`agentx/sessionId`, `agentx/runId`).
+- **Cancellation** — `ToolContext.abortSignal` maps to the MCP request signal; a per-call timeout applies (`toolTimeoutMs`).
+- **Non-breaking** — a missing/empty `config/mcp-servers.json` means no external servers and unchanged behavior.
+
+### As MCP servers (extracting local tools)
+
+Any domain can run as a standalone MCP **server** process while reusing its existing tool classes. A reusable harness serves them over stdio:
+
+```
+mcp/<domain>/index.ts
+  ├─ import "../_harness/mcp-stdio-bootstrap.js"   # route logging to stderr (stdout is the JSON-RPC channel)
+  ├─ import "dotenv/config"                          # server loads its own credentials
+  ├─ loadCapabilityTools(<dir>/tools)                # instantiate *.tool.ts classes (no in-process managers)
+  └─ serveToolsOverStdio({ name, version, tools })
+       └─ low-level Server: tools/list + tools/call → Tool.run(args, ctx from _meta)
+```
+
+| Component | File |
+|-----------|------|
+| Stderr bootstrap | `mcp/_harness/mcp-stdio-bootstrap.ts` |
+| Tool loader | `mcp/_harness/load-capability-tools.ts` |
+| Serving harness | `mcp/_harness/mcp-tool-harness.ts` |
+| Design server | `mcp/design/index.ts` |
+| Web server | `mcp/web/index.ts` |
+| Gmail server | `mcp/gmail/index.ts` |
+
+**To enable an MCP domain:**
+
+1. Enable its server in `config/mcp-servers.json` (set `disabled: false`, `namePrefix: ""` to keep skill tool names stable).
+2. Restart. Domain tools resolve to the separate process; skills, sub-agents, and the orchestrator are unaffected because tool names are unchanged.
+
+**Workspace bridging:** extracted tools resolve files via `resolveWorkspacePath`, which uses `DEFAULT_WORKSPACE_BASE` (`process.cwd()/workspace`, overridable with `AGENTX_WORKSPACE_BASE`). A stdio server inherits the parent cwd, so paths match out of the box on one machine. For a server on another host, point both at a shared workspace via `AGENTX_WORKSPACE_BASE`. Gmail credentials work the same way: the server reads the shared `secrets/` dir (written by the OAuth flow in `IntegrationController`) and `.env`.
+
+**Keep local (do not extract):** core runtime tools — `delegate_sub_agent`, `orchestrate_task_graph`, task-plan tools, `search_memory`, profile writes, `ask_user`, `list_capabilities`, scheduler cron tools — and all skills. MCP has no skill concept; skills orchestrate tools (local or MCP) by name.
+
+### Standalone deployable artifact
+
+In-repo MCP servers run via `tsx`/`node` and share the repo's `node_modules`. To deploy a domain on its own host, `mcp/_harness/build-standalone.mjs` (esbuild) bundles all AgentX source into one ESM file and emits a **trimmed `package.json`** listing only the npm packages that domain reaches:
+
+```bash
+npm run build:standalone:design
+# → dist-standalone/design-mcp/{index.mjs, package.json, README.md}
+```
+
+The design bundle ships runtime deps (sharp, puppeteer, the Google AI SDKs, zod, winston, dotenv, MCP SDK) instead of the full app set. Copy the folder elsewhere, `npm install --omit=dev`, provide credentials via env, and run `node index.mjs`. The design server uses a **static tool manifest** (`mcp/design/tools.ts`) rather than the dynamic directory loader, so esbuild can follow the imports.
 
 ---
 
@@ -780,9 +868,10 @@ Broken tool files are silently skipped during discovery (logged internally).
 | Extension | How |
 |-----------|-----|
 | **New LLM provider** | Implement `LlmAdapter`; register in `llm-adapters/factory.ts` |
-| **New tool** | Add `capabilities/<domain>/tools/my-tool.tool.ts` with `name`, `description`, `inputSchema?`, `run()` |
-| **New skill** | Add `capabilities/<domain>/skills/my_skill/skill.json` (+ `prompt.md`); set `kind: workflow \| agentic` |
-| **New integration** | Add `integrations/<service>/tools/`; optional OAuth in controllers |
+| **New in-process tool** | Add `runtime/tools/my-tool.tool.ts` with `name`, `description`, `inputSchema?`, `run()` |
+| **New skill** | Add `skills/<domain>/my_skill/skill.json` (+ `prompt.md`); set `kind: workflow \| agentic` |
+| **New MCP domain** | Add `mcp/<domain>/` with tools + `index.ts` harness entrypoint; enable in `config/mcp-servers.json` |
+| **Consume an external MCP server** | Add an entry to `config/mcp-servers.json` (stdio or Streamable HTTP) |
 | **Custom execution policy** | Pass `executionPolicy` when constructing `AgentLoop` |
 | **Sub-agent specialization** | Whitelist tools/skills; append `prompt.md`; optional model override |
 | **Orchestrator tuning** | Pass `OrchestratorConfig` (`failFast`, worker pool limits) |
@@ -814,19 +903,31 @@ AgentX/
 │       ├── scheduler.ts            # Ready-task dispatch
 │       ├── worker-pool.ts          # Parallel sub-agent workers
 │       └── event-bus.ts
-├── capabilities/                   # Domain tools + skills
-├── integrations/                   # External service connectors
+├── runtime/
+│   ├── tools/                      # In-process agent tools (filesystem, scheduler, task-plan, …)
+│   └── services/                   # Runtime helpers (cron job store, …)
+├── skills/                         # Domain skills (workflow + agentic)
+├── mcp/                            # Standalone MCP domain servers
+│   ├── _harness/                   # Stdio bootstrap, tool loader, build script
+│   ├── _shared/                    # Shared utilities for standalone MCP processes
+│   ├── design/                     # Design + PDF tools
+│   ├── web/                        # Web search + stock images
+│   └── gmail/                      # Gmail integration
+├── config/
+│   ├── mcp-servers.json            # Active MCP client config (gitignored secrets via ${ENV})
+│   └── mcp-servers.example.json    # Copy-paste examples
 ├── controllers/                    # HTTP controllers + services
 ├── managers/
 │   ├── memory-manager.ts
 │   ├── profile-manager.ts
 │   ├── tool-manager.ts
 │   ├── skill-manager.ts
-│   └── secrets-manager.ts
+│   ├── secrets-manager.ts
+│   └── mcp/                        # MCP client (config, client manager, tool adapter)
 ├── llm-adapters/                   # Gemini, OpenAI, Ollama, Imagen, mock
 ├── common/
 │   ├── interfaces/                 # Types, registries
-│   ├── services/                   # Workspace, task-plan, scheduler, images, …
+│   ├── services/                   # Workspace, task-plan, scheduler runner, logging, …
 │   └── realtime/                   # WebSocket gateway, trace hub, protocol
 ├── memory/
 │   ├── sessions/                   # Per-session JSON + task plans + subs/
@@ -860,6 +961,8 @@ AgentX/
 | `UNSPLASH_ACCESS_KEY` | Stock image search |
 | `APP_BASE_URL` | Base URL for OAuth redirects and workspace links in prompts |
 | `PORT` | HTTP server port (default 3000) |
+| `AGENTX_WORKSPACE_BASE` | Override workspace root (default `cwd/workspace`); set on extracted MCP servers to share a workspace |
+| `AGENTX_LOG_STDERR` | Set to `1` to route console logs to stderr (auto-set by stdio MCP server bootstrap) |
 
 See [.env.example](./.env.example) for a copy-paste template.
 
@@ -867,6 +970,6 @@ See [.env.example](./.env.example) for a copy-paste template.
 
 ## Related reading
 
-- [README.md](./README.md) — quick start, setup, capability overview
-- `capabilities/*/skills/*/skill.json` — concrete skill definitions
-- `capabilities/*/skills/*/prompt.md` — agentic skill behavior specs
+- [README.md](./README.md) — quick start, setup, tool/skill overview
+- `skills/<domain>/<name>/skill.json` — concrete skill definitions
+- `skills/<domain>/<name>/prompt.md` — agentic skill behavior specs

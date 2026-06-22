@@ -38,6 +38,10 @@ export class AgenticSkill implements Skill {
     this.model = config.model;
   }
 
+  getPromptMarkdown(): string {
+    return this.promptMarkdown;
+  }
+
   async run(input: Record<string, unknown>, context: SkillContext): Promise<unknown> {
     const delegate = context.delegateSubAgent;
     if (!delegate) {

@@ -1,5 +1,6 @@
-import { VertexAI, GenerativeModel, GenerateContentRequest } from "@google-cloud/vertexai";
+import { GoogleGenAI, type GenerateContentResponseUsageMetadata } from "@google/genai";
 import type { AgentDecision, LlmAdapter, LlmImageInput } from "../common/interfaces/types.js";
+import { logLlmTokenUsage } from "./log-token-usage.js";
 import { resolveVertexLocation } from "./vertex-config.js";
 
 interface GeminiAdapterOptions {
@@ -9,26 +10,20 @@ interface GeminiAdapterOptions {
 }
 
 export class GeminiVertexAdapter implements LlmAdapter {
-  private vertexAI: VertexAI;
-  private model: GenerativeModel;
+  private readonly client: GoogleGenAI;
   private readonly modelName: string;
 
   constructor(private readonly options: GeminiAdapterOptions) {
     this.modelName = options.model ?? "gemini-1.5-flash";
-    this.vertexAI = new VertexAI({
+    this.client = new GoogleGenAI({
+      vertexai: true,
       project: options.projectId,
       location: options.location ?? resolveVertexLocation(),
-    });
-    this.model = this.vertexAI.getGenerativeModel({
-      model: this.modelName,
-      generationConfig: {
-        responseMimeType: "application/json",
-      },
     });
   }
 
   async decide(prompt: string, systemPrompt?: string): Promise<AgentDecision> {
-    const raw = await this.complete(prompt, systemPrompt);
+    const raw = await this.complete(prompt, systemPrompt, "decide");
     try {
       return JSON.parse(raw) as AgentDecision;
     } catch (e) {
@@ -37,27 +32,18 @@ export class GeminiVertexAdapter implements LlmAdapter {
     }
   }
 
-  async complete(prompt: string, systemPrompt?: string): Promise<string> {
-    const request: GenerateContentRequest = {
-      contents: [
-        {
-          role: "user",
-          parts: [{ text: prompt }],
-        },
-      ],
-    };
+  async complete(prompt: string, systemPrompt?: string, operation = "complete"): Promise<string> {
+    const response = await this.client.models.generateContent({
+      model: this.modelName,
+      contents: prompt,
+      config: {
+        ...(systemPrompt ? { systemInstruction: systemPrompt } : {}),
+        responseMimeType: "application/json",
+      },
+    });
 
-    if (systemPrompt) {
-      request.systemInstruction = {
-        role: "system",
-        parts: [{ text: systemPrompt }],
-      };
-    }
-
-    const result = await this.model.generateContent(request);
-    const response = await result.response;
-    const text = response.candidates?.[0]?.content?.parts?.[0]?.text;
-
+    this.logUsage(operation, response.usageMetadata);
+    const text = response.text;
     if (!text) {
       throw new Error("Gemini returned an empty response.");
     }
@@ -66,8 +52,8 @@ export class GeminiVertexAdapter implements LlmAdapter {
   }
 
   async completeWithImage(prompt: string, image: LlmImageInput): Promise<string> {
-    const visionModel = this.vertexAI.getGenerativeModel({ model: this.modelName });
-    const result = await visionModel.generateContent({
+    const response = await this.client.models.generateContent({
+      model: this.modelName,
       contents: [
         {
           role: "user",
@@ -79,12 +65,23 @@ export class GeminiVertexAdapter implements LlmAdapter {
       ],
     });
 
-    const response = await result.response;
-    const text = response.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!text?.trim()) {
+    this.logUsage("completeWithImage", response.usageMetadata);
+    const text = response.text?.trim();
+    if (!text) {
       throw new Error("Gemini vision returned empty text.");
     }
 
-    return text.trim();
+    return text;
+  }
+
+  private logUsage(operation: string, usage?: GenerateContentResponseUsageMetadata): void {
+    logLlmTokenUsage({
+      provider: "gemini",
+      model: this.modelName,
+      operation,
+      inputTokens: usage?.promptTokenCount ?? 0,
+      outputTokens: usage?.candidatesTokenCount ?? 0,
+      cachedTokens: usage?.cachedContentTokenCount ?? 0,
+    });
   }
 }

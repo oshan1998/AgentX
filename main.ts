@@ -6,7 +6,9 @@ import multer from "multer";
 import { attachWebSocketGateway } from "./common/realtime/ws-gateway.js";
 import { SessionTraceHub } from "./common/realtime/session-trace-hub.js";
 import { AgentLoop, AgentType, AgentRuntimeFactory, registerDelegateToolOnce } from "./core/index.js";
-import { ListCapabilitiesTool } from "./capabilities/core/tools/list-capabilities.js";
+import { resolveCapabilityRetrievalMethod } from "./core/agent/capability-retriever.js";
+import { ListCapabilitiesTool } from "./runtime/tools/list-capabilities.js";
+import { GetCapabilitySchemaTool } from "./runtime/tools/get-capability-schema.js";
 import { createLlmAdapter } from "./llm-adapters/factory.js";
 import { MemoryManager } from "./managers/memory-manager.js";
 import { ProfileManager } from "./managers/profile-manager.js";
@@ -14,7 +16,9 @@ import { SecretsManager } from "./managers/secrets-manager.js";
 import { SkillManager } from "./managers/skill-manager.js";
 import { SchedulerRunner } from "./common/services/scheduler-runner.js";
 import { ToolManager } from "./managers/tool-manager.js";
+import { McpClientManager } from "./managers/mcp/index.js";
 import { logger } from "./common/services/logger.js";
+import { VectorManager } from "./managers/vector-manager.js";
 
 // Services
 import { ChatService } from "./controllers/chat/chat.service.js";
@@ -41,14 +45,35 @@ async function main() {
 
   // ── Core dependencies ──────────────────────────────────
   const memoryPath = path.join(process.cwd(), "memory");
-  const memoryManager = new MemoryManager(memoryPath);
+
+  const projectId = process.env.GOOGLE_CLOUD_PROJECT;
+  let vectorManager: VectorManager | undefined;
+
+  if (projectId) {
+    logger.info("Initializing VectorManager...");
+    vectorManager = new VectorManager({
+      projectId,
+      location: process.env.GOOGLE_CLOUD_LOCATION,
+      storagePath: path.join(memoryPath, "vector-store.json"),
+    });
+    await vectorManager.init();
+  } else {
+    logger.warn("GOOGLE_CLOUD_PROJECT is not set; VectorManager will be disabled (RAG disabled).");
+  }
+
+  const memoryManager = new MemoryManager(memoryPath, vectorManager);
   await memoryManager.init();
 
   const profileManager = new ProfileManager(memoryPath);
   await profileManager.init();
 
-  const toolManager = new ToolManager(memoryManager);
+  const toolManager = new ToolManager(memoryManager, process.cwd());
   const toolRegistry = await toolManager.loadAllTools();
+
+  // External MCP servers contribute additional tools into the same registry, so
+  // the agent loop, skills, sub-agents, and orchestrator treat them as native.
+  const mcpClientManager = await McpClientManager.fromConfig();
+  await mcpClientManager.registerInto(toolRegistry);
 
   const llm = createLlmAdapter();
 
@@ -71,6 +96,17 @@ async function main() {
     toolRegistry,
     new ListCapabilitiesTool(toolRegistry, skillRegistry),
   );
+  registerDelegateToolOnce(
+    toolRegistry,
+    new GetCapabilitySchemaTool(toolRegistry, skillRegistry),
+  );
+
+  if (vectorManager) {
+    await vectorManager.indexCapabilities(toolRegistry.list(), skillRegistry.list());
+  }
+
+  const capabilityRetrievalMethod = resolveCapabilityRetrievalMethod();
+  logger.info(`Capability retrieval method: ${capabilityRetrievalMethod}`);
 
   const agentLoop = new AgentLoop({
     llm,
@@ -81,6 +117,8 @@ async function main() {
     sessionTraceHub,
     agentType: AgentType.Primary,
     skillDelegateRunner: agentRuntimeFactory.skillDelegateRunner,
+    vectorManager,
+    capabilityRetrievalMethod,
   });
 
   const schedulerRunner = new SchedulerRunner(agentLoop);
@@ -137,6 +175,14 @@ async function main() {
   server.listen(port, () => {
     logger.info(`HTTP + WebSocket server at http://localhost:${port} (ws path /ws)`);
   });
+
+  const shutdown = async (signal: string) => {
+    logger.info(`Received ${signal}; closing MCP connections and HTTP server.`);
+    await mcpClientManager.close();
+    server.close(() => process.exit(0));
+  };
+  process.on("SIGINT", () => void shutdown("SIGINT"));
+  process.on("SIGTERM", () => void shutdown("SIGTERM"));
 }
 
 main();

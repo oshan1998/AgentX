@@ -1,4 +1,5 @@
 import type { AgentDecision, LlmAdapter, LlmImageInput } from "../common/interfaces/types.js";
+import { logLlmTokenUsage } from "./log-token-usage.js";
 
 export interface OllamaAdapterOptions {
   model?: string;
@@ -15,7 +16,7 @@ export class OllamaAdapter implements LlmAdapter {
   }
 
   async decide(prompt: string, systemPrompt?: string): Promise<AgentDecision> {
-    const raw = await this.complete(prompt, systemPrompt);
+    const raw = await this.complete(prompt, systemPrompt, "decide");
     try {
       return JSON.parse(raw) as AgentDecision;
     } catch {
@@ -24,7 +25,7 @@ export class OllamaAdapter implements LlmAdapter {
     }
   }
 
-  async complete(prompt: string, systemPrompt?: string): Promise<string> {
+  async complete(prompt: string, systemPrompt?: string, operation = "complete"): Promise<string> {
     if (prompt.length > 5000) {
       console.warn(`[WARNING] Prompt is very large: ${prompt.length} characters.`);
     }
@@ -55,7 +56,18 @@ export class OllamaAdapter implements LlmAdapter {
 
     const payload = (await response.json()) as {
       response?: string;
+      prompt_eval_count?: number;
+      eval_count?: number;
     };
+
+    logLlmTokenUsage({
+      provider: "ollama",
+      model: this.model,
+      operation,
+      inputTokens: payload.prompt_eval_count ?? 0,
+      outputTokens: payload.eval_count ?? 0,
+      cachedTokens: 0,
+    });
 
     const raw = payload.response?.trim();
     if (raw === undefined) {

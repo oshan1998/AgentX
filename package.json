@@ -7,11 +7,19 @@
     "dev": "NODE_OPTIONS='--dns-result-order=ipv4first' tsx main.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/main.js",
+    "mcp:design": "tsx mcp/design/index.ts",
+    "start:mcp:design": "node dist/mcp/design/index.js",
+    "mcp:web": "tsx mcp/web/index.ts",
+    "start:mcp:web": "node dist/mcp/web/index.js",
+    "mcp:gmail": "tsx mcp/gmail/index.ts",
+    "start:mcp:gmail": "node dist/mcp/gmail/index.js",
+    "mcp:figma:auth": "npx -y -p mcp-remote@latest mcp-remote-client https://mcp.figma.com/mcp --transport http-first --static-oauth-client-metadata \"{\\\"client_name\\\":\\\"Claude Code\\\"}\"",
+    "build:standalone:design": "node mcp/_harness/build-standalone.mjs mcp/design/index.ts design-mcp",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@google-cloud/vertexai": "^1.12.0",
     "@google/genai": "^2.6.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@types/pdf-parse": "^1.1.5",
     "@types/pdfkit": "^0.17.6",
     "dotenv": "^16.4.5",
@@ -31,6 +39,7 @@
     "@types/multer": "^2.1.0",
     "@types/node": "^22.10.2",
     "@types/ws": "^8.18.1",
+    "esbuild": "^0.28.1",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
   }

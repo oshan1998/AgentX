@@ -37,6 +37,10 @@ export class WorkflowSkill implements Skill {
     this.inputSchema = config.inputSchema;
   }
 
+  getPromptMarkdown(): string {
+    return this.promptMarkdown;
+  }
+
   async run(input: Record<string, unknown>, context: SkillContext): Promise<unknown> {
     const state: Record<string, unknown> = { input };
 
