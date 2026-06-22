@@ -16,6 +16,11 @@ interface VectorStoreData {
   memories: Record<string, number[]>;     // memoryId -> embedding
 }
 
+export interface Scored<T> {
+  item: T;
+  score: number;
+}
+
 export class VectorManager {
   private readonly client: GoogleGenAI;
   private readonly storagePath: string;
@@ -146,43 +151,55 @@ export class VectorManager {
     logger.info(`Capabilities indexing complete. Cache hits: ${cacheHits}, API calls: ${apiCalls}`);
   }
 
-  searchTools(queryEmbedding: number[], tools: Tool[], limit: number): Tool[] {
-    const scored = tools
-      .map((tool) => {
-        const emb = this.toolEmbeddings.get(tool.name);
-        if (!emb) return { tool, score: -1 };
-        return { tool, score: this.cosineSimilarity(queryEmbedding, emb) };
-      })
-      .filter((item) => item.score >= 0)
-      .sort((a, b) => b.score - a.score);
+  searchToolsScored(queryEmbedding: number[], tools: Tool[], limit: number): Scored<Tool>[] {
+    return this.rankByEmbedding(queryEmbedding, tools, (tool) => this.toolEmbeddings.get(tool.name), limit);
+  }
 
-    return scored.slice(0, limit).map((item) => item.tool);
+  searchSkillsScored(queryEmbedding: number[], skills: Skill[], limit: number): Scored<Skill>[] {
+    return this.rankByEmbedding(queryEmbedding, skills, (skill) => this.skillEmbeddings.get(skill.name), limit);
+  }
+
+  searchMemoriesScored(
+    queryEmbedding: number[],
+    memories: LongTermMemoryEntry[],
+    limit: number,
+  ): Scored<LongTermMemoryEntry>[] {
+    return this.rankByEmbedding(
+      queryEmbedding,
+      memories,
+      (memory) => this.data.memories[memory.id],
+      limit,
+    );
+  }
+
+  searchTools(queryEmbedding: number[], tools: Tool[], limit: number): Tool[] {
+    return this.searchToolsScored(queryEmbedding, tools, limit).map((item) => item.item);
   }
 
   searchSkills(queryEmbedding: number[], skills: Skill[], limit: number): Skill[] {
-    const scored = skills
-      .map((skill) => {
-        const emb = this.skillEmbeddings.get(skill.name);
-        if (!emb) return { skill, score: -1 };
-        return { skill, score: this.cosineSimilarity(queryEmbedding, emb) };
-      })
-      .filter((item) => item.score >= 0)
-      .sort((a, b) => b.score - a.score);
-
-    return scored.slice(0, limit).map((item) => item.skill);
+    return this.searchSkillsScored(queryEmbedding, skills, limit).map((item) => item.item);
   }
 
   searchMemories(queryEmbedding: number[], memories: LongTermMemoryEntry[], limit: number): LongTermMemoryEntry[] {
-    const scored = memories
-      .map((memory) => {
-        const emb = this.data.memories[memory.id];
-        if (!emb) return { memory, score: -1 };
-        return { memory, score: this.cosineSimilarity(queryEmbedding, emb) };
+    return this.searchMemoriesScored(queryEmbedding, memories, limit).map((item) => item.item);
+  }
+
+  private rankByEmbedding<T>(
+    queryEmbedding: number[],
+    items: T[],
+    getEmbedding: (item: T) => number[] | undefined,
+    limit: number,
+  ): Scored<T>[] {
+    const scored = items
+      .map((item) => {
+        const emb = getEmbedding(item);
+        if (!emb) return { item, score: -1 };
+        return { item, score: this.cosineSimilarity(queryEmbedding, emb) };
       })
-      .filter((item) => item.score >= 0)
+      .filter((entry) => entry.score >= 0)
       .sort((a, b) => b.score - a.score);
 
-    return scored.slice(0, limit).map((item) => item.memory);
+    return scored.slice(0, limit);
   }
 
   private getHash(text: string): string {

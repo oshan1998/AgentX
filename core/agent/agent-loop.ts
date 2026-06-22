@@ -32,11 +32,8 @@ import { ProfileManager } from "../../managers/profile-manager.js";
 import { logger } from "../../common/services/logger.js";
 import {
   type CapabilityRetrievalMethod,
-  DEFAULT_RETRIEVED_SKILL_LIMIT,
-  DEFAULT_RETRIEVED_TOOL_LIMIT,
-  resolveCapabilityRetrievalMethod,
-  retrieveCapabilities,
 } from "./capability-retriever.js";
+import { preprocessContext, type ContextRouteResult } from "./context-router.js";
 
 // ─── Public types ────────────────────────────────────────────────────────────
 
@@ -87,6 +84,7 @@ interface RunPromptContext {
   user: User;
   staticSystemPrompt: string;
   subAgentSystemPromptAppend?: string;
+  contextRoute?: ContextRouteResult;
 }
 
 /** Upper bound on actions executed in parallel for a single `batch` decision. */
@@ -279,45 +277,32 @@ export class AgentLoop {
 
     let activeToolRegistry = this.deps.toolRegistry;
     let activeSkillRegistry = this.deps.skillRegistry;
+    let contextRoute: ContextRouteResult | undefined;
+    let promptProfile: ContextRouteResult["profile"] | undefined;
+    let primarySkillName: string | undefined;
+    let primarySkillPrompt: string | undefined;
+    let initialLongTermMemory: ContextRouteResult["relevantLongTermMemory"] | undefined;
 
-    const retrievalMethod = resolveCapabilityRetrievalMethod(
-      this.deps.capabilityRetrievalMethod,
-    );
-    const canRetrieve =
-      retrievalMethod === "llm" || this.deps.vectorManager !== undefined;
-
-    if (canRetrieve) {
+    if (!isSubAgent && isBootstrapComplete) {
       try {
-        const { tools, skills, method } = await retrieveCapabilities({
-          method: retrievalMethod,
+        contextRoute = await preprocessContext({
           userInput,
           llm: this.deps.llm,
-          vectorManager: this.deps.vectorManager,
+          memoryManager: this.deps.memoryManager,
           allTools: this.deps.toolRegistry.list(),
           allSkills: this.deps.skillRegistry.list(),
-          toolLimit: DEFAULT_RETRIEVED_TOOL_LIMIT,
-          skillLimit: DEFAULT_RETRIEVED_SKILL_LIMIT,
+          vectorManager: this.deps.vectorManager,
+          capabilityRetrievalMethod: this.deps.capabilityRetrievalMethod,
         });
-
-        const filteredTools = new ToolRegistry();
-        for (const tool of tools) {
-          filteredTools.register(tool);
-        }
-
-        const filteredSkills = new SkillRegistry();
-        for (const skill of skills) {
-          filteredSkills.register(skill);
-        }
-
-        activeToolRegistry = filteredTools;
-        activeSkillRegistry = filteredSkills;
-
-        logger.info(
-          `${method.toUpperCase()} dynamic prompt: selected ${filteredTools.list().length} tools and ${filteredSkills.list().length} skills.`,
-        );
+        activeToolRegistry = contextRoute.toolRegistry;
+        activeSkillRegistry = contextRoute.skillRegistry;
+        promptProfile = contextRoute.profile;
+        primarySkillName = contextRoute.primarySkill?.name;
+        primarySkillPrompt = contextRoute.primarySkillPrompt;
+        initialLongTermMemory = contextRoute.relevantLongTermMemory;
       } catch (err) {
         logger.error(
-          "Dynamic capability filtering failed. Falling back to full registry.",
+          "Context preprocessing failed. Falling back to full registry.",
           { error: err },
         );
       }
@@ -332,11 +317,15 @@ export class AgentLoop {
       isSubAgent,
       isBootstrapComplete,
       subAgentSystemPromptAppend,
+      promptProfile,
+      primarySkillName,
+      primarySkillPrompt,
     });
 
     logger.debug("Built static system prompt for run", {
       sessionId,
       staticPromptChars: staticSystemPrompt.length,
+      promptProfile: promptProfile ?? "default",
     });
 
     return {
@@ -349,6 +338,9 @@ export class AgentLoop {
       user,
       staticSystemPrompt,
       subAgentSystemPromptAppend,
+      contextRoute: contextRoute
+        ? { ...contextRoute, relevantLongTermMemory: initialLongTermMemory ?? contextRoute.relevantLongTermMemory }
+        : undefined,
     };
   }
 
@@ -439,7 +431,9 @@ export class AgentLoop {
     );
 
     const relevantLongTermMemory =
-      await this.deps.memoryManager.searchLongTermMemory(memoryQuery);
+      ctx.iteration === 1 && runContext.contextRoute?.relevantLongTermMemory
+        ? runContext.contextRoute.relevantLongTermMemory
+        : await this.deps.memoryManager.searchLongTermMemory(memoryQuery);
 
     const userPrompt = this.promptBuilder.buildDynamicUser({
       latestUserMessage: runContext.userInput,

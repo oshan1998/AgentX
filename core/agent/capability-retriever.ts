@@ -1,14 +1,18 @@
 import type { LlmAdapter, Skill, Tool } from "../../common/interfaces/types.js";
-import { VectorManager } from "../../managers/vector-manager.js";
+import { VectorManager, type Scored } from "../../managers/vector-manager.js";
 import { logger } from "../../common/services/logger.js";
 
 export type CapabilityRetrievalMethod = "rag" | "llm";
 
-/** Tools always included in the dynamic prompt regardless of retrieval method. */
-export const ALWAYS_ON_TOOL_NAMES = [
+/** Lightweight meta tools available in every profile (escape hatch). */
+export const META_TOOL_NAMES = [
   "get_capability_schema",
   "list_capabilities",
   "ask_user",
+] as const;
+
+/** Planning/orchestration tools — included only in planning or full-action profiles. */
+export const PLANNING_TOOL_NAMES = [
   "delegate_sub_agent",
   "orchestrate_task_graph",
   "read_task_plan",
@@ -16,15 +20,39 @@ export const ALWAYS_ON_TOOL_NAMES = [
   "patch_task_plan_task",
 ] as const;
 
+/** Tools always included when the profile needs full agent capabilities. */
+export const ALWAYS_ON_TOOL_NAMES = [
+  ...META_TOOL_NAMES,
+  ...PLANNING_TOOL_NAMES,
+] as const;
+
+export const PLANNING_SKILL_NAMES = ["plan_steps"] as const;
+
 export const DEFAULT_RETRIEVED_TOOL_LIMIT = 8;
 export const DEFAULT_RETRIEVED_SKILL_LIMIT = 4;
 
+export const DEFAULT_MIN_CAPABILITY_SCORE = 0.32;
+export const DEFAULT_SINGLE_SKILL_SCORE_GAP = 0.08;
+
+export function isMetaToolName(name: string): boolean {
+  return (META_TOOL_NAMES as readonly string[]).includes(name);
+}
+
+export function isPlanningToolName(name: string): boolean {
+  return (PLANNING_TOOL_NAMES as readonly string[]).includes(name);
+}
+
+export function isAlwaysOnToolName(name: string): boolean {
+  return (ALWAYS_ON_TOOL_NAMES as readonly string[]).includes(name);
+}
+
+/** Defaults to LLM selection; long-term memory stays RAG via MemoryManager. */
 export function resolveCapabilityRetrievalMethod(
   override?: CapabilityRetrievalMethod,
 ): CapabilityRetrievalMethod {
   if (override) return override;
   const raw = process.env.CAPABILITY_RETRIEVAL_METHOD?.trim().toLowerCase();
-  return raw === "llm" ? "llm" : "rag";
+  return raw === "rag" ? "rag" : "llm";
 }
 
 export interface RetrieveCapabilitiesParams {
@@ -42,6 +70,8 @@ export interface RetrieveCapabilitiesResult {
   tools: Tool[];
   skills: Skill[];
   method: CapabilityRetrievalMethod;
+  toolScores: Scored<Tool>[];
+  skillScores: Scored<Skill>[];
 }
 
 export async function retrieveCapabilities(
@@ -52,6 +82,8 @@ export async function retrieveCapabilities(
 
   let retrievedTools: Tool[];
   let retrievedSkills: Skill[];
+  let toolScores: Scored<Tool>[];
+  let skillScores: Scored<Skill>[];
   let effectiveMethod = params.method;
 
   if (params.method === "llm") {
@@ -66,6 +98,8 @@ export async function retrieveCapabilities(
       );
       retrievedTools = llmResult.tools;
       retrievedSkills = llmResult.skills;
+      toolScores = llmResult.toolScores;
+      skillScores = llmResult.skillScores;
     } catch (err) {
       logger.warn("LLM capability retrieval failed; falling back to RAG.", { error: err });
       if (!params.vectorManager) throw err;
@@ -80,6 +114,8 @@ export async function retrieveCapabilities(
       );
       retrievedTools = ragResult.tools;
       retrievedSkills = ragResult.skills;
+      toolScores = ragResult.toolScores;
+      skillScores = ragResult.skillScores;
     }
   } else {
     if (!params.vectorManager) {
@@ -95,19 +131,26 @@ export async function retrieveCapabilities(
     );
     retrievedTools = ragResult.tools;
     retrievedSkills = ragResult.skills;
+    toolScores = ragResult.toolScores;
+    skillScores = ragResult.skillScores;
   }
 
   const alwaysOn = new Set<string>(ALWAYS_ON_TOOL_NAMES);
   const toolByName = new Map(params.allTools.map((t) => [t.name, t]));
   const mergedTools: Tool[] = [];
+  const mergedToolScores: Scored<Tool>[] = [];
 
   for (const name of alwaysOn) {
     const tool = toolByName.get(name);
-    if (tool) mergedTools.push(tool);
-  }
-  for (const tool of retrievedTools) {
-    if (!alwaysOn.has(tool.name)) {
+    if (tool) {
       mergedTools.push(tool);
+      mergedToolScores.push({ item: tool, score: 1 });
+    }
+  }
+  for (const scored of toolScores) {
+    if (!alwaysOn.has(scored.item.name)) {
+      mergedTools.push(scored.item);
+      mergedToolScores.push(scored);
     }
   }
 
@@ -115,6 +158,8 @@ export async function retrieveCapabilities(
     tools: mergedTools,
     skills: retrievedSkills,
     method: effectiveMethod,
+    toolScores: mergedToolScores,
+    skillScores,
   };
 }
 
@@ -125,11 +170,15 @@ async function retrieveViaRag(
   allSkills: Skill[],
   toolLimit: number,
   skillLimit: number,
-): Promise<{ tools: Tool[]; skills: Skill[] }> {
+): Promise<{ tools: Tool[]; skills: Skill[]; toolScores: Scored<Tool>[]; skillScores: Scored<Skill>[] }> {
   const queryEmbedding = await vectorManager.getEmbedding(userInput);
+  const toolScores = vectorManager.searchToolsScored(queryEmbedding, allTools, toolLimit);
+  const skillScores = vectorManager.searchSkillsScored(queryEmbedding, allSkills, skillLimit);
   return {
-    tools: vectorManager.searchTools(queryEmbedding, allTools, toolLimit),
-    skills: vectorManager.searchSkills(queryEmbedding, allSkills, skillLimit),
+    tools: toolScores.map((entry) => entry.item),
+    skills: skillScores.map((entry) => entry.item),
+    toolScores,
+    skillScores,
   };
 }
 
@@ -140,8 +189,9 @@ async function retrieveViaLlm(
   allSkills: Skill[],
   toolLimit: number,
   skillLimit: number,
-): Promise<{ tools: Tool[]; skills: Skill[] }> {
-  const toolLines = allTools
+): Promise<{ tools: Tool[]; skills: Skill[]; toolScores: Scored<Tool>[]; skillScores: Scored<Skill>[] }> {
+  const selectableTools = allTools.filter((tool) => !isAlwaysOnToolName(tool.name));
+  const toolLines = selectableTools
     .map((t) => `- ${t.name}: ${t.description}`)
     .join("\n");
   const skillLines = allSkills
@@ -149,11 +199,12 @@ async function retrieveViaLlm(
     .join("\n");
 
   const systemPrompt = [
-    "You select which tools and skills are relevant for a user task.",
+    "You select which tools and skills are needed to fulfill the user's request.",
     `Pick up to ${toolLimit} tools and up to ${skillLimit} skills from the catalog.`,
     "Use exact names from the catalog. Prefer fewer, highly relevant items over broad coverage.",
     'Reply with ONLY valid JSON: {"tool_names":["..."],"skill_names":["..."]}',
-    "If nothing beyond meta/planning tools is needed, return empty arrays.",
+    "For conversational questions, greetings, or tasks answerable from chat history alone, return empty arrays.",
+    "Do not select meta/planning tools (list_capabilities, orchestrate_task_graph, etc.) — they are always available.",
   ].join(" ");
 
   const prompt = [
@@ -193,7 +244,12 @@ async function retrieveViaLlm(
     });
   }
 
-  return { tools, skills };
+  return {
+    tools,
+    skills,
+    toolScores: tools.map((item) => ({ item, score: 1 })),
+    skillScores: skills.map((item) => ({ item, score: 1 })),
+  };
 }
 
 function normalizeNameList(value: unknown): string[] {
