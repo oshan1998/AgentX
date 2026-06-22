@@ -7,6 +7,33 @@ export interface ChatResponse {
   runId: string;
 }
 
+/** Strip JSON wrappers / quotes so titles store as plain text. */
+export function normalizeGeneratedSessionTitle(raw: string, maxLength = 60): string {
+  let text = raw.trim();
+
+  const fenceMatch = text.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  if (fenceMatch) {
+    text = fenceMatch[1].trim();
+  }
+
+  if (text.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(text) as { title?: unknown };
+      if (typeof parsed.title === "string" && parsed.title.trim()) {
+        text = parsed.title.trim();
+      }
+    } catch {
+      const match = text.match(/"title"\s*:\s*"((?:\\.|[^"\\])*)"/);
+      if (match) {
+        text = match[1].replace(/\\"/g, '"').replace(/\\n/g, " ").trim();
+      }
+    }
+  }
+
+  text = text.replace(/^["']|["']$/g, "").replace(/\s+/g, " ").trim();
+  return text.slice(0, maxLength);
+}
+
 /**
  * Encapsulates chat business logic:
  * - auto-generating session titles on the first message
@@ -42,10 +69,13 @@ export class ChatService {
       this.llm
         .complete(
           `User message: "${message}"`,
-          `You generate ultra-short session titles. Given the user's first message, reply with ONLY a title of 3 to 6 words that captures the topic. No punctuation, no quotes, no explanation. Just the title.`,
+          `You generate ultra-short session titles. Given the user's first message, reply with ONLY plain text — 3 to 6 words that capture the topic. No JSON, no markdown, no punctuation, no quotes, no explanation.`,
         )
         .then((title) => {
-          const clean = title.trim().replace(/^["']|["']$/g, "").slice(0, 60);
+          const clean = normalizeGeneratedSessionTitle(title);
+          if (!clean) {
+            throw new Error("Empty title from LLM");
+          }
           return this.memoryManager.updateSessionTitle(sessionId, clean);
         })
         .catch(() => {
