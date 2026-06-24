@@ -5,7 +5,6 @@ import {
   type AgentDecision,
   type LlmAdapter,
   type Message,
-  type SessionMemory,
   type SkillDelegateRunner,
 } from "../../common/interfaces/types.js";
 import type { SessionTraceHub } from "../../common/realtime/session-trace-hub.js";
@@ -27,13 +26,15 @@ import {
 } from "./execution-policy.js";
 import { MemoryManager } from "../../managers/memory-manager.js";
 import { PromptBuilder } from "./prompt-builder.js";
-import type { Soul, User } from "../../managers/profile-manager.js";
 import { ProfileManager } from "../../managers/profile-manager.js";
 import { logger } from "../../common/services/logger.js";
 import {
   type CapabilityRetrievalMethod,
 } from "./capability-retriever.js";
-import { preprocessContext, type ContextRouteResult } from "./context-router.js";
+import {
+  buildRunPromptContext,
+  type RunPromptContext,
+} from "./run-context-pipeline.js";
 
 // ─── Public types ────────────────────────────────────────────────────────────
 
@@ -71,20 +72,6 @@ interface AgentLoopDependencies {
   vectorManager?: VectorManager;
   /** Override env `CAPABILITY_RETRIEVAL_METHOD` (`rag` | `llm`). */
   capabilityRetrievalMethod?: CapabilityRetrievalMethod;
-}
-
-/** Run-scoped prompt state: static system prompt and in-memory session mirror. */
-interface RunPromptContext {
-  sessionId: string;
-  session: SessionMemory;
-  userInput: string;
-  isSubAgent: boolean;
-  isBootstrapComplete: boolean;
-  soul: Soul;
-  user: User;
-  staticSystemPrompt: string;
-  subAgentSystemPromptAppend?: string;
-  contextRoute?: ContextRouteResult;
 }
 
 /** Upper bound on actions executed in parallel for a single `batch` decision. */
@@ -136,7 +123,7 @@ export class AgentLoop {
       policy,
       deps.skillDelegateRunner,
     );
-    this.maxIterations = deps.maxIterations ?? 50;
+    this.maxIterations = deps.maxIterations ?? 10;
   }
 
   /**
@@ -197,7 +184,12 @@ export class AgentLoop {
       };
     }
 
-    const runContext = await this.createRunPromptContext(sessionId, userInput, isSubAgent, options);
+    const runContext = await buildRunPromptContext(this.deps, {
+      sessionId,
+      userInput,
+      isSubAgent,
+      subAgentSystemPromptAppend: options?.subAgentSystemPromptAppend,
+    });
 
     try {
       const iterCap = this.resolveIterationCap(options?.maxIterations);
@@ -252,96 +244,6 @@ export class AgentLoop {
         this.activeRunControllers.delete(registeredRunId);
       }
     }
-  }
-
-  // ── Run prompt context ─────────────────────────────────────────────────────
-
-  private async createRunPromptContext(
-    sessionId: string,
-    userInput: string,
-    isSubAgent: boolean,
-    options?: AgentRunHandleOptions,
-  ): Promise<RunPromptContext> {
-    const session = await this.deps.memoryManager.getSession(sessionId);
-    const allMemory = await this.deps.memoryManager.getLongTermMemory();
-    const soul = await this.deps.profileManager.getSoul();
-    const user = await this.deps.profileManager.getUser();
-
-    const isBootstrapComplete = isSubAgent
-      ? true
-      : allMemory.some((m) => m.content === "bootstrap_complete");
-
-    const subAgentSystemPromptAppend = isSubAgent
-      ? options?.subAgentSystemPromptAppend
-      : undefined;
-
-    let activeToolRegistry = this.deps.toolRegistry;
-    let activeSkillRegistry = this.deps.skillRegistry;
-    let contextRoute: ContextRouteResult | undefined;
-    let promptProfile: ContextRouteResult["profile"] | undefined;
-    let primarySkillName: string | undefined;
-    let primarySkillPrompt: string | undefined;
-    let initialLongTermMemory: ContextRouteResult["relevantLongTermMemory"] | undefined;
-
-    if (!isSubAgent && isBootstrapComplete) {
-      try {
-        contextRoute = await preprocessContext({
-          userInput,
-          llm: this.deps.llm,
-          memoryManager: this.deps.memoryManager,
-          allTools: this.deps.toolRegistry.list(),
-          allSkills: this.deps.skillRegistry.list(),
-          vectorManager: this.deps.vectorManager,
-          capabilityRetrievalMethod: this.deps.capabilityRetrievalMethod,
-        });
-        activeToolRegistry = contextRoute.toolRegistry;
-        activeSkillRegistry = contextRoute.skillRegistry;
-        promptProfile = contextRoute.profile;
-        primarySkillName = contextRoute.primarySkill?.name;
-        primarySkillPrompt = contextRoute.primarySkillPrompt;
-        initialLongTermMemory = contextRoute.relevantLongTermMemory;
-      } catch (err) {
-        logger.error(
-          "Context preprocessing failed. Falling back to full registry.",
-          { error: err },
-        );
-      }
-    }
-
-    const staticSystemPrompt = this.promptBuilder.buildStaticSystem({
-      sessionId,
-      soul,
-      user,
-      toolRegistry: activeToolRegistry,
-      skillRegistry: activeSkillRegistry,
-      isSubAgent,
-      isBootstrapComplete,
-      subAgentSystemPromptAppend,
-      promptProfile,
-      primarySkillName,
-      primarySkillPrompt,
-    });
-
-    logger.debug("Built static system prompt for run", {
-      sessionId,
-      staticPromptChars: staticSystemPrompt.length,
-      promptProfile: promptProfile ?? "default",
-    });
-
-    return {
-      sessionId,
-      session,
-      userInput,
-      isSubAgent,
-      isBootstrapComplete,
-      soul,
-      user,
-      staticSystemPrompt,
-      subAgentSystemPromptAppend,
-      contextRoute: contextRoute
-        ? { ...contextRoute, relevantLongTermMemory: initialLongTermMemory ?? contextRoute.relevantLongTermMemory }
-        : undefined,
-    };
   }
 
   private async appendRunMessage(

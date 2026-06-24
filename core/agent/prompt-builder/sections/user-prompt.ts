@@ -1,45 +1,44 @@
-import type { DynamicPromptInput } from "../types.js";
-import {
-  formatCurrentGoalSection,
-  formatIterationUrgencySection,
-} from "./iteration-rules.js";
+import { composeSections } from "../compose.js";
+import type { DynamicSectionContext, PromptSection } from "./types.js";
+import { bootstrapCurrentMessageSection } from "./dynamic/bootstrap-current-message.js";
+import { currentGoalSection } from "./dynamic/current-goal.js";
+import { executionModeHintSection } from "./dynamic/execution-mode-hint.js";
+import { iterationCounterSection } from "./dynamic/iteration-counter.js";
+import { iterationUrgencySection } from "./dynamic/iteration-urgency.js";
+import { lastObservationSection } from "./dynamic/last-observation.js";
+import { longTermMemorySection } from "./dynamic/long-term-memory.js";
+import { recentContextSection } from "./dynamic/recent-context.js";
 
-export function formatAgentUserPrompt(
-  input: DynamicPromptInput,
-  recentMessages: string,
-  memory: string,
-  contextLabel: string,
-  goalLabel: string,
-): string {
-  const iterationLine = `Iteration: ${input.iteration}/${input.maxIterations}`;
-  const urgencySection = formatIterationUrgencySection(input);
-  const goalSection = formatCurrentGoalSection(input, goalLabel);
-  const lastObservation = `Last observation:\n${input.lastObservation || "none"}`;
-  const memorySection = `Relevant long-term memory:\n${memory}`;
-  const contextSection = `${contextLabel}:\n${recentMessages}`;
+const agentFirstIterationSections: PromptSection<DynamicSectionContext>[] = [
+  iterationCounterSection,
+  iterationUrgencySection,
+  currentGoalSection,
+  longTermMemorySection,
+  recentContextSection,
+  lastObservationSection,
+];
 
-  if (input.iteration === 1) {
-    return [
-      iterationLine,
-      urgencySection,
-      goalSection,
-      memorySection,
-      contextSection,
-      lastObservation,
-    ]
-      .filter((section): section is string => Boolean(section))
-      .join("\n\n");
-  }
+const agentSubsequentIterationSections: PromptSection<DynamicSectionContext>[] = [
+  iterationCounterSection,
+  iterationUrgencySection,
+  executionModeHintSection,
+  currentGoalSection,
+  lastObservationSection,
+  recentContextSection,
+  longTermMemorySection,
+];
 
-  return [
-    iterationLine,
-    urgencySection,
-    "EXECUTION MODE: Continue from Last observation. Your plan was set in iteration 1 — advance to the next step. Do NOT re-plan or reinterpret the original request as a new task.",
-    goalSection,
-    lastObservation,
-    contextSection,
-    memorySection,
-  ]
-    .filter((section): section is string => Boolean(section))
-    .join("\n\n");
+const bootstrapDynamicSections: PromptSection<DynamicSectionContext>[] = [
+  bootstrapCurrentMessageSection,
+  recentContextSection,
+];
+
+export function composeAgentUserPrompt(ctx: DynamicSectionContext): string {
+  const sections =
+    ctx.iteration === 1 ? agentFirstIterationSections : agentSubsequentIterationSections;
+  return composeSections(sections, ctx);
+}
+
+export function composeBootstrapUserPrompt(ctx: DynamicSectionContext): string {
+  return composeSections(bootstrapDynamicSections, ctx);
 }
