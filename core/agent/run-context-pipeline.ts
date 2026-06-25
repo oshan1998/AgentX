@@ -4,6 +4,7 @@ import { MemoryManager } from "../../managers/memory-manager.js";
 import type { Soul, User } from "../../managers/profile-manager.js";
 import { ProfileManager } from "../../managers/profile-manager.js";
 import type { VectorManager } from "../../managers/vector-manager.js";
+import type { VertexRagManager } from "../../managers/vertex-rag-manager.js";
 import { logger } from "../../common/services/logger.js";
 import type { CapabilityRetrievalMethod } from "./capability-retriever.js";
 import {
@@ -34,6 +35,7 @@ export interface RunContextPipelineDeps {
   toolRegistry: ToolRegistry;
   skillRegistry: SkillRegistry;
   vectorManager?: VectorManager;
+  vertexRagManager?: VertexRagManager;
   capabilityRetrievalMethod?: CapabilityRetrievalMethod;
 }
 
@@ -130,12 +132,16 @@ export async function buildRunPromptContext(
   }
 
   // ── Main agent, post-bootstrap → router ───────────────────────────────────
+  // Exclude the current user message (last entry) — it's already the routing subject.
+  const priorSessionMessages = session.messages.slice(0, -1);
+
   const routeResult = await router.route(
     {
       sessionId,
       userInput,
       isSubAgent: false,
       isBootstrapComplete: true,
+      sessionMessages: priorSessionMessages,
     },
     {
       llm: deps.llm,
@@ -144,6 +150,7 @@ export async function buildRunPromptContext(
       toolRegistry: deps.toolRegistry,
       skillRegistry: deps.skillRegistry,
       vectorManager: deps.vectorManager,
+      vertexRagManager: deps.vertexRagManager,
       capabilityRetrievalMethod: deps.capabilityRetrievalMethod,
     },
   );

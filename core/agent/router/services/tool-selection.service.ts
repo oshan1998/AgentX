@@ -2,6 +2,7 @@ import type { ToolRegistry } from "../../../../common/interfaces/registry.js";
 import type { LlmAdapter, Tool } from "../../../../common/interfaces/types.js";
 import { logger } from "../../../../common/services/logger.js";
 import type { Scored, VectorManager } from "../../../../managers/vector-manager.js";
+import type { VertexRagManager } from "../../../../managers/vertex-rag-manager.js";
 import {
   DEFAULT_RETRIEVED_TOOL_LIMIT,
   isAlwaysOnToolName,
@@ -19,6 +20,7 @@ export interface ToolSelectionParams {
   llm: LlmAdapter;
   toolRegistry: ToolRegistry;
   vectorManager?: VectorManager;
+  vertexRagManager?: VertexRagManager;
   capabilityRetrievalMethod?: CapabilityRetrievalMethod;
 }
 
@@ -78,7 +80,14 @@ export class ToolSelectionService {
 
     let scored: Scored<Tool>[];
 
-    if (method === "rag") {
+    if (method === "vertex_rag") {
+      if (!params.vertexRagManager) {
+        logger.warn("vertex_rag tool selection requested but no VertexRagManager — falling back to LLM.");
+        scored = await this.selectViaLlm(params, allTools, limit);
+      } else {
+        scored = await params.vertexRagManager.queryTools(params.userInput, allTools, limit);
+      }
+    } else if (method === "rag") {
       if (!params.vectorManager) {
         logger.warn("RAG tool selection requested but no VectorManager — falling back to LLM.");
         scored = await this.selectViaLlm(params, allTools, limit);

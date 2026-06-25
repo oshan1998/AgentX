@@ -16,6 +16,7 @@ export function createSelectToolsNode(
         llm: deps.llm,
         toolRegistry: deps.toolRegistry,
         vectorManager: deps.vectorManager,
+        vertexRagManager: deps.vertexRagManager,
         capabilityRetrievalMethod: deps.capabilityRetrievalMethod,
       });
     },

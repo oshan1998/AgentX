@@ -2,6 +2,7 @@ import type { SkillRegistry } from "../../../../common/interfaces/registry.js";
 import type { LlmAdapter, Skill } from "../../../../common/interfaces/types.js";
 import { logger } from "../../../../common/services/logger.js";
 import type { Scored, VectorManager } from "../../../../managers/vector-manager.js";
+import type { VertexRagManager } from "../../../../managers/vertex-rag-manager.js";
 import {
   DEFAULT_RETRIEVED_SKILL_LIMIT,
   resolveCapabilityRetrievalMethod,
@@ -18,6 +19,7 @@ export interface SkillSelectionParams {
   llm: LlmAdapter;
   skillRegistry: SkillRegistry;
   vectorManager?: VectorManager;
+  vertexRagManager?: VertexRagManager;
   capabilityRetrievalMethod?: CapabilityRetrievalMethod;
 }
 
@@ -26,6 +28,14 @@ export class SkillSelectionService {
     const allSkills = params.skillRegistry.list();
     const limit = DEFAULT_RETRIEVED_SKILL_LIMIT;
     const method = resolveCapabilityRetrievalMethod(params.capabilityRetrievalMethod);
+
+    if (method === "vertex_rag") {
+      if (!params.vertexRagManager) {
+        logger.warn("vertex_rag skill selection requested but no VertexRagManager — falling back to LLM.");
+        return this.selectViaLlm(params, allSkills, limit);
+      }
+      return params.vertexRagManager.querySkills(params.userInput, allSkills, limit);
+    }
 
     if (method === "rag") {
       if (!params.vectorManager) {

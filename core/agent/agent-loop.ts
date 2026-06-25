@@ -1,5 +1,6 @@
 import { SkillRegistry, ToolRegistry } from "../../common/interfaces/registry.js";
 import { VectorManager } from "../../managers/vector-manager.js";
+import type { VertexRagManager } from "../../managers/vertex-rag-manager.js";
 import {
   DecisionType,
   type AgentDecision,
@@ -74,7 +75,8 @@ interface AgentLoopDependencies {
   agentType: AgentType;
   skillDelegateRunner?: SkillDelegateRunner;
   vectorManager?: VectorManager;
-  /** Override env `CAPABILITY_RETRIEVAL_METHOD` (`rag` | `llm`). */
+  vertexRagManager?: VertexRagManager;
+  /** Override env `CAPABILITY_RETRIEVAL_METHOD` (`rag` | `llm` | `vertex_rag`). */
   capabilityRetrievalMethod?: CapabilityRetrievalMethod;
 }
 

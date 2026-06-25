@@ -2,7 +2,7 @@ import type { LlmAdapter, Skill, Tool } from "../../common/interfaces/types.js";
 import { VectorManager, type Scored } from "../../managers/vector-manager.js";
 import { logger } from "../../common/services/logger.js";
 
-export type CapabilityRetrievalMethod = "rag" | "llm";
+export type CapabilityRetrievalMethod = "rag" | "llm" | "vertex_rag";
 
 /** Lightweight meta tools available in every profile (escape hatch). */
 export const META_TOOL_NAMES = [
@@ -52,7 +52,9 @@ export function resolveCapabilityRetrievalMethod(
 ): CapabilityRetrievalMethod {
   if (override) return override;
   const raw = process.env.CAPABILITY_RETRIEVAL_METHOD?.trim().toLowerCase();
-  return raw === "llm" ? "llm" : "rag";
+  if (raw === "llm") return "llm";
+  if (raw === "vertex_rag") return "vertex_rag";
+  return "rag";
 }
 
 export interface RetrieveCapabilitiesParams {

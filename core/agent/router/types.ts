@@ -1,8 +1,9 @@
 import type { SkillRegistry, ToolRegistry } from "../../../common/interfaces/registry.js";
-import type { LongTermMemoryEntry, LlmAdapter, Skill, Tool } from "../../../common/interfaces/types.js";
+import type { LongTermMemoryEntry, LlmAdapter, Message, Skill, Tool } from "../../../common/interfaces/types.js";
 import type { MemoryManager } from "../../../managers/memory-manager.js";
 import type { ProfileManager } from "../../../managers/profile-manager.js";
 import type { Scored, VectorManager } from "../../../managers/vector-manager.js";
+import type { VertexRagManager } from "../../../managers/vertex-rag-manager.js";
 import type { CapabilityRetrievalMethod } from "../capability-retriever.js";
 
 export type QueryComplexity = "simple" | "complex";
@@ -15,6 +16,8 @@ export interface RouteInput {
   isSubAgent: boolean;
   isBootstrapComplete: boolean;
   subAgentSystemPromptAppend?: string;
+  /** Conversation messages from prior turns (excludes the current user message). */
+  sessionMessages?: Message[];
 }
 
 export interface RouterDeps {
@@ -24,6 +27,7 @@ export interface RouterDeps {
   toolRegistry: ToolRegistry;
   skillRegistry: SkillRegistry;
   vectorManager?: VectorManager;
+  vertexRagManager?: VertexRagManager;
   capabilityRetrievalMethod?: CapabilityRetrievalMethod;
 }
 

@@ -19,6 +19,7 @@ import { ToolManager } from "./managers/tool-manager.js";
 import { McpClientManager } from "./managers/mcp/index.js";
 import { logger } from "./common/services/logger.js";
 import { VectorManager } from "./managers/vector-manager.js";
+import { VertexRagManager } from "./managers/vertex-rag-manager.js";
 
 // Services
 import { ChatService } from "./controllers/chat/chat.service.js";
@@ -48,6 +49,7 @@ async function main() {
 
   const projectId = process.env.GOOGLE_CLOUD_PROJECT;
   let vectorManager: VectorManager | undefined;
+  let vertexRagManager: VertexRagManager | undefined;
 
   if (projectId) {
     logger.info("Initializing VectorManager...");
@@ -101,12 +103,21 @@ async function main() {
     new GetCapabilitySchemaTool(toolRegistry, skillRegistry),
   );
 
-  if (vectorManager) {
-    await vectorManager.indexCapabilities(toolRegistry.list(), skillRegistry.list());
-  }
-
   const capabilityRetrievalMethod = resolveCapabilityRetrievalMethod();
   logger.info(`Capability retrieval method: ${capabilityRetrievalMethod}`);
+
+  if (capabilityRetrievalMethod === "vertex_rag" && projectId) {
+    logger.info("Initializing VertexRagManager...");
+    vertexRagManager = new VertexRagManager({
+      projectId,
+      location: process.env.GOOGLE_CLOUD_LOCATION,
+      storagePath: path.join(memoryPath, "vertex-rag-state.json"),
+    });
+    await vertexRagManager.init();
+    await vertexRagManager.indexCapabilities(toolRegistry.list(), skillRegistry.list());
+  } else if (vectorManager) {
+    await vectorManager.indexCapabilities(toolRegistry.list(), skillRegistry.list());
+  }
 
   const agentLoop = new AgentLoop({
     llm,
@@ -118,6 +129,7 @@ async function main() {
     agentType: AgentType.Primary,
     skillDelegateRunner: agentRuntimeFactory.skillDelegateRunner,
     vectorManager,
+    vertexRagManager,
     capabilityRetrievalMethod,
   });
 

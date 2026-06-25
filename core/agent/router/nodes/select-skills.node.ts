@@ -16,6 +16,7 @@ export function createSelectSkillsNode(
         llm: deps.llm,
         skillRegistry: deps.skillRegistry,
         vectorManager: deps.vectorManager,
+        vertexRagManager: deps.vertexRagManager,
         capabilityRetrievalMethod: deps.capabilityRetrievalMethod,
       });
     },

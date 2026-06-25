@@ -1,8 +1,16 @@
+import { selectMessagesForPrompt } from "../../../common/services/prompt-truncation.js";
 import type { RouteContext, RoutePath } from "./types.js";
 
 function formatMemory(ctx: RouteContext): string | undefined {
   if (!ctx.relevantLongTermMemory?.length) return undefined;
   return ctx.relevantLongTermMemory.map((entry) => `- ${entry.content}`).join("\n");
+}
+
+function formatSessionHistory(ctx: RouteContext): string | undefined {
+  const msgs = ctx.input.sessionMessages;
+  if (!msgs?.length) return undefined;
+  const formatted = selectMessagesForPrompt(msgs);
+  return formatted === "none" ? undefined : formatted;
 }
 
 function formatTools(ctx: RouteContext): string | undefined {
@@ -22,6 +30,9 @@ function formatSkills(ctx: RouteContext): string | undefined {
 /** Route-specific context gathered by upstream nodes (intent, memory, selections). */
 export function buildRoutedDynamicContext(ctx: RouteContext, route: RoutePath): string {
   const sections: string[] = [];
+
+  const history = formatSessionHistory(ctx);
+  if (history) sections.push(`Recent conversation:\n${history}`);
 
   const memory = formatMemory(ctx);
   if (memory) sections.push(`Relevant memory:\n${memory}`);
