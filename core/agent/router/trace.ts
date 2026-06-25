@@ -1,6 +1,6 @@
 import { logger } from "../../../common/services/logger.js";
 import type { RouterDeps, RouteContext } from "./types.js";
-import type { RouteNode } from "./nodes/types.js";
+import type { RouteNode } from "./graph-types.js";
 
 export interface RunNodeOptions {
   /** When false, records failure in trace but does not rethrow. Default: true. */
@@ -10,7 +10,10 @@ export interface RunNodeOptions {
 function summarizeNodeOutput(ctx: RouteContext, nodeId: string): Record<string, unknown> {
   switch (nodeId) {
     case "identify-intent":
-      return { intent: ctx.intent?.label ?? null };
+      return {
+        intent: ctx.intent?.label ?? null,
+        queryComplexity: ctx.queryComplexity ?? null,
+      };
     case "select-tools":
       return {
         toolCount: ctx.toolScores?.length ?? 0,
@@ -23,6 +26,15 @@ function summarizeNodeOutput(ctx: RouteContext, nodeId: string): Record<string, 
       };
     case "retrieve-memory":
       return { memoryCount: ctx.relevantLongTermMemory?.length ?? 0 };
+    case "simple":
+    case "complex":
+      return { selectedRoute: ctx.selectedRoute ?? null };
+    case "assemble-system-prompt":
+      return {
+        selectedRoute: ctx.selectedRoute ?? null,
+        systemPromptChars: ctx.routedSystemPrompt?.length ?? 0,
+        userPromptChars: ctx.routedUserPrompt?.length ?? 0,
+      };
     default:
       return {};
   }

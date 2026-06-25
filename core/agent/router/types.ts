@@ -5,13 +5,11 @@ import type { ProfileManager } from "../../../managers/profile-manager.js";
 import type { Scored, VectorManager } from "../../../managers/vector-manager.js";
 import type { CapabilityRetrievalMethod } from "../capability-retriever.js";
 
-export type UserIntent =
-  | "conversation"
-  | "tool_action"
-  | "single_skill"
-  | "multi_skill"
-  | "planning"
-  | "unknown";
+export type UserIntent = "simple" | "complex";
+
+export type QueryComplexity = "simple" | "complex";
+
+export type RoutePath = QueryComplexity;
 
 export interface IntentResult {
   label: UserIntent;
@@ -52,6 +50,14 @@ export interface NodeTraceEntry {
 export interface RouteContext {
   readonly input: RouteInput;
   intent?: IntentResult;
+  /** Set by identify-intent — chooses simple vs complex terminal path. */
+  queryComplexity?: QueryComplexity;
+  /** Terminal route branch that ran (simple or complex). */
+  selectedRoute?: RoutePath;
+  /** Final user prompt — set by assemble-system-prompt. */
+  routedUserPrompt?: string;
+  /** Final system prompt — essential sections + routed context from assemble-system-prompt. */
+  routedSystemPrompt?: string;
   toolScores?: Scored<Tool>[];
   skillScores?: Scored<Skill>[];
   relevantLongTermMemory?: LongTermMemoryEntry[];

@@ -326,16 +326,26 @@ export class AgentLoop {
       lastObservation: string | undefined;
     },
   ): Promise<{ systemPrompt: string; userPrompt: string }> {
+    if (runContext.usesRouterPrompts) {
+      let userPrompt = runContext.userPrompt;
+      if (ctx.lastObservation) {
+        userPrompt = `${userPrompt}\n\nLast step result:\n${ctx.lastObservation}`;
+      }
+      return {
+        systemPrompt: runContext.systemPrompt,
+        userPrompt,
+      };
+    }
+
     const memoryQuery = composeMemorySearchQuery(
       runContext.userInput,
       ctx.lastObservation,
       ctx.iteration,
     );
 
-    const relevantLongTermMemory =
-      ctx.iteration === 1 && runContext.contextRoute?.relevantLongTermMemory
-        ? runContext.contextRoute.relevantLongTermMemory
-        : await this.deps.memoryManager.searchLongTermMemory(memoryQuery);
+    const relevantLongTermMemory = await this.deps.memoryManager.searchLongTermMemory(
+      memoryQuery,
+    );
 
     const userPrompt = this.promptBuilder.buildDynamicUser({
       latestUserMessage: runContext.userInput,
@@ -349,7 +359,7 @@ export class AgentLoop {
     });
 
     return {
-      systemPrompt: runContext.staticSystemPrompt,
+      systemPrompt: runContext.systemPrompt,
       userPrompt,
     };
   }

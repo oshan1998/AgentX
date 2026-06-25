@@ -6,10 +6,12 @@ export { ToolSelectionService } from "./services/tool-selection.service.js";
 export type {
   IntentResult,
   NodeTraceEntry,
+  QueryComplexity,
   RouteContext,
   RouteInput,
+  RoutePath,
   RouteResult,
   RouterDeps,
   UserIntent,
 } from "./types.js";
-export type { NodeId, RouteEdge, RouteGraph, RouteNode } from "./nodes/types.js";
+export type { NodeId, RouteEdge, RouteGraph, RouteNode } from "./graph-types.js";

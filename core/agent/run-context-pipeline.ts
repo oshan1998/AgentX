@@ -6,11 +6,10 @@ import { ProfileManager } from "../../managers/profile-manager.js";
 import type { VectorManager } from "../../managers/vector-manager.js";
 import { logger } from "../../common/services/logger.js";
 import type { CapabilityRetrievalMethod } from "./capability-retriever.js";
-import { preprocessContext, type ContextRouteResult } from "./context-router.js";
 import { PromptBuilder } from "./prompt-builder.js";
 import { Router, type RouteResult } from "./router/index.js";
 
-/** Run-scoped prompt state: static system prompt and in-memory session mirror. */
+/** Run-scoped state for a single agent turn. */
 export interface RunPromptContext {
   sessionId: string;
   session: SessionMemory;
@@ -19,9 +18,11 @@ export interface RunPromptContext {
   isBootstrapComplete: boolean;
   soul: Soul;
   user: User;
-  staticSystemPrompt: string;
+  systemPrompt: string;
+  userPrompt: string;
+  /** True when prompts came from the router terminal node. */
+  usesRouterPrompts: boolean;
   subAgentSystemPromptAppend?: string;
-  contextRoute?: ContextRouteResult;
   routeResult?: RouteResult;
 }
 
@@ -46,8 +47,9 @@ const promptBuilder = new PromptBuilder();
 const router = new Router();
 
 /**
- * Assembles run-scoped context for the agent loop: loads session/profile state,
- * optionally routes capabilities via context-router, and builds the static system prompt.
+ * Loads session/profile state and resolves prompts for the agent loop.
+ * Main-agent post-bootstrap runs use router output (system = dynamic context, user = query).
+ * Bootstrap and sub-agent runs still use PromptBuilder.
  */
 export async function buildRunPromptContext(
   deps: RunContextPipelineDeps,
@@ -68,16 +70,14 @@ export async function buildRunPromptContext(
     ? input.subAgentSystemPromptAppend
     : undefined;
 
-  let activeToolRegistry = deps.toolRegistry;
-  let activeSkillRegistry = deps.skillRegistry;
-  let contextRoute: ContextRouteResult | undefined;
   let routeResult: RouteResult | undefined;
-  let promptProfile: ContextRouteResult["profile"] | undefined;
-  let primarySkillName: string | undefined;
-  let primarySkillPrompt: string | undefined;
-  let initialLongTermMemory: ContextRouteResult["relevantLongTermMemory"] | undefined;
+  let usesRouterPrompts = false;
+  let systemPrompt = "";
+  let userPrompt = userInput;
 
-  if (!isSubAgent) {
+  const shouldRoute = !isSubAgent && isBootstrapComplete;
+
+  if (shouldRoute) {
     try {
       routeResult = await router.route(
         {
@@ -97,54 +97,38 @@ export async function buildRunPromptContext(
           capabilityRetrievalMethod: deps.capabilityRetrievalMethod,
         },
       );
+
+      const routeCtx = routeResult.context;
+      if (routeCtx.selectedRoute && routeCtx.routedSystemPrompt != null) {
+        usesRouterPrompts = true;
+        systemPrompt = routeCtx.routedSystemPrompt;
+        userPrompt = routeCtx.routedUserPrompt ?? userInput;
+      }
     } catch (err) {
-      logger.error("Router failed. Continuing without route context.", { error: err });
+      logger.error("Router failed. Falling back to prompt builder.", { error: err });
     }
   }
 
-  if (!isSubAgent && isBootstrapComplete) {
-    try {
-      contextRoute = await preprocessContext({
-        userInput,
-        llm: deps.llm,
-        memoryManager: deps.memoryManager,
-        allTools: deps.toolRegistry.list(),
-        allSkills: deps.skillRegistry.list(),
-        vectorManager: deps.vectorManager,
-        capabilityRetrievalMethod: deps.capabilityRetrievalMethod,
-      });
-      activeToolRegistry = contextRoute.toolRegistry;
-      activeSkillRegistry = contextRoute.skillRegistry;
-      promptProfile = contextRoute.profile;
-      primarySkillName = contextRoute.primarySkill?.name;
-      primarySkillPrompt = contextRoute.primarySkillPrompt;
-      initialLongTermMemory = contextRoute.relevantLongTermMemory;
-    } catch (err) {
-      logger.error(
-        "Context preprocessing failed. Falling back to full registry.",
-        { error: err },
-      );
-    }
+  if (!usesRouterPrompts) {
+    systemPrompt = promptBuilder.buildStaticSystem({
+      sessionId,
+      soul,
+      user,
+      toolRegistry: deps.toolRegistry,
+      skillRegistry: deps.skillRegistry,
+      isSubAgent,
+      isBootstrapComplete,
+      subAgentSystemPromptAppend,
+    });
+    userPrompt = userInput;
   }
 
-  const staticSystemPrompt = promptBuilder.buildStaticSystem({
+  logger.debug("Resolved run prompts", {
     sessionId,
-    soul,
-    user,
-    toolRegistry: activeToolRegistry,
-    skillRegistry: activeSkillRegistry,
-    isSubAgent,
-    isBootstrapComplete,
-    subAgentSystemPromptAppend,
-    promptProfile,
-    primarySkillName,
-    primarySkillPrompt,
-  });
-
-  logger.debug("Built static system prompt for run", {
-    sessionId,
-    staticPromptChars: staticSystemPrompt.length,
-    promptProfile: promptProfile ?? "default",
+    usesRouterPrompts,
+    selectedRoute: routeResult?.context.selectedRoute,
+    systemPromptChars: systemPrompt.length,
+    userPromptChars: userPrompt.length,
   });
 
   return {
@@ -155,15 +139,10 @@ export async function buildRunPromptContext(
     isBootstrapComplete,
     soul,
     user,
-    staticSystemPrompt,
+    systemPrompt,
+    userPrompt,
+    usesRouterPrompts,
     subAgentSystemPromptAppend,
-    contextRoute: contextRoute
-      ? {
-          ...contextRoute,
-          relevantLongTermMemory:
-            initialLongTermMemory ?? contextRoute.relevantLongTermMemory,
-        }
-      : undefined,
     routeResult,
   };
 }
