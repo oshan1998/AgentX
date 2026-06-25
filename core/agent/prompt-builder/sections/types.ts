@@ -1,6 +1,6 @@
 import type { SkillRegistry, ToolRegistry } from "../../../../common/interfaces/registry.js";
 import type { Soul, User } from "../../../../managers/profile-manager.js";
-import type { PromptProfile } from "../../context-router.js";
+import type { PromptProfile } from "../types.js";
 
 export type AgentRole = "principal" | "sub_agent" | "bootstrap";
 
@@ -12,8 +12,6 @@ export interface StaticSectionContext {
   agentRole: AgentRole;
   toolRegistry: ToolRegistry;
   skillRegistry: SkillRegistry;
-  primarySkillName?: string;
-  primarySkillPrompt?: string;
   subAgentSystemPromptAppend?: string;
   /** Pre-computed schema enforcement block for action-policy inclusion. */
   schemaEnforcement: string;

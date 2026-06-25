@@ -1,4 +1,4 @@
-import type { PromptProfile } from "../../context-router.js";
+import type { PromptProfile } from "../types.js";
 import type { PromptSection, StaticSectionContext } from "./types.js";
 
 function buildChatReasoningRules(): string {

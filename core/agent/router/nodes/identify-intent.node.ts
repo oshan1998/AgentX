@@ -9,12 +9,9 @@ export function createIdentifyIntentNode(
   return {
     id: "identify-intent",
 
-    async run(ctx: RouteContext, deps: RouterDeps): Promise<void> {
+    async run(ctx: RouteContext, _deps: RouterDeps): Promise<void> {
       logNodeRun(ctx, "identify-intent");
-      const result = await intentService.identify({
-        userInput: ctx.input.userInput,
-        llm: deps.llm,
-      });
+      const result = intentService.identify({ userInput: ctx.input.userInput });
       ctx.intent = result.intent;
       ctx.queryComplexity = result.queryComplexity;
     },

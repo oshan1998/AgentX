@@ -1,5 +1,5 @@
 import { DecisionType } from "../../../../common/interfaces/types.js";
-import type { PromptProfile } from "../../context-router.js";
+import type { PromptProfile } from "../types.js";
 import type { PromptSection, StaticSectionContext } from "./types.js";
 
 function buildPrincipalOutputContract(sessionId: string, profile: PromptProfile): string {

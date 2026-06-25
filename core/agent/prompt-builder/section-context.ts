@@ -8,7 +8,7 @@ export function toStaticSectionContext(
 ): StaticSectionContext {
   const profile = input.promptProfile ?? "planning";
   const includeToolSchemas = profile !== "chat";
-  const includeSkillSchemas = profile === "single_skill" || profile === "planning";
+  const includeSkillSchemas = profile === "planning";
 
   let schemaEnforcement = "";
   if (agentRole === "principal" && profile !== "chat") {
@@ -37,8 +37,6 @@ ${formatCapabilitySchemaGuidance(0)}`;
     agentRole,
     toolRegistry: input.toolRegistry,
     skillRegistry: input.skillRegistry,
-    primarySkillName: input.primarySkillName,
-    primarySkillPrompt: input.primarySkillPrompt,
     subAgentSystemPromptAppend: input.subAgentSystemPromptAppend,
     schemaEnforcement,
   };

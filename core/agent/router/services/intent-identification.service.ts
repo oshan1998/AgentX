@@ -1,9 +1,7 @@
-import type { LlmAdapter } from "../../../../common/interfaces/types.js";
 import type { IntentResult, QueryComplexity, UserIntent } from "../types.js";
 
 export interface IntentIdentificationParams {
   userInput: string;
-  llm: LlmAdapter;
 }
 
 export interface IntentIdentificationResult {
@@ -11,37 +9,43 @@ export interface IntentIdentificationResult {
   queryComplexity: QueryComplexity;
 }
 
-function normalizeIntent(value: unknown): UserIntent {
-  return value === "complex" ? "complex" : "simple";
+/**
+ * Action verbs that strongly signal the query requires external tools or skills.
+ * Kept intentionally broad — false positives (simple classified as complex) cost
+ * one extra tool-injection token; false negatives (complex classified as simple)
+ * cost extra agent iterations to discover missing tools.
+ */
+const ACTION_PATTERN =
+  /\b(search|find|fetch|get|retrieve|look up|look up|create|make|generate|write|build|send|post|email|message|delete|remove|update|edit|modify|run|execute|analyze|summarize|translate|convert|calculate|compute|schedule|book|order|download|upload|read|open|save|deploy|install|check|monitor|list|show me|pull|push)\b/i;
+
+const COMPLEXITY_SIGNALS = [
+  /\b(step by step|multi.?step|plan|roadmap|pipeline|workflow|orchestrate|batch|parallel)\b/i,
+  /\b(then|after that|next|finally|first.*then|and then)\b/i,
+];
+
+function classifyIntent(userInput: string): UserIntent {
+  const trimmed = userInput.trim();
+
+  // Long queries almost always involve doing something, not just recalling
+  if (trimmed.split(/\s+/).length > 20) return "complex";
+
+  if (ACTION_PATTERN.test(trimmed)) return "complex";
+
+  if (COMPLEXITY_SIGNALS.some((re) => re.test(trimmed))) return "complex";
+
+  return "simple";
 }
 
+/** Zero-cost heuristic classifier — no LLM call, no latency. */
 export class IntentIdentificationService {
-  async identify(params: IntentIdentificationParams): Promise<IntentIdentificationResult> {
-    const systemPrompt = [
-      "Classify the user query as simple or complex based on what is needed to answer it.",
-      "simple: can be answered using only relevant long-term memory and the user's question — e.g. greetings, recall of past facts, explanations, advice, or general knowledge with no external actions.",
-      "complex: also requires tools or skills — e.g. web search, live data, code execution, file or repo operations, API calls, email, or multi-step planning and execution.",
-      'Respond with ONLY valid JSON matching this type: {"intent":"simple"|"complex"}',
-    ].join(" ");
-
-    const raw = await params.llm.complete(params.userInput, systemPrompt);
-
-    try {
-      const parsed = JSON.parse(raw.trim()) as { intent?: unknown };
-      const label = normalizeIntent(parsed.intent);
-
-      return {
-        queryComplexity: label,
-        intent: {
-          label,
-          signals: ["llm-classify"],
-        },
-      };
-    } catch {
-      return {
-        queryComplexity: "simple",
-        intent: { label: "simple", signals: ["llm-parse-fallback"] },
-      };
-    }
+  identify(params: IntentIdentificationParams): IntentIdentificationResult {
+    const label = classifyIntent(params.userInput);
+    return {
+      queryComplexity: label,
+      intent: {
+        label,
+        signals: ["heuristic"],
+      },
+    };
   }
 }

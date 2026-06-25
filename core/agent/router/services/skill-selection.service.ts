@@ -28,6 +28,10 @@ export class SkillSelectionService {
     const method = resolveCapabilityRetrievalMethod(params.capabilityRetrievalMethod);
 
     if (method === "rag") {
+      if (!params.vectorManager) {
+        logger.warn("RAG skill selection requested but no VectorManager — falling back to LLM.");
+        return this.selectViaLlm(params, allSkills, limit);
+      }
       return this.selectViaRag(params, allSkills, limit);
     }
 

@@ -29,6 +29,10 @@ export class ToolSelectionService {
     const method = resolveCapabilityRetrievalMethod(params.capabilityRetrievalMethod);
 
     if (method === "rag") {
+      if (!params.vectorManager) {
+        logger.warn("RAG tool selection requested but no VectorManager — falling back to LLM.");
+        return this.selectViaLlm(params, allTools, limit);
+      }
       return this.selectViaRag(params, allTools, limit);
     }
 

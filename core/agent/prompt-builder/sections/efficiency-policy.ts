@@ -2,7 +2,7 @@ import type { PromptSection, StaticSectionContext } from "./types.js";
 
 function buildPrincipalEfficiencyPolicy(ctx: StaticSectionContext): string {
   const skillFirst =
-    ctx.profile === "single_skill" || ctx.profile === "multi_skill" || ctx.profile === "planning"
+    ctx.profile === "planning"
       ? `RULE 2 — Skill-first:
   A workflow skill that covers the whole task is ALWAYS preferred over hand-rolling tool_calls.
   Check the skill catalog before composing manual sequences.`

@@ -5,10 +5,7 @@ export const availableSkillsSection: PromptSection<StaticSectionContext> = {
   id: "available-skills",
   when: (ctx) => ctx.skillRegistry.list().length > 0,
   build(ctx) {
-    const includeSchemas =
-      ctx.agentRole === "sub_agent" ||
-      ctx.profile === "single_skill" ||
-      ctx.profile === "planning";
+    const includeSchemas = ctx.agentRole === "sub_agent" || ctx.profile === "planning";
 
     const skills = formatSkillCatalog(ctx.skillRegistry, includeSchemas);
 

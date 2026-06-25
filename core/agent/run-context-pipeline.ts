@@ -6,7 +6,10 @@ import { ProfileManager } from "../../managers/profile-manager.js";
 import type { VectorManager } from "../../managers/vector-manager.js";
 import { logger } from "../../common/services/logger.js";
 import type { CapabilityRetrievalMethod } from "./capability-retriever.js";
-import { PromptBuilder } from "./prompt-builder.js";
+import {
+  buildBootstrapSystemPrompt,
+  buildSubAgentSystemPrompt,
+} from "./prompt-builder/index.js";
 import { Router, type RouteResult } from "./router/index.js";
 
 /** Run-scoped state for a single agent turn. */
@@ -20,8 +23,6 @@ export interface RunPromptContext {
   user: User;
   systemPrompt: string;
   userPrompt: string;
-  /** True when prompts came from the router terminal node. */
-  usesRouterPrompts: boolean;
   subAgentSystemPromptAppend?: string;
   routeResult?: RouteResult;
 }
@@ -43,13 +44,15 @@ export interface BuildRunPromptContextInput {
   subAgentSystemPromptAppend?: string;
 }
 
-const promptBuilder = new PromptBuilder();
 const router = new Router();
 
 /**
  * Loads session/profile state and resolves prompts for the agent loop.
- * Main-agent post-bootstrap runs use router output (system = dynamic context, user = query).
- * Bootstrap and sub-agent runs still use PromptBuilder.
+ *
+ * Routing:
+ *   - Sub-agent         → sub-agent static assembler (system prompt built once)
+ *   - Bootstrap         → bootstrap static assembler (system prompt built once)
+ *   - Main post-bootstrap → router DAG (intent classify + memory + capability select)
  */
 export async function buildRunPromptContext(
   deps: RunContextPipelineDeps,
@@ -66,83 +69,108 @@ export async function buildRunPromptContext(
     ? true
     : allMemory.some((m) => m.content === "bootstrap_complete");
 
-  const subAgentSystemPromptAppend = isSubAgent
-    ? input.subAgentSystemPromptAppend
-    : undefined;
+  const subAgentSystemPromptAppend = isSubAgent ? input.subAgentSystemPromptAppend : undefined;
 
-  let routeResult: RouteResult | undefined;
-  let usesRouterPrompts = false;
-  let systemPrompt = "";
-  let userPrompt = userInput;
-
-  const shouldRoute = !isSubAgent && isBootstrapComplete;
-
-  if (shouldRoute) {
-    try {
-      routeResult = await router.route(
-        {
-          sessionId,
-          userInput,
-          isSubAgent,
-          isBootstrapComplete,
-          subAgentSystemPromptAppend,
-        },
-        {
-          llm: deps.llm,
-          memoryManager: deps.memoryManager,
-          profileManager: deps.profileManager,
-          toolRegistry: deps.toolRegistry,
-          skillRegistry: deps.skillRegistry,
-          vectorManager: deps.vectorManager,
-          capabilityRetrievalMethod: deps.capabilityRetrievalMethod,
-        },
-      );
-
-      const routeCtx = routeResult.context;
-      if (routeCtx.selectedRoute && routeCtx.routedSystemPrompt != null) {
-        usesRouterPrompts = true;
-        systemPrompt = routeCtx.routedSystemPrompt;
-        userPrompt = routeCtx.routedUserPrompt ?? userInput;
-      }
-    } catch (err) {
-      logger.error("Router failed. Falling back to prompt builder.", { error: err });
-    }
-  }
-
-  if (!usesRouterPrompts) {
-    systemPrompt = promptBuilder.buildStaticSystem({
+  // ── Sub-agent ─────────────────────────────────────────────────────────────
+  if (isSubAgent) {
+    const systemPrompt = buildSubAgentSystemPrompt({
       sessionId,
       soul,
       user,
       toolRegistry: deps.toolRegistry,
       skillRegistry: deps.skillRegistry,
-      isSubAgent,
-      isBootstrapComplete,
+      isSubAgent: true,
+      isBootstrapComplete: true,
       subAgentSystemPromptAppend,
+      promptProfile: "planning",
     });
-    userPrompt = userInput;
+
+    logger.debug("Resolved sub-agent prompts", { sessionId, systemPromptChars: systemPrompt.length });
+
+    return {
+      sessionId,
+      session,
+      userInput,
+      isSubAgent: true,
+      isBootstrapComplete: true,
+      soul,
+      user,
+      systemPrompt,
+      userPrompt: userInput,
+      subAgentSystemPromptAppend,
+    };
   }
 
-  logger.debug("Resolved run prompts", {
+  // ── Bootstrap ─────────────────────────────────────────────────────────────
+  if (!isBootstrapComplete) {
+    const systemPrompt = buildBootstrapSystemPrompt({
+      sessionId,
+      soul,
+      user,
+      toolRegistry: deps.toolRegistry,
+      skillRegistry: deps.skillRegistry,
+      isSubAgent: false,
+      isBootstrapComplete: false,
+      promptProfile: "chat",
+    });
+
+    logger.debug("Resolved bootstrap prompts", { sessionId, systemPromptChars: systemPrompt.length });
+
+    return {
+      sessionId,
+      session,
+      userInput,
+      isSubAgent: false,
+      isBootstrapComplete: false,
+      soul,
+      user,
+      systemPrompt,
+      userPrompt: userInput,
+    };
+  }
+
+  // ── Main agent, post-bootstrap → router ───────────────────────────────────
+  const routeResult = await router.route(
+    {
+      sessionId,
+      userInput,
+      isSubAgent: false,
+      isBootstrapComplete: true,
+    },
+    {
+      llm: deps.llm,
+      memoryManager: deps.memoryManager,
+      profileManager: deps.profileManager,
+      toolRegistry: deps.toolRegistry,
+      skillRegistry: deps.skillRegistry,
+      vectorManager: deps.vectorManager,
+      capabilityRetrievalMethod: deps.capabilityRetrievalMethod,
+    },
+  );
+
+  const routeCtx = routeResult.context;
+
+  if (!routeCtx.routedSystemPrompt) {
+    throw new Error(`[run-context-pipeline] Router completed but produced no system prompt (session=${sessionId})`);
+  }
+
+  logger.debug("Resolved routed prompts", {
     sessionId,
-    usesRouterPrompts,
-    selectedRoute: routeResult?.context.selectedRoute,
-    systemPromptChars: systemPrompt.length,
-    userPromptChars: userPrompt.length,
+    selectedRoute: routeCtx.selectedRoute,
+    systemPromptChars: routeCtx.routedSystemPrompt.length,
+    userPromptChars: (routeCtx.routedUserPrompt ?? userInput).length,
   });
 
   return {
     sessionId,
     session,
     userInput,
-    isSubAgent,
-    isBootstrapComplete,
+    isSubAgent: false,
+    isBootstrapComplete: true,
     soul,
     user,
-    systemPrompt,
-    userPrompt,
-    usesRouterPrompts,
-    subAgentSystemPromptAppend,
+    systemPrompt: routeCtx.routedSystemPrompt,
+    userPrompt: routeCtx.routedUserPrompt ?? userInput,
     routeResult,
   };
 }

@@ -25,7 +25,11 @@ import {
   type ExecutionPolicy,
 } from "./execution-policy.js";
 import { MemoryManager } from "../../managers/memory-manager.js";
-import { PromptBuilder } from "./prompt-builder.js";
+import {
+  buildSubAgentUserPrompt,
+  buildBootstrapUserPrompt,
+  type DynamicPromptInput,
+} from "./prompt-builder/index.js";
 import { ProfileManager } from "../../managers/profile-manager.js";
 import { logger } from "../../common/services/logger.js";
 import {
@@ -107,7 +111,6 @@ interface IterationResult {
 // ─── Class ───────────────────────────────────────────────────────────────────
 
 export class AgentLoop {
-  private readonly promptBuilder = new PromptBuilder();
   private readonly executor: Executor;
   private readonly maxIterations: number;
   /** runId → controller for cooperative cancel (explicit stop or layered with caller signal). */
@@ -326,42 +329,37 @@ export class AgentLoop {
       lastObservation: string | undefined;
     },
   ): Promise<{ systemPrompt: string; userPrompt: string }> {
-    if (runContext.usesRouterPrompts) {
+    // Main agent (post-bootstrap) — simple append of last observation
+    if (!runContext.isSubAgent && runContext.isBootstrapComplete) {
       let userPrompt = runContext.userPrompt;
       if (ctx.lastObservation) {
         userPrompt = `${userPrompt}\n\nLast step result:\n${ctx.lastObservation}`;
       }
-      return {
-        systemPrompt: runContext.systemPrompt,
-        userPrompt,
-      };
+      return { systemPrompt: runContext.systemPrompt, userPrompt };
     }
 
+    // Sub-agent and bootstrap — dynamic per-iteration user prompt with iteration state
     const memoryQuery = composeMemorySearchQuery(
       runContext.userInput,
       ctx.lastObservation,
       ctx.iteration,
     );
+    const relevantLongTermMemory = await this.deps.memoryManager.searchLongTermMemory(memoryQuery);
 
-    const relevantLongTermMemory = await this.deps.memoryManager.searchLongTermMemory(
-      memoryQuery,
-    );
-
-    const userPrompt = this.promptBuilder.buildDynamicUser({
+    const dynamicInput: DynamicPromptInput = {
       latestUserMessage: runContext.userInput,
       messages: runContext.session.messages,
       relevantLongTermMemory,
       lastObservation: ctx.lastObservation,
       iteration: ctx.iteration,
       maxIterations: ctx.iterCap,
-      isSubAgent: runContext.isSubAgent,
-      isBootstrapComplete: runContext.isBootstrapComplete,
-    });
-
-    return {
-      systemPrompt: runContext.systemPrompt,
-      userPrompt,
     };
+
+    const userPrompt = runContext.isSubAgent
+      ? buildSubAgentUserPrompt(dynamicInput)
+      : buildBootstrapUserPrompt(dynamicInput);
+
+    return { systemPrompt: runContext.systemPrompt, userPrompt };
   }
 
   private async handleRespond(

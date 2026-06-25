@@ -46,13 +46,13 @@ export function isAlwaysOnToolName(name: string): boolean {
   return (ALWAYS_ON_TOOL_NAMES as readonly string[]).includes(name);
 }
 
-/** Defaults to LLM selection; long-term memory stays RAG via MemoryManager. */
+/** Defaults to RAG selection when a VectorManager is available; LLM is the explicit opt-in. */
 export function resolveCapabilityRetrievalMethod(
   override?: CapabilityRetrievalMethod,
 ): CapabilityRetrievalMethod {
   if (override) return override;
   const raw = process.env.CAPABILITY_RETRIEVAL_METHOD?.trim().toLowerCase();
-  return raw === "rag" ? "rag" : "llm";
+  return raw === "llm" ? "llm" : "rag";
 }
 
 export interface RetrieveCapabilitiesParams {
@@ -80,7 +80,6 @@ export async function retrieveCapabilities(
   const toolLimit = params.toolLimit ?? DEFAULT_RETRIEVED_TOOL_LIMIT;
   const skillLimit = params.skillLimit ?? DEFAULT_RETRIEVED_SKILL_LIMIT;
 
-  let retrievedTools: Tool[];
   let retrievedSkills: Skill[];
   let toolScores: Scored<Tool>[];
   let skillScores: Scored<Skill>[];
@@ -96,7 +95,6 @@ export async function retrieveCapabilities(
         toolLimit,
         skillLimit,
       );
-      retrievedTools = llmResult.tools;
       retrievedSkills = llmResult.skills;
       toolScores = llmResult.toolScores;
       skillScores = llmResult.skillScores;
@@ -112,7 +110,6 @@ export async function retrieveCapabilities(
         toolLimit,
         skillLimit,
       );
-      retrievedTools = ragResult.tools;
       retrievedSkills = ragResult.skills;
       toolScores = ragResult.toolScores;
       skillScores = ragResult.skillScores;
@@ -129,7 +126,6 @@ export async function retrieveCapabilities(
       toolLimit,
       skillLimit,
     );
-    retrievedTools = ragResult.tools;
     retrievedSkills = ragResult.skills;
     toolScores = ragResult.toolScores;
     skillScores = ragResult.skillScores;

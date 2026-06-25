@@ -20,7 +20,7 @@ export interface AgenticSkillConfig {
 
 /**
  * Reads `skill.json` + `prompt.md`, then runs a delegated sub-agent with allow-listed tools/skills.
- * `prompt.md` is appended after the base sub-agent system prompt (see PromptBuilder).
+ * `prompt.md` is appended after the base sub-agent system prompt via subAgentSystemPromptAppend.
  */
 export class AgenticSkill implements Skill {
   readonly name: string;

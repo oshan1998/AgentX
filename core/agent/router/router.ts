@@ -36,21 +36,15 @@ export class Router {
 
     const nodes = new Map<NodeId, RouteNode>([
       ["identify-intent", createIdentifyIntentNode(this.intentService)],
+      ["retrieve-memory", createRetrieveMemoryNode(this.longTermMemoryService)],
       ["select-tools", createSelectToolsNode(this.toolSelectionService)],
       ["select-skills", createSelectSkillsNode(this.skillSelectionService)],
-      ["retrieve-memory", createRetrieveMemoryNode(this.longTermMemoryService)],
       ["simple", createSimpleNode()],
       ["complex", createComplexNode()],
       ["assemble-system-prompt", createAssembleSystemPromptNode()],
     ]);
 
     const edges: RouteEdge[] = [
-      { from: "identify-intent", to: "select-tools" },
-      { from: "identify-intent", to: "select-skills" },
-      { from: "identify-intent", to: "simple" },
-      { from: "identify-intent", to: "complex" },
-      { from: "retrieve-memory", to: "simple" },
-      { from: "retrieve-memory", to: "complex" },
       { from: "select-tools", to: "complex" },
       { from: "select-skills", to: "complex" },
       { from: "simple", to: "assemble-system-prompt" },
@@ -58,7 +52,7 @@ export class Router {
     ];
 
     this.graph = {
-      entryNodes: ["identify-intent", "retrieve-memory"],
+      entryNodes: ["identify-intent", "retrieve-memory", "select-tools", "select-skills"],
       nodes,
       edges,
     };

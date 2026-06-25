@@ -1,10 +1,14 @@
 import { SkillRegistry, ToolRegistry } from "../../../common/interfaces/registry.js";
-import type { PromptProfile } from "../context-router.js";
+import { isMetaToolName, isAlwaysOnToolName } from "../capability-retriever.js";
+import type { PromptProfile } from "../prompt-builder/types.js";
 import { composeSections } from "../prompt-builder/compose.js";
 import { toStaticSectionContext } from "../prompt-builder/section-context.js";
 import { buildRoutedDynamicContext } from "./route-prompt.js";
 import { routedComplexSections, routedCoreSections } from "./routed-prompt-recipes.js";
 import type { RouterDeps, RouteContext, RoutePath } from "./types.js";
+
+/** Top-N non-always-on tools injected into the simple route prompt. */
+const SIMPLE_ROUTE_ACTION_TOOL_LIMIT = 3;
 
 function resolveRoutedProfile(route: RoutePath): PromptProfile {
   return route === "simple" ? "chat" : "planning";
@@ -16,9 +20,29 @@ function buildCapabilityRegistries(
   route: RoutePath,
 ): { toolRegistry: ToolRegistry; skillRegistry: SkillRegistry } {
   if (route === "simple") {
-    return { toolRegistry: new ToolRegistry(), skillRegistry: new SkillRegistry() };
+    const toolRegistry = new ToolRegistry();
+    const skillRegistry = new SkillRegistry();
+
+    // Always include meta tools (escape hatch for the agent)
+    for (const tool of deps.toolRegistry.list()) {
+      if (isMetaToolName(tool.name)) {
+        toolRegistry.register(tool);
+      }
+    }
+
+    // Inject the top-N relevant action tools so the agent has them on turn 1
+    let actionCount = 0;
+    for (const entry of ctx.toolScores ?? []) {
+      if (!isAlwaysOnToolName(entry.item.name) && actionCount < SIMPLE_ROUTE_ACTION_TOOL_LIMIT) {
+        toolRegistry.register(entry.item);
+        actionCount++;
+      }
+    }
+
+    return { toolRegistry, skillRegistry };
   }
 
+  // Complex route: use scored selections; fall back to full registry if empty
   const toolRegistry = new ToolRegistry();
   const skillRegistry = new SkillRegistry();
 

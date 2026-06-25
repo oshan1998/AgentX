@@ -8,8 +8,6 @@ export function createSelectToolsNode(
 ): RouteNode {
   return {
     id: "select-tools",
-    required: ["identify-intent"],
-    when: (ctx) => ctx.queryComplexity === "complex",
 
     async run(ctx: RouteContext, deps: RouterDeps): Promise<void> {
       logNodeRun(ctx, "select-tools");
