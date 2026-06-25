@@ -6,6 +6,8 @@ export enum DecisionType {
   ProfileWrite = "profile_write",
   /** Run several independent tool_call/skill_call actions in parallel within one turn. */
   Batch = "batch",
+  /** Submit a full task DAG to the orchestrator in one turn — bypasses plan_steps + orchestrate_task_graph. */
+  Orchestrate = "orchestrate",
 }
 
 export enum SkillType{
@@ -16,6 +18,24 @@ export enum SkillType{
 export enum ProfileTarget {
   Soul = "soul",
   User = "user",
+}
+
+/** A single node in an agent-emitted task graph (no runtime status fields). */
+export interface OrchestrateTaskNode {
+  id: string;
+  title: string;
+  depends_on: string[];
+  instruction: string;
+  tool_names: string[];
+  skill_names?: string[];
+  /** Workspace-relative path the sub-agent must write before it can respond. */
+  artifact_path?: string;
+}
+
+/** Task graph emitted inline by the agent for immediate orchestration. */
+export interface OrchestrateTaskGraph {
+  objective: string;
+  nodes: OrchestrateTaskNode[];
 }
 
 export interface AgentDecision {
@@ -30,6 +50,8 @@ export interface AgentDecision {
   content?: Record<string, unknown>;
   /** For type "batch": independent tool_call/skill_call actions executed in parallel. */
   actions?: AgentDecision[];
+  /** For type "orchestrate": inline task DAG handed directly to the orchestrator. */
+  taskGraph?: OrchestrateTaskGraph;
 }
 
 export interface Message {

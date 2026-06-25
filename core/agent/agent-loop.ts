@@ -40,6 +40,9 @@ import {
   buildRunPromptContext,
   type RunPromptContext,
 } from "./run-context-pipeline.js";
+import type { Orchestrator } from "../orchestrator/orchestrator.js";
+import { TaskNodeStatus } from "../orchestrator/task-graph.js";
+import type { QueryComplexity } from "./router/types.js";
 
 // ─── Public types ────────────────────────────────────────────────────────────
 
@@ -78,6 +81,8 @@ interface AgentLoopDependencies {
   vertexRagManager?: VertexRagManager;
   /** Override env `CAPABILITY_RETRIEVAL_METHOD` (`rag` | `llm` | `vertex_rag`). */
   capabilityRetrievalMethod?: CapabilityRetrievalMethod;
+  /** When provided, `orchestrate` decisions dispatch a task DAG directly without tool round-trips. */
+  orchestrator?: Orchestrator;
 }
 
 /** Upper bound on actions executed in parallel for a single `batch` decision. */
@@ -197,7 +202,12 @@ export class AgentLoop {
     });
 
     try {
-      const iterCap = this.resolveIterationCap(options?.maxIterations);
+      const baseCap = this.resolveIterationCap(options?.maxIterations);
+      const iterCap = this.applyComplexityCap(
+        baseCap,
+        runContext.routeResult?.context.queryComplexity,
+        isSubAgent,
+      );
       const invocation: ExecutorInvocationContext = {
         runId: options?.runId,
         abortSignal: loopHandleOptions?.abortSignal,
@@ -316,6 +326,10 @@ export class AgentLoop {
       return this.handleRespond(runContext, decision.message ?? "");
     }
 
+    if (decision.type === DecisionType.Orchestrate) {
+      return this.handleOrchestrate(runContext, decision, invocation);
+    }
+
     if (decision.type === DecisionType.Batch) {
       return this.handleBatch(runContext, decision, traceCtx, invocation);
     }
@@ -331,22 +345,30 @@ export class AgentLoop {
       lastObservation: string | undefined;
     },
   ): Promise<{ systemPrompt: string; userPrompt: string }> {
-    // Main agent (post-bootstrap) — simple append of last observation
+    // Main agent (post-bootstrap) — inject iteration counter + urgency, then last observation
     if (!runContext.isSubAgent && runContext.isBootstrapComplete) {
-      let userPrompt = runContext.userPrompt;
+      const atLastTwo = ctx.iteration >= ctx.iterCap - 1;
+      const urgency = atLastTwo
+        ? `\nURGENCY: Iteration ${ctx.iteration}/${ctx.iterCap} — finalize on this turn or the next. Respond with the best available result.`
+        : "";
+      let userPrompt = `Iteration: ${ctx.iteration}/${ctx.iterCap}${urgency}\n\n${runContext.userPrompt}`;
       if (ctx.lastObservation) {
         userPrompt = `${userPrompt}\n\nLast step result:\n${ctx.lastObservation}`;
       }
       return { systemPrompt: runContext.systemPrompt, userPrompt };
     }
 
-    // Sub-agent and bootstrap — dynamic per-iteration user prompt with iteration state
-    const memoryQuery = composeMemorySearchQuery(
-      runContext.userInput,
-      ctx.lastObservation,
-      ctx.iteration,
-    );
-    const relevantLongTermMemory = await this.deps.memoryManager.searchLongTermMemory(memoryQuery);
+    // Sub-agent and bootstrap — dynamic per-iteration user prompt with iteration state.
+    // Memory search is cached after the first call: relevant memories don't change mid-run.
+    if (!runContext.cachedMemory) {
+      const memoryQuery = composeMemorySearchQuery(
+        runContext.userInput,
+        ctx.lastObservation,
+        ctx.iteration,
+      );
+      runContext.cachedMemory = await this.deps.memoryManager.searchLongTermMemory(memoryQuery);
+    }
+    const relevantLongTermMemory = runContext.cachedMemory;
 
     const dynamicInput: DynamicPromptInput = {
       latestUserMessage: runContext.userInput,
@@ -458,6 +480,60 @@ export class AgentLoop {
     return { observation };
   }
 
+  /**
+   * Converts an inline `orchestrate` decision into a `TaskGraphConfig` and hands it
+   * directly to the `Orchestrator`, bypassing the plan_steps → orchestrate_task_graph
+   * two-iteration pattern. The orchestrator result summary becomes the next observation.
+   */
+  private async handleOrchestrate(
+    runContext: RunPromptContext,
+    decision: AgentDecision,
+    invocation: ExecutorInvocationContext,
+  ): Promise<IterationResult> {
+    if (!this.deps.orchestrator) {
+      const observation = "orchestrate decision is not available: no orchestrator was wired into this agent loop.";
+      await this.appendRunMessage(runContext, AgentLoop.message("tool", observation));
+      return { observation };
+    }
+
+    const tg = decision.taskGraph;
+    if (!tg || !tg.nodes || tg.nodes.length === 0) {
+      const observation = "Orchestrate error: 'taskGraph' was missing or contained no nodes. Provide a valid task graph or use a different decision type.";
+      await this.appendRunMessage(runContext, AgentLoop.message("tool", observation));
+      return { observation };
+    }
+
+    logger.info(`[AgentLoop] Orchestrating inline task graph: "${tg.objective}" (${tg.nodes.length} nodes)`);
+
+    const graphConfig = {
+      objective: tg.objective,
+      nodes: tg.nodes.map((n) => ({
+        id: n.id,
+        title: n.title,
+        depends_on: n.depends_on,
+        instruction: n.instruction,
+        tool_names: n.tool_names,
+        skill_names: n.skill_names ?? [],
+        artifactPath: n.artifact_path,
+        status: TaskNodeStatus.Pending,
+      })),
+    };
+
+    const result = await this.deps.orchestrator.run({
+      graph: graphConfig,
+      sessionId: runContext.sessionId,
+      runId: invocation.runId,
+      abortSignal: invocation.abortSignal,
+    });
+
+    const observation = truncateForPrompt(
+      `Orchestration result (${result.completedCount} completed, ${result.failedCount} failed):\n${result.summary}`,
+      MAX_OBSERVATION_CHARS,
+    );
+    await this.appendRunMessage(runContext, AgentLoop.message("tool", observation));
+    return { observation };
+  }
+
   // ── Guard helpers ──────────────────────────────────────────────────────────
 
   /**
@@ -523,6 +599,19 @@ export class AgentLoop {
     return Math.max(1, Math.min(requested, this.maxIterations));
   }
 
+  /**
+   * Tightens the iteration cap for simple queries so the LLM is forced to converge
+   * faster. Sub-agent loops are unaffected — they already have their own tight caps.
+   */
+  private applyComplexityCap(
+    base: number,
+    complexity: QueryComplexity | undefined,
+    isSubAgent: boolean,
+  ): number {
+    if (isSubAgent || complexity !== "simple") return base;
+    return Math.min(base, 3);
+  }
+
   private static formatFeedback(decision: AgentDecision, result: unknown): string {
     const label: Record<DecisionType, string> = {
       [DecisionType.ToolCall]: `Tool ${decision.tool} result`,
@@ -531,6 +620,7 @@ export class AgentLoop {
       [DecisionType.ProfileWrite]: "Profile write result",
       [DecisionType.Respond]: "Response",
       [DecisionType.Batch]: "Batch result",
+      [DecisionType.Orchestrate]: "Orchestration result",
     };
 
     const prefix = label[decision.type] ?? "Result";

@@ -1,5 +1,5 @@
 import { SkillRegistry, ToolRegistry } from "../../common/interfaces/registry.js";
-import type { LlmAdapter, SessionMemory } from "../../common/interfaces/types.js";
+import type { LlmAdapter, LongTermMemoryEntry, SessionMemory } from "../../common/interfaces/types.js";
 import { MemoryManager } from "../../managers/memory-manager.js";
 import type { Soul, User } from "../../managers/profile-manager.js";
 import { ProfileManager } from "../../managers/profile-manager.js";
@@ -26,6 +26,8 @@ export interface RunPromptContext {
   userPrompt: string;
   subAgentSystemPromptAppend?: string;
   routeResult?: RouteResult;
+  /** Long-term memory results cached after the first iteration search — reused for subsequent iterations. */
+  cachedMemory?: LongTermMemoryEntry[];
 }
 
 export interface RunContextPipelineDeps {

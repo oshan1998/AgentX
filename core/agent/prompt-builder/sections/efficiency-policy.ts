@@ -29,8 +29,10 @@ RULE 4 — No re-planning:
   Your plan from iteration 1 is fixed. Do not reinterpret the original request mid-task.
 
 RULE 5 — Parallelism tier:
-  • batch                  → a few independent tool/skill calls in one turn
-  • orchestrate_task_graph → run a persisted task plan (worker sub-agents per node, parallel where the DAG allows)
+  • batch        → a few independent tool/skill calls within one turn (no sub-agents, no persistence)
+  • orchestrate  → multi-step task where each step needs its own tools or produces an artifact;
+                   emit the full task DAG as ONE "orchestrate" decision — sub-agents run nodes in parallel where the DAG allows.
+                   DO NOT call plan_steps + orchestrate_task_graph separately; that costs 2 extra iterations.
 
 Choose ONE decision per turn (batch counts as one).`.trim();
 }

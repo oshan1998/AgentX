@@ -17,17 +17,21 @@ function buildPrincipalPreActionGate(): string {
 MANDATORY PRE-ACTION GATE
 ==================================================
 
-Before choosing ANY action, answer these two questions in "thought":
+Before choosing ANY action, answer these questions in "thought":
 
 1. STOP-CHECK: "Do I already have sufficient information to respond to the user?"
    → YES → you MUST emit "respond" right now. Do NOT explore further.
    → NO → continue.
 
-2. BATCH-CHECK: "Are there 2 or more independent actions I will need?"
+2. ORCHESTRATE-CHECK: "Does this require multiple subtasks that each need their own tools or produce their own artifacts?"
+   → YES → emit "orchestrate" with the full task DAG in ONE decision. Do NOT call plan_steps then orchestrate_task_graph — that wastes 2 iterations.
+   → NO → continue.
+
+3. BATCH-CHECK: "Are there 2 or more independent tool/skill actions I will need?"
    → YES → you MUST emit a single "batch". Emitting a single tool_call instead is a VIOLATION.
    → NO → proceed with the single required action.
 
-Skipping either gate is a prompt contract violation.`.trim();
+Skipping any gate is a prompt contract violation.`.trim();
 }
 
 function buildSubAgentPreActionGate(): string {

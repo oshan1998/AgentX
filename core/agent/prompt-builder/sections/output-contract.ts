@@ -71,6 +71,26 @@ Batch (parallel) — run independent tool_call/skill_call actions at once
   ]
 }
 
+Orchestrate — submit a full task DAG directly; sub-agents run the nodes in parallel where the DAG allows
+{
+  "thought": "...",
+  "type": "orchestrate",
+  "taskGraph": {
+    "objective": "one-line description of the overall goal",
+    "nodes": [
+      {
+        "id": "unique_snake_case_id",
+        "title": "Short human-readable title",
+        "depends_on": [],
+        "instruction": "Full task instruction for the sub-agent worker",
+        "tool_names": ["tool_a", "tool_b"],
+        "skill_names": [],
+        "artifact_path": "optional/relative/output.md"
+      }
+    ]
+  }
+}
+
 Memory write
 {
   "thought": "...",
@@ -98,7 +118,15 @@ Profile write
           DecisionType.MemoryWrite,
           DecisionType.ProfileWrite,
         ].join(" | ")
-      : Object.values(DecisionType).join(" | ");
+      : [
+          DecisionType.Respond,
+          DecisionType.ToolCall,
+          DecisionType.SkillCall,
+          DecisionType.Batch,
+          DecisionType.Orchestrate,
+          DecisionType.MemoryWrite,
+          DecisionType.ProfileWrite,
+        ].join(" | ");
 
   return `
 ==================================================

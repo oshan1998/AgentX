@@ -134,6 +134,7 @@ async function main() {
     vectorManager,
     vertexRagManager,
     capabilityRetrievalMethod,
+    orchestrator: agentRuntimeFactory.orchestrator,
   });
 
   const schedulerRunner = new SchedulerRunner(agentLoop);
