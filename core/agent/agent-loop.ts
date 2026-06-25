@@ -31,7 +31,7 @@ import {
   type ExecutionPolicy,
 } from "./execution-policy.js";
 import { MemoryManager } from "../../managers/memory-manager.js";
-import { PromptBuilder } from "./prompt-builder.js";
+import { PromptBuilder } from "./prompt-builder/index.js";
 import {
   buildMcpServerCatalog,
   routeMcpServers,
@@ -227,12 +227,10 @@ export class AgentLoop {
           this.checkForEarlyExit(loopHandleOptions, isSubAgent);
 
           const result = await this.runIteration(
-            sessionId,
-            userInput,
+            runContext,
             {
               iteration,
               iterCap,
-              isSubAgent,
               lastObservation,
               activePlan,
               options,
@@ -412,11 +410,11 @@ export class AgentLoop {
     );
 
     if (decision.type === DecisionType.Respond) {
-      return this.handleRespond(sessionId, decision);
+      return this.handleRespond(runContext, decision);
     }
 
     const result = await this.handleToolOrSkill(
-      sessionId,
+      runContext,
       decision,
       traceCtx,
       invocation,
@@ -434,23 +432,20 @@ export class AgentLoop {
       options?: AgentRunHandleOptions;
     },
   ) {
-    const session = await this.deps.memoryManager.getSession(sessionId);
-    const allMemory = await this.deps.memoryManager.getLongTermMemory();
     const relevantLongTermMemory =
-      await this.deps.memoryManager.searchLongTermMemory(userInput);
-    const soul = await this.deps.profileManager.getSoul();
-    const user = await this.deps.profileManager.getUser();
+      await this.deps.memoryManager.searchLongTermMemory(
+        composeMemorySearchQuery(
+          runContext.userInput,
+          ctx.lastObservation,
+          ctx.iteration,
+        ),
+      );
 
-    const isBootstrapComplete = ctx.isSubAgent
-      ? true
-      : allMemory.some((m) => m.content === "bootstrap_complete");
-
-    return this.promptBuilder.build({
-      latestUserMessage: userInput,
-      session,
+    const userPrompt = this.promptBuilder.buildDynamicUser({
+      latestUserMessage: runContext.userInput,
+      messages: runContext.session.messages,
       relevantLongTermMemory,
       lastObservation: ctx.lastObservation,
-      activePlan: ctx.activePlan,
       iteration: ctx.iteration,
       maxIterations: ctx.iterCap,
       isSubAgent: runContext.isSubAgent,
@@ -464,7 +459,7 @@ export class AgentLoop {
   }
 
   private async handleRespond(
-    sessionId: string,
+    runContext: RunPromptContext,
     decision: AgentDecision,
   ): Promise<IterationResult> {
     const finalMessage = decision.message ?? "";
@@ -480,11 +475,11 @@ export class AgentLoop {
       );
     }
 
-    logger.info(`Agent responded for session ${sessionId}`, {
+    logger.info(`Agent responded for session ${runContext.sessionId}`, {
       message: finalMessage,
     });
-    await this.deps.memoryManager.appendSessionMessage(
-      sessionId,
+    await this.appendRunMessage(
+      runContext,
       AgentLoop.message("assistant", finalMessage),
     );
     return { finalReply: finalMessage };

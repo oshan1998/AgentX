@@ -8,7 +8,6 @@ import type {
   LlmImageInput,
 } from "../common/interfaces/types.js";
 import { logLlmTokenUsage } from "./log-token-usage.js";
-import { logLlmTokenUsage } from "./log-token-usage.js";
 import { resolveVertexLocation } from "./vertex-config.js";
 
 interface GeminiAdapterOptions {
@@ -31,7 +30,6 @@ export class GeminiVertexAdapter implements LlmAdapter {
   }
 
   async decide(prompt: string, systemPrompt?: string): Promise<AgentDecision> {
-    const raw = await this.complete(prompt, systemPrompt, "decide");
     const raw = await this.complete(prompt, systemPrompt, "decide");
     try {
       return JSON.parse(raw) as AgentDecision;

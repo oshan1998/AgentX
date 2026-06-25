@@ -18,7 +18,7 @@ export {
   type DynamicPromptInput,
   type PromptMode,
   type StaticPromptInput,
-} from "./prompt-builder.js";
+} from "./prompt-builder/index.js";
 export {
   cloneSkillWhitelist,
   cloneToolWhitelist,
