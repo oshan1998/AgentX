@@ -1,24 +1,17 @@
 {
   "mcpServers": {
-    "filesystem": {
-      "transport": "stdio",
-      "disabled": true,
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "${PWD}/workspace"],
-      "namePrefix": "fs"
-    },
     "github": {
       "transport": "stdio",
-      "disabled": true,
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-github"],
-      "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}" },
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}"
+      },
       "namePrefix": "github",
       "toolTimeoutMs": 120000
     },
     "design": {
       "transport": "stdio",
-      "disabled": true,
       "command": "npx",
       "args": ["tsx", "mcp/design/index.ts"],
       "namePrefix": "",
@@ -26,39 +19,20 @@
     },
     "web": {
       "transport": "stdio",
-      "disabled": true,
       "command": "npx",
       "args": ["tsx", "mcp/web/index.ts"],
-      "namePrefix": ""
-    },
-    "gmail": {
-      "transport": "stdio",
-      "disabled": true,
-      "command": "npx",
-      "args": ["tsx", "mcp/gmail/index.ts"],
-      "namePrefix": ""
+      "namePrefix": "",
+      "toolTimeoutMs": 180000
     },
     "jira": {
       "transport": "stdio",
-      "disabled": true,
       "command": "npx",
       "args": ["-y", "mcp-remote", "https://mcp.atlassian.com/v1/mcp"],
       "namePrefix": "jira",
       "toolTimeoutMs": 120000
     },
-    "jira-token": {
-      "transport": "http",
-      "disabled": true,
-      "url": "https://mcp.atlassian.com/v1/mcp",
-      "headers": {
-        "Authorization": "${ATLASSIAN_MCP_AUTH}"
-      },
-      "namePrefix": "jira",
-      "toolTimeoutMs": 120000
-    },
     "figma": {
       "transport": "stdio",
-      "disabled": true,
       "command": "npx",
       "args": [
         "-y",
@@ -74,13 +48,19 @@
     },
     "maps": {
       "transport": "http",
-      "disabled": true,
       "url": "https://mapstools.googleapis.com/mcp",
       "headers": {
         "X-Goog-Api-Key": "${GOOGLE_MAPS_API_KEY}"
       },
       "namePrefix": "maps",
       "toolTimeoutMs": 120000
+    },
+    "canva": {
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "mcp-remote@latest", "https://mcp.canva.com/mcp"],
+      "namePrefix": "canva",
+      "toolTimeoutMs": 180000
     }
   }
 }

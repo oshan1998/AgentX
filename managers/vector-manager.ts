@@ -2,7 +2,11 @@ import { GoogleGenAI } from "@google/genai";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
-import type { Tool, Skill, LongTermMemoryEntry } from "../common/interfaces/types.js";
+import type {
+  Tool,
+  Skill,
+  LongTermMemoryEntry,
+} from "../common/interfaces/types.js";
 import { logger } from "../common/services/logger.js";
 
 export interface VectorManagerOptions {
@@ -13,7 +17,7 @@ export interface VectorManagerOptions {
 
 interface VectorStoreData {
   capabilities: Record<string, number[]>; // hash -> embedding
-  memories: Record<string, number[]>;     // memoryId -> embedding
+  memories: Record<string, number[]>; // memoryId -> embedding
 }
 
 export interface Scored<T> {
@@ -50,7 +54,9 @@ export class VectorManager {
         capabilities: parsed.capabilities || {},
         memories: parsed.memories || {},
       };
-      logger.info(`Loaded vector store from ${this.storagePath}. Loaded ${Object.keys(this.data.memories).length} memory embeddings.`);
+      logger.info(
+        `Loaded vector store from ${this.storagePath}. Loaded ${Object.keys(this.data.memories).length} memory embeddings.`,
+      );
     } catch {
       this.data = { capabilities: {}, memories: {} };
       await this.save();
@@ -58,11 +64,25 @@ export class VectorManager {
     }
   }
 
-  async getEmbedding(text: string): Promise<number[]> {
+  /** Embed a user query — use for search/retrieval inputs. */
+  async getQueryEmbedding(text: string): Promise<number[]> {
+    return this.getEmbedding(text, "RETRIEVAL_QUERY");
+  }
+
+  /** Embed a document — use when indexing tools, skills, or memories. */
+  async getDocumentEmbedding(text: string): Promise<number[]> {
+    return this.getEmbedding(text, "RETRIEVAL_DOCUMENT");
+  }
+
+  private async getEmbedding(
+    text: string,
+    taskType: "RETRIEVAL_QUERY" | "RETRIEVAL_DOCUMENT" | "SEMANTIC_SIMILARITY" = "SEMANTIC_SIMILARITY",
+  ): Promise<number[]> {
     try {
       const response = await this.client.models.embedContent({
         model: "text-embedding-004",
         contents: text,
+        config: { taskType },
       });
 
       if (!response.embeddings?.[0]?.values) {
@@ -71,7 +91,10 @@ export class VectorManager {
 
       return response.embeddings[0].values;
     } catch (error) {
-      logger.error(`Failed to generate embedding for text: "${text.substring(0, 50)}..."`, { error });
+      logger.error(
+        `Failed to generate embedding for text: "${text.substring(0, 50)}..."`,
+        { error },
+      );
       throw error;
     }
   }
@@ -89,15 +112,21 @@ export class VectorManager {
   }
 
   async save(): Promise<void> {
-    await writeFile(this.storagePath, JSON.stringify(this.data, null, 2), "utf-8");
+    await writeFile(
+      this.storagePath,
+      JSON.stringify(this.data, null, 2),
+      "utf-8",
+    );
   }
 
   /**
    * Pre-generates or retrieves cached embeddings for all registered tools and skills.
    */
   async indexCapabilities(tools: Tool[], skills: Skill[]): Promise<void> {
-    logger.info(`Indexing capabilities: ${tools.length} tools, ${skills.length} skills`);
-    
+    logger.info(
+      `Indexing capabilities: ${tools.length} tools, ${skills.length} skills`,
+    );
+
     this.toolEmbeddings.clear();
     this.skillEmbeddings.clear();
 
@@ -105,17 +134,19 @@ export class VectorManager {
     let cacheHits = 0;
     let apiCalls = 0;
 
+    const TASK = "RETRIEVAL_DOCUMENT";
+
     // Index Tools
     for (const tool of tools) {
-      const text = `Tool: ${tool.name}. Description: ${tool.description || ""}`;
-      const hash = this.getHash(text);
-      
+      const text = `${tool.name} ${tool.description || ""}`.trim();
+      const hash = this.getHash(text, TASK);
+
       let embedding = this.data.capabilities[hash];
       if (embedding) {
         cacheHits++;
       } else {
         logger.debug(`Cache miss for tool: ${tool.name}. Generating embedding...`);
-        embedding = await this.getEmbedding(text);
+        embedding = await this.getEmbedding(text, TASK);
         apiCalls++;
       }
 
@@ -125,15 +156,15 @@ export class VectorManager {
 
     // Index Skills
     for (const skill of skills) {
-      const text = `Skill: ${skill.name}. Description: ${skill.description || ""}`;
-      const hash = this.getHash(text);
+      const text = `${skill.name} ${skill.description || ""}`.trim();
+      const hash = this.getHash(text, TASK);
 
       let embedding = this.data.capabilities[hash];
       if (embedding) {
         cacheHits++;
       } else {
         logger.debug(`Cache miss for skill: ${skill.name}. Generating embedding...`);
-        embedding = await this.getEmbedding(text);
+        embedding = await this.getEmbedding(text, TASK);
         apiCalls++;
       }
 
@@ -143,20 +174,40 @@ export class VectorManager {
 
     // Update active data structure with current active capabilities
     this.data.capabilities = newCapabilitiesCache;
-    
+
     if (apiCalls > 0) {
       await this.save();
     }
 
-    logger.info(`Capabilities indexing complete. Cache hits: ${cacheHits}, API calls: ${apiCalls}`);
+    logger.info(
+      `Capabilities indexing complete. Cache hits: ${cacheHits}, API calls: ${apiCalls}`,
+    );
   }
 
-  searchToolsScored(queryEmbedding: number[], tools: Tool[], limit: number): Scored<Tool>[] {
-    return this.rankByEmbedding(queryEmbedding, tools, (tool) => this.toolEmbeddings.get(tool.name), limit);
+  searchToolsScored(
+    queryEmbedding: number[],
+    tools: Tool[],
+    limit: number,
+  ): Scored<Tool>[] {
+    return this.rankByEmbedding(
+      queryEmbedding,
+      tools,
+      (tool) => this.toolEmbeddings.get(tool.name),
+      limit,
+    );
   }
 
-  searchSkillsScored(queryEmbedding: number[], skills: Skill[], limit: number): Scored<Skill>[] {
-    return this.rankByEmbedding(queryEmbedding, skills, (skill) => this.skillEmbeddings.get(skill.name), limit);
+  searchSkillsScored(
+    queryEmbedding: number[],
+    skills: Skill[],
+    limit: number,
+  ): Scored<Skill>[] {
+    return this.rankByEmbedding(
+      queryEmbedding,
+      skills,
+      (skill) => this.skillEmbeddings.get(skill.name),
+      limit,
+    );
   }
 
   searchMemoriesScored(
@@ -173,15 +224,29 @@ export class VectorManager {
   }
 
   searchTools(queryEmbedding: number[], tools: Tool[], limit: number): Tool[] {
-    return this.searchToolsScored(queryEmbedding, tools, limit).map((item) => item.item);
+    return this.searchToolsScored(queryEmbedding, tools, limit).map(
+      (item) => item.item,
+    );
   }
 
-  searchSkills(queryEmbedding: number[], skills: Skill[], limit: number): Skill[] {
-    return this.searchSkillsScored(queryEmbedding, skills, limit).map((item) => item.item);
+  searchSkills(
+    queryEmbedding: number[],
+    skills: Skill[],
+    limit: number,
+  ): Skill[] {
+    return this.searchSkillsScored(queryEmbedding, skills, limit).map(
+      (item) => item.item,
+    );
   }
 
-  searchMemories(queryEmbedding: number[], memories: LongTermMemoryEntry[], limit: number): LongTermMemoryEntry[] {
-    return this.searchMemoriesScored(queryEmbedding, memories, limit).map((item) => item.item);
+  searchMemories(
+    queryEmbedding: number[],
+    memories: LongTermMemoryEntry[],
+    limit: number,
+  ): LongTermMemoryEntry[] {
+    return this.searchMemoriesScored(queryEmbedding, memories, limit).map(
+      (item) => item.item,
+    );
   }
 
   private rankByEmbedding<T>(
@@ -202,8 +267,9 @@ export class VectorManager {
     return scored.slice(0, limit);
   }
 
-  private getHash(text: string): string {
-    return crypto.createHash("md5").update(text).digest("hex");
+  private getHash(text: string, taskType?: string): string {
+    const key = taskType ? `${taskType}:${text}` : text;
+    return crypto.createHash("md5").update(key).digest("hex");
   }
 
   private cosineSimilarity(a: number[], b: number[]): number {

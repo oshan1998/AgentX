@@ -5,13 +5,6 @@ function formatMemory(ctx: RouteContext): string | undefined {
   return ctx.relevantLongTermMemory.map((entry) => `- ${entry.content}`).join("\n");
 }
 
-function formatIntent(ctx: RouteContext): string | undefined {
-  if (!ctx.intent) return undefined;
-  const confidence =
-    ctx.intent.confidence != null ? ` (confidence: ${ctx.intent.confidence})` : "";
-  return `Intent: ${ctx.intent.label}${confidence}`;
-}
-
 function formatTools(ctx: RouteContext): string | undefined {
   if (!ctx.toolScores?.length) return undefined;
   return ctx.toolScores
@@ -29,9 +22,6 @@ function formatSkills(ctx: RouteContext): string | undefined {
 /** Route-specific context gathered by upstream nodes (intent, memory, selections). */
 export function buildRoutedDynamicContext(ctx: RouteContext, route: RoutePath): string {
   const sections: string[] = [];
-
-  const intent = formatIntent(ctx);
-  if (intent) sections.push(intent);
 
   const memory = formatMemory(ctx);
   if (memory) sections.push(`Relevant memory:\n${memory}`);

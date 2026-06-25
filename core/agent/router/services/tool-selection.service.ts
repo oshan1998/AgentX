@@ -22,27 +22,80 @@ export interface ToolSelectionParams {
   capabilityRetrievalMethod?: CapabilityRetrievalMethod;
 }
 
+/**
+ * Score assigned to a tool that is explicitly named in the user's input.
+ * Set above the classify-complexity threshold (0.5) so mentioned tools always
+ * trigger the complex route regardless of RAG/LLM selection scores.
+ */
+const MENTION_BOOST_SCORE = 0.75;
+
+/**
+ * After RAG or LLM selection, scan the user input for tools whose name-words
+ * all appear in the query. This catches capability-mention queries like
+ * "i think you have web search ability" where the LLM returns no tools because
+ * no action is strictly needed, but the tool is clearly relevant.
+ */
+function applyMentionBoost(
+  scored: Scored<Tool>[],
+  allTools: Tool[],
+  userInput: string,
+): Scored<Tool>[] {
+  const lowerInput = userInput.toLowerCase();
+  const byName = new Map(scored.map((s) => [s.item.name, s]));
+  const result = [...scored];
+
+  for (const tool of allTools) {
+    if (isAlwaysOnToolName(tool.name)) continue;
+
+    // Split on underscores, skip single-char fragments to avoid noise
+    const words = tool.name.toLowerCase().split("_").filter((w) => w.length > 1);
+    if (words.length === 0) continue;
+    if (!words.every((w) => lowerInput.includes(w))) continue;
+
+    const existing = byName.get(tool.name);
+    if (!existing) {
+      const entry = { item: tool, score: MENTION_BOOST_SCORE };
+      result.push(entry);
+      byName.set(tool.name, entry);
+      logger.debug("[tool-selection] mention boost: added tool", { tool: tool.name });
+    } else if (existing.score < MENTION_BOOST_SCORE) {
+      const idx = result.findIndex((s) => s.item.name === tool.name);
+      if (idx !== -1) {
+        result[idx] = { item: existing.item, score: MENTION_BOOST_SCORE };
+        logger.debug("[tool-selection] mention boost: raised score", { tool: tool.name });
+      }
+    }
+  }
+
+  return result;
+}
+
 export class ToolSelectionService {
   async select(params: ToolSelectionParams): Promise<Scored<Tool>[]> {
     const allTools = params.toolRegistry.list();
     const limit = DEFAULT_RETRIEVED_TOOL_LIMIT;
     const method = resolveCapabilityRetrievalMethod(params.capabilityRetrievalMethod);
 
+    let scored: Scored<Tool>[];
+
     if (method === "rag") {
       if (!params.vectorManager) {
         logger.warn("RAG tool selection requested but no VectorManager — falling back to LLM.");
-        return this.selectViaLlm(params, allTools, limit);
+        scored = await this.selectViaLlm(params, allTools, limit);
+      } else {
+        scored = await this.selectViaRag(params, allTools, limit);
       }
-      return this.selectViaRag(params, allTools, limit);
+    } else {
+      try {
+        scored = await this.selectViaLlm(params, allTools, limit);
+      } catch (err) {
+        if (!params.vectorManager) throw err;
+        logger.warn("LLM tool selection failed; falling back to RAG.", { error: err });
+        scored = await this.selectViaRag(params, allTools, limit);
+      }
     }
 
-    try {
-      return await this.selectViaLlm(params, allTools, limit);
-    } catch (err) {
-      if (!params.vectorManager) throw err;
-      logger.warn("LLM tool selection failed; falling back to RAG.", { error: err });
-      return this.selectViaRag(params, allTools, limit);
-    }
+    return applyMentionBoost(scored, allTools, params.userInput);
   }
 
   private async selectViaRag(
@@ -53,7 +106,7 @@ export class ToolSelectionService {
     if (!params.vectorManager) {
       throw new Error("RAG tool selection requires VectorManager.");
     }
-    const queryEmbedding = await params.vectorManager.getEmbedding(params.userInput);
+    const queryEmbedding = await params.vectorManager.getQueryEmbedding(params.userInput);
     return params.vectorManager.searchToolsScored(queryEmbedding, allTools, limit);
   }
 

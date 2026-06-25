@@ -167,7 +167,7 @@ async function retrieveViaRag(
   toolLimit: number,
   skillLimit: number,
 ): Promise<{ tools: Tool[]; skills: Skill[]; toolScores: Scored<Tool>[]; skillScores: Scored<Skill>[] }> {
-  const queryEmbedding = await vectorManager.getEmbedding(userInput);
+  const queryEmbedding = await vectorManager.getQueryEmbedding(userInput);
   const toolScores = vectorManager.searchToolsScored(queryEmbedding, allTools, toolLimit);
   const skillScores = vectorManager.searchSkillsScored(queryEmbedding, allSkills, skillLimit);
   return {

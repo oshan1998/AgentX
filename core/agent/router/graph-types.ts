@@ -1,7 +1,7 @@
 import type { RouterDeps, RouteContext } from "./types.js";
 
 export type NodeId =
-  | "identify-intent"
+  | "classify-complexity"
   | "select-tools"
   | "select-skills"
   | "retrieve-memory"

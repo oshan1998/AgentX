@@ -5,7 +5,7 @@ import type { RouteNode } from "../graph-types.js";
 export function createComplexNode(): RouteNode {
   return {
     id: "complex",
-    required: ["identify-intent", "retrieve-memory", "select-tools", "select-skills"],
+    required: ["classify-complexity", "retrieve-memory"],
     when: (ctx) => ctx.queryComplexity === "complex",
 
     async run(ctx: RouteContext, _deps: RouterDeps): Promise<void> {

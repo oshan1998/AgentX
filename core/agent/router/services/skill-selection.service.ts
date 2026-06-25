@@ -52,7 +52,7 @@ export class SkillSelectionService {
     if (!params.vectorManager) {
       throw new Error("RAG skill selection requires VectorManager.");
     }
-    const queryEmbedding = await params.vectorManager.getEmbedding(params.userInput);
+    const queryEmbedding = await params.vectorManager.getQueryEmbedding(params.userInput);
     return params.vectorManager.searchSkillsScored(queryEmbedding, allSkills, limit);
   }
 

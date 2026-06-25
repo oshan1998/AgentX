@@ -9,11 +9,8 @@ export interface RunNodeOptions {
 
 function summarizeNodeOutput(ctx: RouteContext, nodeId: string): Record<string, unknown> {
   switch (nodeId) {
-    case "identify-intent":
-      return {
-        intent: ctx.intent?.label ?? null,
-        queryComplexity: ctx.queryComplexity ?? null,
-      };
+    case "classify-complexity":
+      return { queryComplexity: ctx.queryComplexity ?? null };
     case "select-tools":
       return {
         toolCount: ctx.toolScores?.length ?? 0,

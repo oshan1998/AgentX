@@ -5,17 +5,9 @@ import type { ProfileManager } from "../../../managers/profile-manager.js";
 import type { Scored, VectorManager } from "../../../managers/vector-manager.js";
 import type { CapabilityRetrievalMethod } from "../capability-retriever.js";
 
-export type UserIntent = "simple" | "complex";
-
 export type QueryComplexity = "simple" | "complex";
 
 export type RoutePath = QueryComplexity;
-
-export interface IntentResult {
-  label: UserIntent;
-  confidence?: number;
-  signals?: string[];
-}
 
 export interface RouteInput {
   sessionId: string;
@@ -49,8 +41,6 @@ export interface NodeTraceEntry {
  */
 export interface RouteContext {
   readonly input: RouteInput;
-  intent?: IntentResult;
-  /** Set by identify-intent — chooses simple vs complex terminal path. */
   queryComplexity?: QueryComplexity;
   /** Terminal route branch that ran (simple or complex). */
   selectedRoute?: RoutePath;

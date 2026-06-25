@@ -55,7 +55,7 @@ export class MemoryManager {
           logger.info(`Generating missing embedding for long-term memory entry ${entry.id}`);
           try {
             const text = `Memory Type: ${entry.type}. Content: ${entry.content}`;
-            const embedding = await this.vectorManager.getEmbedding(text);
+            const embedding = await this.vectorManager.getDocumentEmbedding(text);
             this.vectorManager.setMemoryEmbedding(entry.id, embedding);
             hasNewEmbeddings = true;
           } catch (err) {
@@ -171,7 +171,7 @@ export class MemoryManager {
     if (this.vectorManager) {
       try {
         const text = `Memory Type: ${finalEntry.type}. Content: ${finalEntry.content}`;
-        const embedding = await this.vectorManager.getEmbedding(text);
+        const embedding = await this.vectorManager.getDocumentEmbedding(text);
         this.vectorManager.setMemoryEmbedding(finalEntry.id, embedding);
         await this.vectorManager.save();
       } catch (err) {
@@ -309,7 +309,7 @@ export class MemoryManager {
 
     if (this.vectorManager) {
       try {
-        const queryEmbedding = await this.vectorManager.getEmbedding(query);
+        const queryEmbedding = await this.vectorManager.getQueryEmbedding(query);
         return this.vectorManager.searchMemories(queryEmbedding, allEntries, limit);
       } catch (err) {
         logger.warn(`Vector search failed for long-term memory query "${query}". Falling back to keyword search.`, { error: err });
