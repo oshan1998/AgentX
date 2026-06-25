@@ -947,7 +947,8 @@ AgentX/
 |----------|---------|
 | `LLM_PROVIDER` | `gemini`, `openai`, `ollama`, or `mock` |
 | `GOOGLE_CLOUD_PROJECT` | GCP project for Vertex Gemini + Imagen |
-| `GOOGLE_CLOUD_LOCATION` | Vertex region (default `us-central1`) |
+| `GOOGLE_CLOUD_LOCATION` | Vertex region for LLM/vision/Imagen (default `us-central1`; use `global` for Gemini 3.5) |
+| `VERTEX_RAG_LOCATION` | Regional endpoint for Vertex RAG corpus (default `us-central1` when `GOOGLE_CLOUD_LOCATION` is `global`/`us`/`eu`) |
 | `GEMINI_MODEL` | Primary Gemini model |
 | `GEMINI_VISION_MODEL` | Optional vision model override |
 | `OPENAI_API_KEY` / `OPENAI_MODEL` | OpenAI text |
