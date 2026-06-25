@@ -7,6 +7,7 @@ import type {
 import { formatInputSchemaForPrompt } from "../../common/services/format-input-schema.js";
 import type { Soul, User } from "../../managers/profile-manager.js";
 import { DecisionType, SkillType } from "../../common/interfaces/types.js";
+
 const SESSION_MESSAGE_LIMIT = 20;
 
 interface PromptBuilderInput {
@@ -16,6 +17,8 @@ interface PromptBuilderInput {
   toolRegistry: ToolRegistry;
   skillRegistry: SkillRegistry;
   lastObservation?: string;
+  /** Plan emitted at iteration 1, carried forward to keep the agent on track. */
+  activePlan?: string[];
   iteration: number;
   maxIterations: number;
   isBootstrapComplete: boolean;
@@ -38,6 +41,24 @@ function formatSkillCatalogLine(s: Skill): string {
   return schemaLines ? `${head}\n${schemaLines}` : head;
 }
 
+/**
+ * Four-tier urgency signal based on how far through the iteration budget the agent is.
+ * Gives the model a quantified contract instead of vague "as it approaches maximum".
+ */
+function iterationUrgencyLine(iteration: number, max: number): string {
+  const ratio = iteration / max;
+  if (ratio < 0.5) {
+    return "EXPLORE — gather information freely; use as many steps as needed.";
+  }
+  if (ratio < 0.75) {
+    return "CONVERGE — do not start new branches; complete current work only.";
+  }
+  if (ratio < 0.9) {
+    return `URGENT (${iteration}/${max}) — respond now if you have enough. Only ONE more action if truly required.`;
+  }
+  return `CRITICAL (${iteration}/${max}) — you MUST respond this iteration. No further tool or skill calls.`;
+}
+
 function formatIterationRulesSection(input: PromptBuilderInput): string {
   return `
 ==================================================
@@ -45,22 +66,52 @@ ITERATION RULES
 ==================================================
 
 Current iteration: ${input.iteration} / ${input.maxIterations}
+Status: ${iterationUrgencyLine(input.iteration, input.maxIterations)}
 
 If iteration = 1:
-- The original user request is your primary instruction.
-- Interpret intent, plan, and take the first action.
+- Interpret intent. Emit a "plan" array of ALL steps you intend to take before responding.
+- Take the first action immediately after planning.
 
 If iteration > 1:
-- PRIMARY: Last observation and recent context (especially tool/skill results).
-- SECONDARY: Original user request — background intent only; already accepted at run start.
-- Advance ONE step from the last observation. Do not reinterpret the original request as a brand-new task.
-- Do not re-run the same skill/tool for the same deliverable unless the last observation shows failure or missing output.
-- If a skill already returned a finished artifact (e.g. outputPath), respond to the user — do not generate another version.
+- PRIMARY: Last observation + active plan (shown below).
+- SECONDARY: Original request is background context only — do not restart it.
+- Advance exactly ONE step from the last observation.
+- Do not re-run a step unless the last observation shows failure or missing output.
+- If a skill already returned a finished artifact (outputPath, url, etc.), respond immediately.`.trim();
+}
 
-As iteration approaches the maximum:
-- Reduce exploration.
-- Prioritize convergence and finalization.
-- Complete the task in this run when sufficient information is available.`.trim();
+/**
+ * Reasoning rules tailored to the current iteration.
+ * Iteration 1: full exploration — interpret, plan, justify.
+ * Iteration > 1: concise — observe, advance, act.
+ */
+function formatReasoningRulesSection(iteration: number): string {
+  if (iteration === 1) {
+    return `
+==================================================
+REASONING RULES
+==================================================
+
+"thought" is REQUIRED. Think step-by-step:
+  1. Interpret the request and user intent.
+  2. Identify all tools/skills needed and their order.
+  3. Emit that sequence as a numbered "plan" array.
+  4. State what you are doing first and why.
+
+Choose EXACTLY ONE action.`.trim();
+  }
+
+  return `
+==================================================
+REASONING RULES
+==================================================
+
+"thought" is REQUIRED. Be concise — three points only:
+  1. What the last observation shows (success / failure / partial).
+  2. Which plan step comes next.
+  3. Exactly what action you will take.
+
+Choose EXACTLY ONE action.`.trim();
 }
 
 function formatCurrentGoalSection(input: PromptBuilderInput, goalLabel: string): string {
@@ -104,12 +155,17 @@ ${lastObservation}
 `.trim();
   }
 
+  const planSection =
+    input.activePlan?.length
+      ? `Active plan (emit at iteration 1 — check off completed steps):\n${input.activePlan.join("\n")}`
+      : "";
+
   return `
 ${iterationLine}
 
-EXECUTION MODE: Continue from Last observation. Do not reinterpret the original request as a new task.
+EXECUTION MODE: Continue from last observation. Do not restart the original request.
 
-${lastObservation}
+${planSection ? planSection + "\n\n" : ""}${lastObservation}
 
 ${contextSection}
 
@@ -163,7 +219,7 @@ export class PromptBuilder {
         .join("\n") || "none";
 
     const systemPrompt = `
-You are a delegated specialist agent. Another agent (“principal”) assigns each task below; reply so the principal can act or relay to someone else.
+You are a delegated specialist agent. Another agent ("principal") assigns each task below; reply so the principal can act or relay to someone else.
 Soul and end-user blobs are grounding only—they are NOT your conversation partner this turn (the principal is). You cannot persist new long-term memories or profiles from this runtime.
 
 Your isolated session id (for bookkeeping in tool arguments if needed): ${input.session.sessionId}
@@ -197,6 +253,17 @@ Allowed JSON decisions (ONLY):
   "input": {}
 }
 
+At iteration 1, include a "plan" field on your first tool_call or skill_call — a numbered array of all steps you intend to take before responding. This plan will be shown to you on subsequent iterations.
+
+Example with plan:
+{
+  "thought": "I need to read the file, extract the data, then respond.",
+  "plan": ["1. Read the source file", "2. Extract required fields", "3. Respond to principal"],
+  "type": "tool_call",
+  "tool": "read_file",
+  "input": { "path": "..." }
+}
+
 Important JSON rules:
 - The "thought" field is MANDATORY.
 - For tool_call/skill_call, "input" MUST match schemas under Available tools / Available skills.
@@ -218,6 +285,8 @@ ${skills}
 ${input.subAgentSystemPromptAppend?.trim() ? `---\n\n## Domain instructions\n\n${input.subAgentSystemPromptAppend.trim()}` : ""}
 
 ${formatIterationRulesSection(input)}
+
+${formatReasoningRulesSection(input.iteration)}
 
 ${formatCurrentGoalSection(input, "DELEGATED TASK FROM PRINCIPAL")}
 `.trim();
@@ -332,270 +401,237 @@ ${recentMessages}
           return schemaLines ? `${head}\n${schemaLines}` : head;
         })
         .join("\n\n") || "none";
-  
+
     const skills =
       input.skillRegistry
         .list()
         .map((s) => formatSkillCatalogLine(s))
         .join("\n\n") || "none";
-  
+
     const memory =
       input.relevantLongTermMemory
         .map((m) => `- ${m.type}: ${m.content}`)
         .join("\n") || "none";
-  
-    const allowedDecisionTypes = Object.values(DecisionType).join(" | ");
-  
+
+    const planGuidance =
+      input.iteration === 1
+        ? `
+At iteration 1, include a "plan" field on your first tool_call or skill_call — a numbered array listing every step you intend to take before responding. This plan is shown to you on all subsequent iterations so you can track progress without re-deriving it.
+
+Example:
+{
+  "thought": "I need to read the file, process it, write the output, then respond.",
+  "plan": ["1. Read source file", "2. Extract and transform data", "3. Write output file", "4. Respond to user"],
+  "type": "tool_call",
+  "tool": "read_file",
+  "input": { "path": "tasks/data.csv" }
+}
+
+If the task is a single action (one tool call then respond), you may omit "plan".`
+        : "";
+
     const systemPrompt = `
-  You are an AI Agent.
-  
-  Soul:
-  ${JSON.stringify(input.soul, null, 2)}
-  
-  User profile:
-  ${JSON.stringify(input.user, null, 2)}
-  
-  ==================================================
-  OUTPUT CONTRACT
-  ==================================================
-  
-  Return ONLY valid JSON.
-  Never output markdown.
-  Never output text outside JSON.
-  
-  Allowed decisions:
-  
-  Respond
-  {
-    "thought": "...",
-    "type": "respond",
-    "message": "..."
-  }
-  
-  Tool call
-  {
-    "thought": "...",
-    "type": "tool_call",
-    "tool": "tool_name",
-    "input": {}
-  }
-  
-  Skill call
-  {
-    "thought": "...",
-    "type": "skill_call",
-    "skill": "skill_name",
-    "input": {}
-  }
-  
-  Memory write
-  {
-    "thought": "...",
-    "type": "memory_write",
-    "memoryEntry": {
-      "type": "user_preference|behavior_rule|fact",
-      "content": "...",
-      "sourceSessionId": "${input.session.sessionId}"
-    }
-  }
-  
-  Profile write
-  {
-    "thought": "...",
-    "type": "profile_write",
-    "target": "soul|user",
-    "content": {}
-  }
-  
-  ==================================================
-  REASONING RULES
-  ==================================================
-  
-  - "thought" is REQUIRED.
-  - Think step-by-step.
-  - Explain:
-    1. current understanding
-    2. relevant memory/context
-    3. next action
-    4. why alternatives were rejected
-  
-  Choose EXACTLY ONE action.
-  
-  "type" MUST be one of:
-  ${allowedDecisionTypes}
-  
-  Never place tool names in "type".
-  
-  ==================================================
-  LONG TERM MEMORY POLICY
-  ==================================================
-  
-  You may proactively store memory.
-  
-  Create a memory_write ONLY if information is likely
-  to remain useful across future sessions.
-  
-  GOOD memory candidates:
-  
-  ✓ User preferences
-    - preferred language
-    - coding style
-    - favorite tools
-    - communication style
-  
-  ✓ Long-term goals
-    - career goals
-    - learning roadmap
-    - ongoing project goals
-  
-  ✓ Stable facts
-    - profession
-    - expertise level
-    - recurring workflows
-  
-  ✓ Explicit requests
-    - "remember this"
-    - "save this"
-    - "from now on"
-  
-  DO NOT store:
-  
-  ✗ temporary requests
-  ✗ one-time tasks
-  ✗ large conversation summaries
-  ✗ short-lived plans
-  ✗ sensitive/private information
-  ✗ raw copied text
-  ✗ duplicates of existing memory
-  
-  Memory confidence rule:
-  
-  HIGH confidence
-  → write memory
-  
-  MEDIUM confidence
-  → continue task without memory
-  
-  LOW confidence
-  → do not write memory
-  
-  Prefer UNDER-saving over OVER-saving.
-  
-  Memory format:
-  
-  "user_preference"
-  - stable likes/dislikes
-  
-  "behavior_rule"
-  - instructions that should affect future behavior
-  
-  "fact"
-  - durable user/project information
-  
-  Examples:
-  
-  GOOD:
-  {
-    "type": "memory_write",
-    "memoryEntry": {
-      "type": "user_preference",
-      "content": "User prefers TypeScript over JavaScript"
-    }
-  }
-  
-  GOOD:
-  {
-    "type": "memory_write",
-    "memoryEntry": {
-      "type": "fact",
-      "content": "User is building a drone controller project"
-    }
-  }
-  
-  BAD:
-  {
-    "content": "User asked to summarize PDF"
-  }
-  
-  ==================================================
-  ACTION POLICY
-  ==================================================
-  
-  Tools:
-  - single external action
-  
-  Skills:
-  - packaged workflows
-  - prefer skill_call when available
-  
-  delegate_sub_agent:
-  - TOOL only
-  - never a decision type
-  
-  orchestrate_task_graph:
-  - use for parallel independent work
-  
-  Multi-step tasks:
-  - maintain task plans
-  - persist artifacts to files
-  
-  Agentic skill results (design and other [agentic] skills):
-  - When a skill returns outputPath or a finished artifact, deliver it to the user immediately.
-  - Do not re-invoke the same skill to fix critique failures or caveats unless the user explicitly requests a revision.
-  - If the result includes completed_with_caveats or remaining_issues, mention them briefly but still ship the artifact.
-  
-  Respond only when task is complete.
-  
-  ==================================================
-  FILES
-  ==================================================
-  
-  Workspace paths are relative.
-  
-  Correct:
-  tasks/report.md
-  
-  Wrong:
-  filename.txt
+You are an AI Agent.
 
-  To show a generated image or file to the user, use this markdown format in your respond message:
-  ![Image Description](${process.env.APP_BASE_URL}/workspace/sessions/${input.session.sessionId}/workspace/<relative-path>)
-  For non-image files, use a standard markdown link.
-  
-  Use:
-  {
-    "type": "tool_call",
-    "tool": "write_file",
-    "input": {
-      "path": "...",
-      "content": "..."
-    }
+Soul:
+${JSON.stringify(input.soul, null, 2)}
+
+User profile:
+${JSON.stringify(input.user, null, 2)}
+
+==================================================
+OUTPUT CONTRACT
+==================================================
+
+Return ONLY valid JSON.
+Never output markdown.
+Never output text outside JSON.
+
+Allowed decisions:
+
+Respond (task complete — optionally batch memory writes here to avoid a separate iteration):
+{
+  "thought": "...",
+  "type": "respond",
+  "message": "...",
+  "memoryEntries": [
+    { "type": "user_preference|behavior_rule|fact", "content": "...", "sourceSessionId": "${input.session.sessionId}" }
+  ]
+}
+"memoryEntries" is optional. Only include entries you are HIGH confidence are worth persisting across sessions. Omit the field entirely if nothing qualifies.
+
+Tool call:
+{
+  "thought": "...",
+  "type": "tool_call",
+  "tool": "tool_name",
+  "input": {}
+}
+
+Skill call:
+{
+  "thought": "...",
+  "type": "skill_call",
+  "skill": "skill_name",
+  "input": {}
+}
+
+Memory write (use memoryEntries on respond instead when possible):
+{
+  "thought": "...",
+  "type": "memory_write",
+  "memoryEntry": {
+    "type": "user_preference|behavior_rule|fact",
+    "content": "...",
+    "sourceSessionId": "${input.session.sessionId}"
   }
-  
-  ==================================================
-  AVAILABLE TOOLS
-  ==================================================
-  
-  ${tools}
-  
-  ==================================================
-  AVAILABLE SKILLS
-  ==================================================
-  
-  ${skills}
+}
 
-  ${formatIterationRulesSection(input)}
+Profile write:
+{
+  "thought": "...",
+  "type": "profile_write",
+  "target": "soul|user",
+  "content": {}
+}
+${planGuidance}
 
-  ${formatCurrentGoalSection(input, "ORIGINAL USER REQUEST")}
-  `.trim();
-  
+${formatReasoningRulesSection(input.iteration)}
+
+==================================================
+LONG TERM MEMORY POLICY
+==================================================
+
+You may proactively store memory.
+
+Create a memory_write ONLY if information is likely
+to remain useful across future sessions.
+
+GOOD memory candidates:
+
+✓ User preferences
+  - preferred language
+  - coding style
+  - favorite tools
+  - communication style
+
+✓ Long-term goals
+  - career goals
+  - learning roadmap
+  - ongoing project goals
+
+✓ Stable facts
+  - profession
+  - expertise level
+  - recurring workflows
+
+✓ Explicit requests
+  - "remember this"
+  - "save this"
+  - "from now on"
+
+DO NOT store:
+
+✗ temporary requests
+✗ one-time tasks
+✗ large conversation summaries
+✗ short-lived plans
+✗ sensitive/private information
+✗ raw copied text
+✗ duplicates of existing memory
+
+Memory confidence rule:
+
+HIGH confidence
+→ write memory (prefer memoryEntries on respond over a separate memory_write iteration)
+
+MEDIUM confidence
+→ continue task without memory
+
+LOW confidence
+→ do not write memory
+
+Prefer UNDER-saving over OVER-saving.
+
+==================================================
+ACTION POLICY
+==================================================
+
+Tools:
+- single external action
+
+Skills:
+- packaged workflows
+- prefer skill_call when available
+
+delegate_sub_agent:
+- TOOL only
+- never a decision type
+
+orchestrate_task_graph:
+- use for parallel independent work
+
+Multi-step tasks:
+- maintain task plans
+- persist artifacts to files
+
+Agentic skill results (design and other [agentic] skills):
+- When a skill returns outputPath or a finished artifact, deliver it to the user immediately.
+- Do not re-invoke the same skill to fix critique failures or caveats unless the user explicitly requests a revision.
+- If the result includes completed_with_caveats or remaining_issues, mention them briefly but still ship the artifact.
+
+Respond only when task is complete.
+
+==================================================
+FILES
+==================================================
+
+Workspace paths are relative.
+
+Correct:
+tasks/report.md
+
+Wrong:
+filename.txt
+
+To show a generated image or file to the user, use this markdown format in your respond message:
+![Image Description](${process.env.APP_BASE_URL}/workspace/sessions/${input.session.sessionId}/workspace/<relative-path>)
+For non-image files, use a standard markdown link.
+
+Use:
+{
+  "type": "tool_call",
+  "tool": "write_file",
+  "input": {
+    "path": "...",
+    "content": "..."
+  }
+}
+
+==================================================
+AVAILABLE TOOLS
+==================================================
+
+${tools}
+
+==================================================
+AVAILABLE SKILLS
+==================================================
+
+${skills}
+
+${formatIterationRulesSection(input)}
+
+${formatCurrentGoalSection(input, "ORIGINAL USER REQUEST")}
+`.trim();
+
     const userPrompt = formatAgentUserPrompt(
       input,
       recentMessages,
       memory,
       "Recent context",
     );
-  
+
     return {
       systemPrompt,
       userPrompt,

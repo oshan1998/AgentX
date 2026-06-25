@@ -77,6 +77,8 @@ interface IterationResult {
   finalReply?: string;
   /** Observation to feed into the next iteration. */
   observation?: string;
+  /** Plan emitted at iteration 1; carried forward to keep the agent on track. */
+  plan?: string[];
 }
 
 // ─── Class ───────────────────────────────────────────────────────────────────
@@ -85,17 +87,18 @@ export class AgentLoop {
   private readonly promptBuilder = new PromptBuilder();
   private readonly executor: Executor;
   private readonly maxIterations: number;
+  private readonly executionPolicy: ExecutionPolicy;
   /** runId → controller for cooperative cancel (explicit stop or layered with caller signal). */
   private readonly activeRunControllers = new Map<string, AbortController>();
 
   constructor(private readonly deps: AgentLoopDependencies) {
-    const policy = deps.executionPolicy ?? PRIMARY_AGENT_EXECUTION_POLICY;
+    this.executionPolicy = deps.executionPolicy ?? PRIMARY_AGENT_EXECUTION_POLICY;
     this.executor = new Executor(
       deps.memoryManager,
       deps.profileManager,
       deps.toolRegistry,
       deps.skillRegistry,
-      policy,
+      this.executionPolicy,
       deps.skillDelegateRunner,
     );
     this.maxIterations = deps.maxIterations ?? 50;
@@ -167,6 +170,7 @@ export class AgentLoop {
       };
 
       let lastObservation: string | undefined;
+      let activePlan: string[] | undefined;
 
       for (let i = 0; i < iterCap; i++) {
         const iteration = i + 1;
@@ -180,7 +184,7 @@ export class AgentLoop {
           const result = await this.runIteration(
             sessionId,
             userInput,
-            { iteration, iterCap, isSubAgent, lastObservation, options },
+            { iteration, iterCap, isSubAgent, lastObservation, activePlan, options },
             traceCtx,
             invocation,
           );
@@ -191,6 +195,7 @@ export class AgentLoop {
           }
 
           lastObservation = result.observation;
+          if (result.plan?.length) activePlan = result.plan;
         } catch (error) {
           if (error instanceof EarlyExit) {
             tracer?.runDone(error.outcome);
@@ -231,6 +236,7 @@ export class AgentLoop {
       iterCap: number;
       isSubAgent: boolean;
       lastObservation: string | undefined;
+      activePlan: string[] | undefined;
       options?: AgentRunHandleOptions;
     },
     traceCtx: ExecutorTraceContext | undefined,
@@ -262,10 +268,11 @@ export class AgentLoop {
     traceCtx?.tracer.thought(ctx.iteration, AgentTracePhase.END, decision.thought ?? "");
 
     if (decision.type === DecisionType.Respond) {
-      return this.handleRespond(sessionId, decision.message ?? "");
+      return this.handleRespond(sessionId, decision);
     }
 
-    return this.handleToolOrSkill(sessionId, decision, traceCtx, invocation);
+    const result = await this.handleToolOrSkill(sessionId, decision, traceCtx, invocation);
+    return { ...result, plan: decision.plan };
   }
 
   private async buildPrompt(
@@ -276,6 +283,7 @@ export class AgentLoop {
       iterCap: number;
       isSubAgent: boolean;
       lastObservation: string | undefined;
+      activePlan: string[] | undefined;
       options?: AgentRunHandleOptions;
     },
   ) {
@@ -298,6 +306,7 @@ export class AgentLoop {
       toolRegistry: this.deps.toolRegistry,
       skillRegistry: this.deps.skillRegistry,
       lastObservation: ctx.lastObservation,
+      activePlan: ctx.activePlan,
       iteration: ctx.iteration,
       maxIterations: ctx.iterCap,
       isBootstrapComplete,
@@ -306,7 +315,15 @@ export class AgentLoop {
     });
   }
 
-  private async handleRespond(sessionId: string, finalMessage: string): Promise<IterationResult> {
+  private async handleRespond(sessionId: string, decision: AgentDecision): Promise<IterationResult> {
+    const finalMessage = decision.message ?? "";
+
+    if (decision.memoryEntries?.length && this.executionPolicy.allowDecisionMemoryWrite) {
+      await Promise.all(
+        decision.memoryEntries.map((entry) => this.deps.memoryManager.addLongTermMemory(entry)),
+      );
+    }
+
     logger.info(`Agent responded for session ${sessionId}`, { message: finalMessage });
     await this.deps.memoryManager.appendSessionMessage(
       sessionId,

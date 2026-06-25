@@ -18,12 +18,16 @@ export enum ProfileTarget {
 
 export interface AgentDecision {
   thought: string;
+  /** Numbered step list emitted at iteration 1; carried forward to keep agent on track. */
+  plan?: string[];
   type: DecisionType;
   message?: string;
   tool?: string;
   skill?: string;
   input?: Record<string, unknown>;
   memoryEntry?: Omit<LongTermMemoryEntry, "id" | "createdAt">;
+  /** Batch memory writes alongside a respond decision — avoids a separate iteration. */
+  memoryEntries?: Omit<LongTermMemoryEntry, "id" | "createdAt">[];
   target?: ProfileTarget;
   content?: Record<string, unknown>;
 }
