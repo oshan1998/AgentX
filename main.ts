@@ -10,6 +10,7 @@ import { resolveCapabilityRetrievalMethod } from "./core/agent/capability-retrie
 import { ListCapabilitiesTool } from "./runtime/tools/list-capabilities.js";
 import { GetCapabilitySchemaTool } from "./runtime/tools/get-capability-schema.js";
 import { createLlmAdapter } from "./llm-adapters/factory.js";
+import { resolveVertexRagLocation } from "./llm-adapters/vertex-config.js";
 import { MemoryManager } from "./managers/memory-manager.js";
 import { ProfileManager } from "./managers/profile-manager.js";
 import { SecretsManager } from "./managers/secrets-manager.js";
@@ -108,9 +109,11 @@ async function main() {
 
   if (capabilityRetrievalMethod === "vertex_rag" && projectId) {
     logger.info("Initializing VertexRagManager...");
+    const ragLocation = resolveVertexRagLocation();
+    logger.info(`Vertex RAG location: ${ragLocation}`);
     vertexRagManager = new VertexRagManager({
       projectId,
-      location: process.env.GOOGLE_CLOUD_LOCATION,
+      location: ragLocation,
       storagePath: path.join(memoryPath, "vertex-rag-state.json"),
     });
     await vertexRagManager.init();
