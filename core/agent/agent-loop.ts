@@ -255,7 +255,7 @@ export class AgentLoop {
     logger.info(`Agent thought: ${decision.thought}`);
     logger.debug("Received decision from LLM", {
       type: decision.type,
-      tool: decision.tool,
+      tools: decision.tools?.map((t) => t.tool),
       skill: decision.skill,
     });
 
@@ -324,7 +324,7 @@ export class AgentLoop {
     const result = await this.executor.executeDecision(sessionId, decision, traceCtx, invocation);
     logger.info("Executed decision", {
       type: decision.type,
-      tool: decision.tool,
+      tools: decision.tools?.map((t) => t.tool),
       skill: decision.skill,
     });
 
@@ -405,15 +405,20 @@ export class AgentLoop {
   }
 
   private static formatFeedback(decision: AgentDecision, result: unknown): string {
-    const label: Record<DecisionType, string> = {
-      [DecisionType.ToolCall]: `Tool ${decision.tool} result`,
+    if (decision.type === DecisionType.ToolCall) {
+      return (result as { tool: string; result: unknown }[])
+        .map((r) => `Tool ${r.tool} result: ${AgentLoop.stringify(r.result)}`)
+        .join("\n\n");
+    }
+
+    const label: Record<Exclude<DecisionType, DecisionType.ToolCall>, string> = {
       [DecisionType.SkillCall]: `Skill ${decision.skill} result`,
       [DecisionType.MemoryWrite]: "Memory write result",
       [DecisionType.ProfileWrite]: "Profile write result",
       [DecisionType.Respond]: "Response",
     };
 
-    const prefix = label[decision.type] ?? "Result";
+    const prefix = label[decision.type as Exclude<DecisionType, DecisionType.ToolCall>] ?? "Result";
     return `${prefix}: ${AgentLoop.stringify(result)}`;
   }
 

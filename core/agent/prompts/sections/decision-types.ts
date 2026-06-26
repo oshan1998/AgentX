@@ -8,12 +8,22 @@ export function decisionTypes(scope: DecisionScope, sessionId?: string): string 
   "message": "..."
 }`;
 
-  const toolCall = `Tool call:
+  const toolCall = `Tool call (single or parallel — list all independent tools together):
 {
   "thought": "...",
   "type": "tool_call",
-  "tool": "tool_name",
-  "input": {}
+  "tools": [
+    { "tool": "tool_name", "input": {} }
+  ]
+}
+Parallel example (independent tools only):
+{
+  "thought": "...",
+  "type": "tool_call",
+  "tools": [
+    { "tool": "tool_a", "input": {} },
+    { "tool": "tool_b", "input": {} }
+  ]
 }`;
 
   const skillCall = `Skill call:

@@ -6,8 +6,7 @@ export class MockLlmAdapter implements LlmAdapter {
     if (lower.includes("list files") || lower.includes("list directory")) {
       return {
         type: DecisionType.ToolCall,
-        tool: "list_directory",
-        input: { path: "." },
+        tools: [{ tool: "list_directory", input: { path: "." } }],
         thought: "I need to list the files in the directory."
       };
     }

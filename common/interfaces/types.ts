@@ -16,11 +16,22 @@ export enum ProfileTarget {
   User = "user",
 }
 
+export interface ToolCallItem {
+  tool: string;
+  input?: Record<string, unknown>;
+}
+
+export interface ToolCallResult {
+  tool: string;
+  result: unknown;
+}
+
 export interface AgentDecision {
   thought: string;
   type: DecisionType;
   message?: string;
-  tool?: string;
+  /** One or more tool calls; run concurrently when multiple entries are provided. */
+  tools?: ToolCallItem[];
   skill?: string;
   input?: Record<string, unknown>;
   memoryEntry?: Omit<LongTermMemoryEntry, "id" | "createdAt">;

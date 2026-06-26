@@ -4,6 +4,8 @@ import {
   type AgentDecision,
   type LongTermMemoryEntry,
   type SkillDelegateRunner,
+  type ToolCallResult,
+  type ToolCallItem,
   type ToolContext,
 } from "../../common/interfaces/types.js";
 import { AgentTracePhase, type RunTracer } from "../../common/realtime/agent-trace-types.js";
@@ -71,33 +73,43 @@ export class Executor {
     decision: AgentDecision,
     trace?: ExecutorTraceContext,
     invocation?: ExecutorInvocationContext,
-  ): Promise<unknown> {
-    if (!decision.tool) {
-      logger.error(`Missing tool name in ${DecisionType.ToolCall} decision.`);
-      throw new Error(`Missing tool name in ${DecisionType.ToolCall} decision.`);
+  ): Promise<ToolCallResult[]> {
+    if (!decision.tools || decision.tools.length === 0) {
+      logger.error(`Missing tools in ${DecisionType.ToolCall} decision.`);
+      throw new Error(`Missing tools in ${DecisionType.ToolCall} decision.`);
     }
-    const tool = this.toolRegistry.get(decision.tool);
-    if (!tool) {
-      logger.error(`Tool not found: ${decision.tool}`);
-      throw new Error(`Tool not found: ${decision.tool}`);
-    }
-    logger.info(`Executing tool: ${decision.tool}`);
     const iter = trace?.iteration ?? 0;
-    trace?.tracer.tool(iter, decision.tool, AgentTracePhase.START);
+    const tcx = this.toolContext(sessionId, invocation);
+    return Promise.all(
+      decision.tools.map((item) => this.executeSingleTool(item, iter, tcx, trace)),
+    );
+  }
+
+  private async executeSingleTool(
+    item: ToolCallItem,
+    iter: number,
+    tcx: ToolContext,
+    trace?: ExecutorTraceContext,
+  ): Promise<ToolCallResult> {
+    const { tool: name, input = {} } = item;
+    const tool = this.toolRegistry.get(name);
+    if (!tool) {
+      logger.error(`Tool not found: ${name}`);
+      return { tool: name, result: `Error: Tool not found: ${name}` };
+    }
+    logger.info(`Executing tool: ${name}`);
+    trace?.tracer.tool(iter, name, AgentTracePhase.START);
     try {
-      const result = await tool.run(
-        decision.input ?? {},
-        this.toolContext(sessionId, invocation),
-      );
-      logger.debug(`Tool execution completed: ${decision.tool}`);
-      trace?.tracer.tool(iter, decision.tool, AgentTracePhase.END);
-      return result;
+      const result = await tool.run(input, tcx);
+      logger.debug(`Tool execution completed: ${name}`);
+      trace?.tracer.tool(iter, name, AgentTracePhase.END);
+      return { tool: name, result };
     } catch (e) {
-      logger.error(`Tool execution failed: ${decision.tool}`, {
+      logger.error(`Tool execution failed: ${name}`, {
         error: e instanceof Error ? e.message : String(e),
       });
-      trace?.tracer.tool(iter, decision.tool, AgentTracePhase.END);
-      throw e;
+      trace?.tracer.tool(iter, name, AgentTracePhase.END);
+      return { tool: name, result: `Error: ${e instanceof Error ? e.message : String(e)}` };
     }
   }
 
