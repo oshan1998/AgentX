@@ -4,6 +4,9 @@ import { logger } from "../services/logger.js";
 import { AgentTracePhase } from "./agent-trace-types.js";
 const OPEN = WebSocket.OPEN;
 
+/** Recent trace payloads replayed to clients that subscribe after a run starts. */
+const TRACE_REPLAY_LIMIT = 250;
+
 /**
  * Tracks which sockets want trace events per session and broadcasts payloads.
  * Sequencing is per (sessionId, runId); all run steps use this hub so delegation can interleave coherently.
@@ -12,6 +15,7 @@ export class SessionTraceHub {
   private readonly sessionSockets = new Map<string, Set<WebSocket>>();
   private readonly socketSessions = new Map<WebSocket, Set<string>>();
   private readonly seqByRun = new Map<string, number>();
+  private readonly replayBySession = new Map<string, AgentTracePayload[]>();
 
   private seqKey(sessionId: string, runId: string): string {
     return `${sessionId}\u0000${runId}`;
@@ -33,6 +37,8 @@ export class SessionTraceHub {
       this.socketSessions.set(socket, subs);
     }
     subs.add(sessionId);
+
+    this.replayRecentTraces(socket, sessionId);
 
     logger.debug("WebSocket subscribe trace", { sessionId });
   }
@@ -64,13 +70,72 @@ export class SessionTraceHub {
     this.socketSessions.delete(socket);
   }
 
+  private parentSessionId(sessionId: string): string | undefined {
+    const subIdx = sessionId.indexOf("::sub_");
+    return subIdx > 0 ? sessionId.slice(0, subIdx) : undefined;
+  }
+
+  private traceMatchesSubscription(
+    payload: AgentTracePayload,
+    subscribedSessionId: string,
+  ): boolean {
+    if (payload.sessionId === subscribedSessionId) return true;
+    return payload.sessionId.startsWith(`${subscribedSessionId}::sub_`);
+  }
+
+  private rememberTrace(payload: AgentTracePayload): void {
+    const keys = new Set<string>([payload.sessionId]);
+    const parentId = this.parentSessionId(payload.sessionId);
+    if (parentId) keys.add(parentId);
+
+    for (const key of keys) {
+      let buffer = this.replayBySession.get(key);
+      if (!buffer) {
+        buffer = [];
+        this.replayBySession.set(key, buffer);
+      }
+      buffer.push(payload);
+      if (buffer.length > TRACE_REPLAY_LIMIT) {
+        buffer.splice(0, buffer.length - TRACE_REPLAY_LIMIT);
+      }
+    }
+  }
+
+  private sendTraceFrame(socket: WebSocket, payload: AgentTracePayload): void {
+    if (socket.readyState !== OPEN) return;
+    socket.send(JSON.stringify({ type: "agent_trace", payload }));
+  }
+
+  private replayRecentTraces(socket: WebSocket, subscribedSessionId: string): void {
+    const buffer = this.replayBySession.get(subscribedSessionId);
+    if (!buffer?.length) return;
+
+    for (const payload of buffer) {
+      if (!this.traceMatchesSubscription(payload, subscribedSessionId)) continue;
+      this.sendTraceFrame(socket, payload);
+    }
+  }
+
   broadcastTrace(payload: AgentTracePayload): void {
-    const set = this.sessionSockets.get(payload.sessionId);
-    if (!set?.size) return;
+    const recipients = new Set<WebSocket>();
+
+    const exact = this.sessionSockets.get(payload.sessionId);
+    if (exact) {
+      for (const ws of exact) recipients.add(ws);
+    }
+
+    const parentId = this.parentSessionId(payload.sessionId);
+    if (parentId) {
+      const parentSubs = this.sessionSockets.get(parentId);
+      if (parentSubs) {
+        for (const ws of parentSubs) recipients.add(ws);
+      }
+    }
+
+    if (recipients.size === 0) return;
 
     const frame = JSON.stringify({ type: "agent_trace", payload });
-
-    for (const ws of set) {
+    for (const ws of recipients) {
       if (ws.readyState === OPEN) {
         ws.send(frame);
       }
@@ -88,6 +153,7 @@ export class SessionTraceHub {
       ts: new Date().toISOString(),
       ...fragment,
     };
+    this.rememberTrace(payload);
     this.broadcastTrace(payload);
   }
 

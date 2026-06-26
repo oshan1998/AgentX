@@ -7,9 +7,50 @@ export const TRANSCRIPT_CHAR_BUDGET = 12_000;
 /** Max chars passed to long-term memory keyword search per iteration. */
 export const MEMORY_QUERY_MAX_CHARS = 2_000;
 
+/** Tool/error observations from PAST runs are collapsed to this many chars. */
+export const PAST_OBSERVATION_MAX_CHARS = 400;
+
 export interface MessageLike {
   role: string;
   content: string;
+  meta?: {
+    runId?: string;
+    iteration?: number;
+    kind?: string;
+    toolName?: string;
+    skillName?: string;
+  };
+}
+
+/**
+ * Renders one transcript line. When step metadata is present the line is
+ * prefixed with its iteration + kind so the LLM reads the history as a
+ * structured timeline. Observations from runs other than the current one are
+ * collapsed hard — their full output is rarely needed once the run is over.
+ */
+function renderMessageLine(
+  m: MessageLike,
+  currentRunId: string | undefined,
+): string {
+  const meta = m.meta;
+  let content = m.content;
+
+  const isPastRun =
+    !!meta?.runId && !!currentRunId && meta.runId !== currentRunId;
+  if (isPastRun && (meta?.kind === "observation" || meta?.kind === "error")) {
+    content = truncateForPrompt(content, PAST_OBSERVATION_MAX_CHARS);
+  }
+
+  if (meta?.iteration == null && !meta?.kind) {
+    return `${m.role}: ${content}`;
+  }
+
+  const parts = [m.role];
+  if (meta?.iteration != null) parts.unshift(`iter ${meta.iteration}`);
+  if (meta?.kind) parts.push(meta.kind);
+  const tail = meta?.toolName ?? meta?.skillName;
+  const label = `[${parts.join(" · ")}${tail ? ` ${tail}` : ""}]`;
+  return `${label} ${content}`;
 }
 
 export function truncateForPrompt(text: string, maxChars: number): string {
@@ -39,6 +80,8 @@ export function selectMessagesForPrompt(
   options: {
     charBudget?: number;
     lastObservation?: string;
+    /** Run whose steps stay full-fidelity; defaults to the newest run in the pool. */
+    currentRunId?: string;
   } = {},
 ): string {
   const charBudget = options.charBudget ?? TRANSCRIPT_CHAR_BUDGET;
@@ -56,13 +99,16 @@ export function selectMessagesForPrompt(
     return "none";
   }
 
-  const selected: MessageLike[] = [];
+  const currentRunId =
+    options.currentRunId ??
+    findLast(pool, (m) => !!m.meta?.runId)?.meta?.runId;
+
+  const selected: string[] = [];
   let used = 0;
   let omitted = 0;
 
   for (let i = pool.length - 1; i >= 0; i--) {
-    const m = pool[i];
-    const line = `${m.role}: ${m.content}`;
+    const line = renderMessageLine(pool[i], currentRunId);
     const lineLen = line.length + (selected.length > 0 ? 1 : 0);
 
     if (used + lineLen > charBudget && selected.length > 0) {
@@ -70,27 +116,27 @@ export function selectMessagesForPrompt(
       break;
     }
 
-    selected.unshift(m);
+    selected.unshift(line);
     used += lineLen;
-
-    if (i > 0 && used >= charBudget) {
-      omitted = i;
-      break;
-    }
   }
 
   if (selected.length === 0) {
-    const latest = pool[pool.length - 1];
-    const prefix = `${latest.role}: `;
-    const content = truncateForPrompt(latest.content, Math.max(1, charBudget - prefix.length));
+    const latest = renderMessageLine(pool[pool.length - 1], currentRunId);
+    const content = truncateForPrompt(latest, Math.max(1, charBudget));
     omitted = pool.length - 1;
-    const line = `${prefix}${content}`;
     return omitted > 0
-      ? `[${omitted} older message(s) omitted]\n${line}`
-      : line;
+      ? `[${omitted} older message(s) omitted]\n${content}`
+      : content;
   }
 
-  const lines = selected.map((m) => `${m.role}: ${m.content}`);
   const header = omitted > 0 ? `[${omitted} older message(s) omitted]\n` : "";
-  return header + lines.join("\n");
+  return header + selected.join("\n");
+}
+
+/** Array.prototype.findLast shim — reverse linear scan returning the match. */
+function findLast<T>(arr: T[], pred: (v: T) => boolean): T | undefined {
+  for (let i = arr.length - 1; i >= 0; i--) {
+    if (pred(arr[i])) return arr[i];
+  }
+  return undefined;
 }

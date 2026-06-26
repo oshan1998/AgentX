@@ -5,6 +5,7 @@ import type {
 import {
   DecisionType,
   type AgentDecision,
+  type AgentStepMeta,
   type LlmAdapter,
   type Message,
   type SessionMemory,
@@ -78,6 +79,8 @@ interface AgentLoopDependencies {
 /** Run-scoped prompt state: static system prompt and in-memory session mirror. */
 interface RunPromptContext {
   sessionId: string;
+  /** Run (single user turn) id used to tag persisted step metadata. */
+  runId?: string;
   session: SessionMemory;
   userInput: string;
   isSubAgent: boolean;
@@ -174,7 +177,11 @@ export class AgentLoop {
 
     await this.deps.memoryManager.appendSessionMessage(
       sessionId,
-      AgentLoop.message("user", userInput),
+      AgentLoop.message(
+        "user",
+        userInput,
+        options?.runId ? { runId: options.runId } : undefined,
+      ),
     );
 
     const tracer =
@@ -254,7 +261,11 @@ export class AgentLoop {
             tracer?.runDone(error.outcome);
             await this.appendRunMessage(
               runContext,
-              AgentLoop.message("assistant", error.message),
+              AgentLoop.message("assistant", error.message, {
+                runId: runContext.runId,
+                iteration,
+                kind: "final",
+              }),
             );
             return { reply: error.message, outcome: error.outcome };
           }
@@ -266,7 +277,12 @@ export class AgentLoop {
           );
           await this.appendRunMessage(
             runContext,
-            AgentLoop.message("tool", lastObservation),
+            AgentLoop.message("tool", lastObservation, {
+              runId: runContext.runId,
+              iteration,
+              kind: "error",
+              status: "error",
+            }),
             { truncateObservation: true },
           );
         }
@@ -325,6 +341,7 @@ export class AgentLoop {
 
     return {
       sessionId,
+      runId: options?.runId,
       session,
       userInput,
       isSubAgent,
@@ -410,16 +427,58 @@ export class AgentLoop {
     );
 
     if (decision.type === DecisionType.Respond) {
-      return this.handleRespond(runContext, decision);
+      return this.handleRespond(runContext, decision, ctx.iteration);
     }
+
+    await this.persistDecisionTrail(runContext, decision, ctx.iteration);
 
     const result = await this.handleToolOrSkill(
       runContext,
       decision,
+      ctx.iteration,
       traceCtx,
       invocation,
     );
     return { ...result, plan: decision.plan };
+  }
+
+  /**
+   * Records the agent's own reasoning + chosen action for this iteration so the
+   * transcript fed back to the LLM contains its decision trail — not just tool
+   * outputs. Without this, intermediate intent is lost and every iteration must
+   * re-derive "what was I doing" from raw observations.
+   */
+  private async persistDecisionTrail(
+    runContext: RunPromptContext,
+    decision: AgentDecision,
+    iteration: number,
+  ): Promise<void> {
+    const actionLabel =
+      decision.type === DecisionType.ToolCall
+        ? `tool_call → ${decision.tool ?? "?"}`
+        : decision.type === DecisionType.SkillCall
+          ? `skill_call → ${decision.skill ?? "?"}`
+          : String(decision.type);
+
+    const MAX_THOUGHT_CHARS = 600; // ~100 words safety cap
+    const rawThought = decision.thought?.trim() ?? "";
+    const thought = rawThought.length > MAX_THOUGHT_CHARS
+      ? `${rawThought.slice(0, MAX_THOUGHT_CHARS)}…`
+      : rawThought;
+    const content = thought
+      ? `${thought}\n[action] ${actionLabel}`
+      : `[action] ${actionLabel}`;
+
+    await this.appendRunMessage(
+      runContext,
+      AgentLoop.message("assistant", content, {
+        runId: runContext.runId,
+        iteration,
+        kind: "decision",
+        ...(decision.tool ? { toolName: decision.tool } : {}),
+        ...(decision.skill ? { skillName: decision.skill } : {}),
+      }),
+    );
   }
 
   private async buildPrompt(
@@ -461,6 +520,7 @@ export class AgentLoop {
   private async handleRespond(
     runContext: RunPromptContext,
     decision: AgentDecision,
+    iteration: number,
   ): Promise<IterationResult> {
     const finalMessage = decision.message ?? "";
 
@@ -480,7 +540,11 @@ export class AgentLoop {
     });
     await this.appendRunMessage(
       runContext,
-      AgentLoop.message("assistant", finalMessage),
+      AgentLoop.message("assistant", finalMessage, {
+        runId: runContext.runId,
+        iteration,
+        kind: "final",
+      }),
     );
     return { finalReply: finalMessage };
   }
@@ -488,6 +552,7 @@ export class AgentLoop {
   private async handleToolOrSkill(
     runContext: RunPromptContext,
     decision: AgentDecision,
+    iteration: number,
     traceCtx: ExecutorTraceContext | undefined,
     invocation: ExecutorInvocationContext,
   ): Promise<IterationResult> {
@@ -509,7 +574,14 @@ export class AgentLoop {
     );
     await this.appendRunMessage(
       runContext,
-      AgentLoop.message("tool", observation),
+      AgentLoop.message("tool", observation, {
+        runId: runContext.runId,
+        iteration,
+        kind: "observation",
+        status: "ok",
+        ...(decision.tool ? { toolName: decision.tool } : {}),
+        ...(decision.skill ? { skillName: decision.skill } : {}),
+      }),
     );
     return { observation };
   }
@@ -578,7 +650,10 @@ export class AgentLoop {
     tracer?.runDone(AgentRunOutcome.MAX_ITERATIONS);
     await this.appendRunMessage(
       runContext,
-      AgentLoop.message("assistant", reply),
+      AgentLoop.message("assistant", reply, {
+        runId: runContext.runId,
+        kind: "final",
+      }),
     );
 
     return { reply, outcome: AgentRunOutcome.MAX_ITERATIONS };
@@ -611,7 +686,16 @@ export class AgentLoop {
     return typeof value === "string" ? value : JSON.stringify(value, null, 2);
   }
 
-  private static message(role: Message["role"], content: string): Message {
-    return { role, content, createdAt: new Date().toISOString() };
+  private static message(
+    role: Message["role"],
+    content: string,
+    meta?: AgentStepMeta,
+  ): Message {
+    return {
+      role,
+      content,
+      createdAt: new Date().toISOString(),
+      ...(meta ? { meta } : {}),
+    };
   }
 }

@@ -32,10 +32,34 @@ export interface AgentDecision {
   content?: Record<string, unknown>;
 }
 
+/** What an agent step represents within an iteration, for structured replay. */
+export type AgentStepKind = "decision" | "observation" | "final" | "error";
+
+/**
+ * Structured per-step metadata attached to session messages so the transcript
+ * can be replayed back to the LLM as an iteration-aware timeline rather than a
+ * flat role/content dump. All fields optional for backward compatibility with
+ * messages persisted before this shape existed.
+ */
+export interface AgentStepMeta {
+  /** The run (single user turn) this step belongs to. */
+  runId?: string;
+  /** 1-based iteration index within the run. */
+  iteration?: number;
+  /** Kind of step this message captures. */
+  kind?: AgentStepKind;
+  /** Tool invoked when kind === "decision"/"observation" for a tool_call. */
+  toolName?: string;
+  /** Skill invoked when kind === "decision"/"observation" for a skill_call. */
+  skillName?: string;
+  /** Outcome of an observation/error step. */
+  status?: "ok" | "error";
+}
+
 export interface Message {
   role: "system" | "user" | "assistant" | "tool";
   content: string;
-  meta?: Record<string, unknown>;
+  meta?: AgentStepMeta;
   createdAt: string;
 }
 

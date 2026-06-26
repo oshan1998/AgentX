@@ -27,6 +27,14 @@ IF iteration >= ${input.maxIterations} - 1:
   → STOP exploring. Finalize immediately with best available result.
   → If task is incomplete, respond with partial result and explain what remains.
 
+Reading the transcript:
+- Lines are tagged [iter N · role · kind] — your own prior steps.
+  · kind=decision → your earlier reasoning + the action you chose that iteration.
+  · kind=observation → the tool/skill result for that action (authoritative).
+  · kind=final → a completed reply.
+- Use kind=decision lines to recall WHY you did something and avoid repeating work.
+- Observations are ground truth; trust them over any earlier decision text if they conflict.
+
 General rules:
 - Advance ONE step per iteration.
 - Never re-run the same tool/skill for the same deliverable unless the previous attempt failed.

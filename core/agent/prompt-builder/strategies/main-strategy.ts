@@ -104,15 +104,15 @@ export class MainStrategy implements PromptStrategy {
   ==================================================
   REASONING RULES
   ==================================================
-  
+
   - "thought" is REQUIRED.
-  - Think step-by-step.
-  - Explain:
-    1. current understanding
-    2. relevant memory/context
-    3. next action
-    4. why alternatives were rejected
-  
+  - Keep "thought" to ~100 words. It is stored as your step summary in session history and fed back to you in future iterations — be concise and information-dense.
+  - Cover in "thought":
+    1. what you understand so far
+    2. what the last observation tells you (if any)
+    3. the next action and why
+  - Do NOT pad or repeat the user request verbatim.
+
   Choose EXACTLY ONE action.
   
   "type" MUST be one of:
