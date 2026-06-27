@@ -6,6 +6,19 @@
       "headers": {
         "Authorization": "Bearer ${GITHUB_TOKEN}"
       }
+    },
+    "playwright": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["@playwright/mcp@latest", "--output-dir", "workspace/playwright-output"],
+      "env": {
+        "NODE_OPTIONS": "--experimental-vm-modules"
+      }
+    },
+    "filesystem": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["dist/mcp-servers/filesystem/index.js"]
     }
   }
 }

@@ -151,8 +151,8 @@ export async function downloadFromUrl(
   } catch {
     throw new Error(`Invalid ${resourceLabel} URL: ${url}`);
   }
-  if (parsed.protocol !== "https:") {
-    throw new Error(`Only HTTPS ${resourceLabel} URLs are supported.`);
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    throw new Error(`Only HTTP/HTTPS ${resourceLabel} URLs are supported.`);
   }
 
   const controller = new AbortController();

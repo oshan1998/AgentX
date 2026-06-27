@@ -104,7 +104,7 @@ export class AgentLoop {
       policy,
       deps.skillDelegateRunner,
     );
-    this.maxIterations = deps.maxIterations ?? 10;
+    this.maxIterations = deps.maxIterations ?? 20;
   }
 
   /**
@@ -378,7 +378,9 @@ export class AgentLoop {
     if (decision.carryover?.trim()) {
       await this.deps.memoryManager.appendSessionMessage(
         sessionId,
-        AgentLoop.message("assistant", decision.carryover.trim(), { carryover: true }),
+        AgentLoop.message("assistant", decision.carryover.trim(), {
+          carryover: true,
+        }),
       );
     }
 
@@ -492,7 +494,11 @@ export class AgentLoop {
     return typeof value === "string" ? value : JSON.stringify(value, null, 2);
   }
 
-  private static message(role: Message["role"], content: string, meta?: Record<string, unknown>): Message {
+  private static message(
+    role: Message["role"],
+    content: string,
+    meta?: Record<string, unknown>,
+  ): Message {
     return { role, content, meta, createdAt: new Date().toISOString() };
   }
 }
