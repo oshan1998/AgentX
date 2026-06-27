@@ -8,6 +8,7 @@ import { iterationRules } from "./sections/iteration-rules.js";
 import { currentGoal } from "./sections/current-goal.js";
 import { memoryPolicy } from "./sections/memory-policy.js";
 import { actionPolicy } from "./sections/action-policy.js";
+import { parallelismPolicy } from "./sections/parallelism-policy.js";
 import { filesPolicy } from "./sections/files-policy.js";
 import { buildUserPrompt } from "./user-prompt.js";
 
@@ -22,6 +23,7 @@ export function buildMainPrompt(input: PromptBuilderInput, recentMessages: strin
     decisionTypes("full", input.session.sessionId),
     memoryPolicy(),
     actionPolicy(),
+    parallelismPolicy(),
     filesPolicy(input.session.sessionId),
     toolsCatalog(input.toolRegistry),
     skillsCatalog(input.skillRegistry),

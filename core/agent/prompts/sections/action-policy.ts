@@ -4,10 +4,10 @@ export function actionPolicy(): string {
 ACTION POLICY
 ==================================================
 
+Decision type selection:
 - Use tool_call for a single external action.
 - Use skill_call when a packaged skill fits — prefer skills over raw tools.
-- Use orchestrate_task_graph for parallel independent subtasks.
-- For multi-step tasks: maintain a task plan and persist artifacts to files.
+- For parallel or multi-step work, see PARALLELISM POLICY.
 
 Agentic skill results:
 - If the result includes outputPath or a finished artifact, deliver it to the user immediately.
