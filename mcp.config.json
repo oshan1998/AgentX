@@ -1,45 +1,11 @@
 {
-  "servers": [
-    {
-      "name": "filesystem",
-      "command": "npx",
-      "args": ["tsx", "mcp-servers/filesystem/index.ts"]
-    },
-    {
-      "name": "design",
-      "command": "npx",
-      "args": ["tsx", "mcp-servers/design/index.ts"]
-    },
-    {
-      "name": "pdf",
-      "command": "npx",
-      "args": ["tsx", "mcp-servers/pdf/index.ts"]
-    },
-    {
-      "name": "scheduler",
-      "command": "npx",
-      "args": ["tsx", "mcp-servers/scheduler/index.ts"]
-    },
-    {
-      "name": "web-search",
-      "command": "npx",
-      "args": ["tsx", "mcp-servers/web-search/index.ts"]
-    },
-    {
-      "name": "unsplash",
-      "command": "npx",
-      "args": ["tsx", "mcp-servers/unsplash/index.ts"]
-    },
-    {
-      "name": "gmail",
-      "command": "npx",
-      "args": ["tsx", "mcp-servers/gmail/index.ts"]
-    },
-    {
-      "github": {
-        "type": "http",
-        "url": "https://api.githubcopilot.com/mcp/"
+  "servers": {
+    "github": {
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "headers": {
+        "Authorization": "Bearer ${GITHUB_TOKEN}"
       }
     }
-  ]
+  }
 }

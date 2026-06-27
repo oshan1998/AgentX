@@ -1,15 +1,13 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { ToolRegistry } from "../common/interfaces/registry.js";
 import type { JsonInputSchema } from "../common/interfaces/types.js";
 import { logger } from "../common/services/logger.js";
 
-export interface McpServerConfig {
-  name: string;
-  command: string;
-  args?: string[];
-  env?: Record<string, string>;
-}
+export type McpServerConfig =
+  | { name: string; type?: "stdio"; command: string; args?: string[]; env?: Record<string, string> }
+  | { name: string; type: "http" | "sse"; url: string; headers?: Record<string, string> };
 
 export class McpClientManager {
   private readonly clients: Client[] = [];
@@ -18,12 +16,21 @@ export class McpClientManager {
     for (const config of configs) {
       try {
         const client = new Client({ name: "agentx", version: "1.0.0" }, { capabilities: {} });
-        const transport = new StdioClientTransport({
-          command: config.command,
-          args: config.args ?? [],
-          env: { ...(process.env as Record<string, string>), ...config.env },
-        });
-        await client.connect(transport);
+        let isInternal = false;
+
+        if ("command" in config) {
+          isInternal = true;
+          await client.connect(new StdioClientTransport({
+            command: config.command,
+            args: config.args ?? [],
+            env: { ...(process.env as Record<string, string>), ...config.env },
+          }));
+        } else {
+          await client.connect(new StreamableHTTPClientTransport(new URL(config.url), {
+            requestInit: config.headers ? { headers: config.headers } : undefined,
+          }));
+        }
+
         this.clients.push(client);
 
         const { tools } = await client.listTools();
@@ -33,14 +40,10 @@ export class McpClientManager {
             description: mcpTool.description ?? "",
             inputSchema: mcpTool.inputSchema as JsonInputSchema,
             run: async (input, context) => {
-              const result = await client.callTool({
-                name: mcpTool.name,
-                arguments: {
-                  ...input,
-                  _sessionId: context.sessionId,
-                  ...(context.runId ? { _runId: context.runId } : {}),
-                },
-              });
+              const args = isInternal
+                ? { ...input, _sessionId: context.sessionId, ...(context.runId ? { _runId: context.runId } : {}) }
+                : { ...input };
+              const result = await client.callTool({ name: mcpTool.name, arguments: args });
               const content = result.content as Array<{ type: string; text?: string }>;
               const textContent = content.find((c) => c.type === "text");
               if (!textContent) return null;

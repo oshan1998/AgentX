@@ -7,7 +7,7 @@ import { MemoryManager } from "./memory-manager.js";
 import { McpClientManager, type McpServerConfig } from "./mcp-client-manager.js";
 
 interface McpConfig {
-  servers: McpServerConfig[];
+  servers: McpServerConfig[] | Record<string, Omit<McpServerConfig, "name">>;
 }
 
 export class ToolManager {
@@ -76,6 +76,19 @@ export class ToolManager {
       return;
     }
 
-    await this.mcpClientManager.loadInto(this.toolRegistry, config.servers ?? []);
+    const interpolate = (s: string) => s.replace(/\$\{([^}]+)\}/g, (_, k) => process.env[k] ?? "");
+
+    const servers: McpServerConfig[] = (
+      Array.isArray(config.servers)
+        ? config.servers
+        : Object.entries(config.servers).map(([name, entry]) => ({ name, ...entry } as McpServerConfig))
+    ).map((s) => {
+      if ("headers" in s && s.headers) {
+        return { ...s, headers: Object.fromEntries(Object.entries(s.headers).map(([k, v]) => [k, interpolate(v)])) };
+      }
+      return s;
+    });
+
+    await this.mcpClientManager.loadInto(this.toolRegistry, servers);
   }
 }
