@@ -374,6 +374,14 @@ export class AgentLoop {
       sessionId,
       AgentLoop.message("tool", observation),
     );
+
+    if (decision.carryover?.trim()) {
+      await this.deps.memoryManager.appendSessionMessage(
+        sessionId,
+        AgentLoop.message("assistant", decision.carryover.trim(), { carryover: true }),
+      );
+    }
+
     return { observation };
   }
 
@@ -484,7 +492,7 @@ export class AgentLoop {
     return typeof value === "string" ? value : JSON.stringify(value, null, 2);
   }
 
-  private static message(role: Message["role"], content: string): Message {
-    return { role, content, createdAt: new Date().toISOString() };
+  private static message(role: Message["role"], content: string, meta?: Record<string, unknown>): Message {
+    return { role, content, meta, createdAt: new Date().toISOString() };
   }
 }

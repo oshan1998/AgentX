@@ -28,6 +28,8 @@ export interface ToolCallResult {
 
 export interface AgentDecision {
   thought: string;
+  /** Optional: non-obvious state to surface in the next iteration. Omit when tool results already make it obvious. */
+  carryover?: string;
   type: DecisionType;
   message?: string;
   /** One or more tool calls; run concurrently when multiple entries are provided. */

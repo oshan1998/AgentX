@@ -12,6 +12,7 @@ export class PromptBuilder {
     const recentMessages =
       input.session.messages
         .slice(-SESSION_MESSAGE_LIMIT)
+        .filter((m) => !m.meta?.carryover)
         .map((m) => `${m.role}: ${m.content}`)
         .join("\n") || "none";
 
