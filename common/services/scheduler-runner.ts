@@ -1,8 +1,10 @@
 import path from "node:path";
 import { logger } from "./logger.js";
 import { AgentLoop } from "../../core/agent/agent-loop.js";
-import { readCronJobs, writeCronJobs } from "../../capabilities/scheduler/scheduler-utils.js";
-
+import {
+  readCronJobs,
+  writeCronJobs,
+} from "../../mcp-servers/scheduler/scheduler-utils.js";
 
 function minuteKeyUtc(date: Date): string {
   const iso = date.toISOString();
@@ -68,8 +70,6 @@ function isCronDue(schedule: string, now: Date): boolean {
   );
 }
 
-
-
 export class SchedulerRunner {
   private timer: ReturnType<typeof setInterval> | undefined;
   private isTicking = false;
@@ -130,7 +130,10 @@ export class SchedulerRunner {
 
         const sessionId = `cron-${job.id}`;
         try {
-          logger.info(`Executing cron job: ${job.name}`, { id: job.id, task: job.task });
+          logger.info(`Executing cron job: ${job.name}`, {
+            id: job.id,
+            task: job.task,
+          });
           await this.agentLoop.handleUserInput(sessionId, job.task);
           job.lastStatus = "success";
           job.lastError = undefined;
@@ -139,7 +142,9 @@ export class SchedulerRunner {
           job.lastStatus = "error";
           job.lastError =
             error instanceof Error ? error.message : String(error);
-          logger.error(`Cron job failed: ${job.name}`, { error: job.lastError });
+          logger.error(`Cron job failed: ${job.name}`, {
+            error: job.lastError,
+          });
         }
         job.lastRunAt = new Date().toISOString();
         job.lastRunMinute = minuteKey;

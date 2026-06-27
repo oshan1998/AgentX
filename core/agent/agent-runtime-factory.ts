@@ -4,8 +4,8 @@ import type { LlmAdapter, SkillDelegateRunner, Tool, ToolContext } from "../../c
 import type { SessionTraceHub } from "../../common/realtime/session-trace-hub.js";
 import { MemoryManager } from "../../managers/memory-manager.js";
 import { ProfileManager } from "../../managers/profile-manager.js";
-import { DelegateSubAgentTool } from "../../capabilities/core/tools/delegate-sub-agent.js";
-import { OrchestrateTaskGraphTool } from "../../capabilities/core/tools/orchestrate-task-graph.js";
+import { DelegateSubAgentTool } from "../../core-tools/delegate-sub-agent.js";
+import { OrchestrateTaskGraphTool } from "../../core-tools/orchestrate-task-graph.js";
 import { createLlmAdapter } from "../../llm-adapters/factory.js";
 import { Orchestrator } from "../orchestrator/orchestrator.js";
 import { AgentLoop, AgentType } from "./agent-loop.js";

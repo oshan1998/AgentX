@@ -28,7 +28,7 @@ import { MemoryManager } from "../managers/memory-manager.js";
 import { ProfileManager } from "../managers/profile-manager.js";
 import { SkillManager } from "../managers/skill-manager.js";
 import { ToolManager } from "../managers/tool-manager.js";
-import { ListCapabilitiesTool } from "../capabilities/core/tools/list-capabilities.js";
+import { ListCapabilitiesTool } from "../core-tools/list-capabilities.js";
 import { isGaiaAnswerCorrect, normalizeGaiaAnswer } from "./gaia-normalizer.js";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
