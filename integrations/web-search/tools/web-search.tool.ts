@@ -1,6 +1,9 @@
 import { z } from "zod";
 import type { Tool, ToolContext } from "../../../common/interfaces/types.js";
-import { parseToolInput, zodSchemaToJsonInputSchema } from "../../../common/services/zod-tool-schema.js";
+import {
+  parseToolInput,
+  zodSchemaToJsonInputSchema,
+} from "../../../common/services/zod-tool-schema.js";
 
 interface TavilySearchResult {
   title?: string;
@@ -19,12 +22,16 @@ export const webSearchInputSchema = z.object({
   query: z.string().min(1).describe("Search query."),
   maxResults: z
     .number()
-    .finite()
     .optional()
-    .describe("1–10; default 5."),
+    .describe(
+      "Number of results to retrieve (1-10, default 5). Use higher values (8-10) when performing research, comparisons, exploration, or when more context could improve answer quality. Use lower values for simple factual lookups.",
+    ),
   includeImages: z
     .boolean()
-    .describe("Whether to include a list of relevant image URLs in the response. This is useful for image retrievals."),
+    .optional()
+    .describe(
+      "Whether to include a list of relevant image URLs in the response. This is useful for image retrievals. Defaults to false.",
+    ),
 });
 
 export type WebSearchInput = z.infer<typeof webSearchInputSchema>;
@@ -34,8 +41,15 @@ export class WebSearchTool implements Tool {
   description = "Search the web with Tavily and return top results.";
   inputSchema = zodSchemaToJsonInputSchema(webSearchInputSchema);
 
-  async run(input: Record<string, unknown>, _context: ToolContext): Promise<unknown> {
-    const { query, maxResults: maxResultsRaw, includeImages } = parseToolInput(this.name, webSearchInputSchema, input);
+  async run(
+    input: Record<string, unknown>,
+    _context: ToolContext,
+  ): Promise<unknown> {
+    const {
+      query,
+      maxResults: maxResultsRaw,
+      includeImages,
+    } = parseToolInput(this.name, webSearchInputSchema, input);
 
     const maxResults =
       typeof maxResultsRaw === "number" && Number.isFinite(maxResultsRaw)
@@ -63,7 +77,9 @@ export class WebSearchTool implements Tool {
 
     if (!response.ok) {
       const errorBody = await response.text();
-      throw new Error(`Tavily web_search failed (${response.status}): ${errorBody}`);
+      throw new Error(
+        `Tavily web_search failed (${response.status}): ${errorBody}`,
+      );
     }
 
     const data = (await response.json()) as TavilySearchResponse;

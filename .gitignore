@@ -68,3 +68,7 @@ memory/long-term.json
 
 # Frontend (Separate Repository)
 AgentX-Frontend/
+
+/memory-bench
+
+/scripts/data
