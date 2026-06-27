@@ -10,7 +10,7 @@ import { logger } from "../../../common/services/logger.js";
 import { parseToolInput, zodSchemaToJsonInputSchema } from "../../../common/services/zod-tool-schema.js";
 
 export const downloadFileInputSchema = z.object({
-  url: z.string().url().describe("HTTPS URL of the file to download."),
+  url: z.string().url().describe("HTTP or HTTPS URL of the file to download."),
   outputPath: z
     .string()
     .min(1)
