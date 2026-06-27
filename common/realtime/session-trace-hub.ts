@@ -65,12 +65,25 @@ export class SessionTraceHub {
   }
 
   broadcastTrace(payload: AgentTracePayload): void {
-    const set = this.sessionSockets.get(payload.sessionId);
-    if (!set?.size) return;
+    // Sub-agent runs use a child session id (`rootId::sub_<uuid>`), but clients
+    // only ever subscribe to the root session. Deliver to both the exact-session
+    // subscribers and the root-session subscribers so delegated traces surface.
+    const rootSessionId = payload.sessionId.split("::")[0];
+
+    const targets = new Set<WebSocket>();
+    for (const ws of this.sessionSockets.get(payload.sessionId) ?? []) {
+      targets.add(ws);
+    }
+    if (rootSessionId !== payload.sessionId) {
+      for (const ws of this.sessionSockets.get(rootSessionId) ?? []) {
+        targets.add(ws);
+      }
+    }
+    if (!targets.size) return;
 
     const frame = JSON.stringify({ type: "agent_trace", payload });
 
-    for (const ws of set) {
+    for (const ws of targets) {
       if (ws.readyState === OPEN) {
         ws.send(frame);
       }
