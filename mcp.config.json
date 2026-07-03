@@ -1,24 +1,27 @@
 {
   "servers": {
-    "github": {
-      "type": "http",
-      "url": "https://api.githubcopilot.com/mcp/",
-      "headers": {
-        "Authorization": "Bearer ${GITHUB_TOKEN}"
-      }
-    },
-    "playwright": {
+    "design": {
       "type": "stdio",
-      "command": "npx",
-      "args": ["@playwright/mcp@latest", "--output-dir", "workspace/playwright-output"],
-      "env": {
-        "NODE_OPTIONS": "--experimental-vm-modules"
-      }
+      "internal": true,
+      "command": "node",
+      "args": ["dist/mcp-servers/design/index.js"]
     },
     "filesystem": {
       "type": "stdio",
+      "internal": true,
       "command": "node",
       "args": ["dist/mcp-servers/filesystem/index.js"]
+    },
+    "web-search": {
+      "type": "stdio",
+      "internal": true,
+      "command": "node",
+      "args": ["dist/mcp-servers/web-search/index.js"]
+    },
+    "miro": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://mcp.miro.com/"]
     }
   }
 }

@@ -1,12 +1,13 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { ToolRegistry } from "../common/interfaces/registry.js";
 import type { JsonInputSchema } from "../common/interfaces/types.js";
 import { logger } from "../common/services/logger.js";
 
 export type McpServerConfig =
-  | { name: string; type?: "stdio"; command: string; args?: string[]; env?: Record<string, string> }
+  | { name: string; type?: "stdio"; command: string; args?: string[]; env?: Record<string, string>; internal?: boolean }
   | { name: string; type: "http" | "sse"; url: string; headers?: Record<string, string> };
 
 export class McpClientManager {
@@ -19,16 +20,19 @@ export class McpClientManager {
         let isInternal = false;
 
         if ("command" in config) {
-          isInternal = true;
+          isInternal = config.internal ?? false;
           await client.connect(new StdioClientTransport({
             command: config.command,
             args: config.args ?? [],
             env: { ...(process.env as Record<string, string>), ...config.env },
           }));
         } else {
-          await client.connect(new StreamableHTTPClientTransport(new URL(config.url), {
-            requestInit: config.headers ? { headers: config.headers } : undefined,
-          }));
+          const requestInit = config.headers ? { headers: config.headers } : undefined;
+          await client.connect(
+            config.type === "sse"
+              ? new SSEClientTransport(new URL(config.url), { requestInit })
+              : new StreamableHTTPClientTransport(new URL(config.url), { requestInit }),
+          );
         }
 
         this.clients.push(client);
